@@ -4,8 +4,13 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12.7"
-dependencies = []
+dependencies = [
+    "cookiemonster",
+]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.uv.sources]
+cookiemonster = { workspace = true }

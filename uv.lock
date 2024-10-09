@@ -4,6 +4,7 @@ requires-python = ">=3.12.7"
 [manifest]
 members = [
     "cookiemonster",
+    "evaluation",
     "on-device-budgeting",
 ]
 
@@ -11,6 +12,17 @@ members = [
 name = "cookiemonster"
 version = "0.1.0"
 source = { editable = "packages/cookiemonster" }
+
+[[package]]
+name = "evaluation"
+version = "0.1.0"
+source = { editable = "packages/evaluation" }
+dependencies = [
+    { name = "cookiemonster" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "cookiemonster", editable = "packages/cookiemonster" }]
 
 [[package]]
 name = "on-device-budgeting"

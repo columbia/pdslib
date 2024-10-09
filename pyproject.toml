@@ -1,0 +1,15 @@
+[project]
+name = "on-device-budgeting"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12.7"
+dependencies = [
+    "cookiemonster"
+]
+
+[tool.uv.workspace]
+members = ["packages/cookiemonster", "packages/evaluation"]
+
+[tool.uv.sources]
+cookiemonster = { workspace = true }

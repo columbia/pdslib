@@ -10,6 +10,7 @@ dependencies = [
     "maturin>=1.7.4",
     "pip>=24.2",
     "uniffi-bindgen>=0.28.0",
+    "rust-just>=1.36.0",
 ]
 
 [tool.uv.workspace]

@@ -3,27 +3,21 @@ requires-python = ">=3.12.7"
 
 [manifest]
 members = [
-    "cookiemonster",
     "evaluation",
     "on-device-budgeting",
     "pdslib",
 ]
 
 [[package]]
-name = "cookiemonster"
-version = "0.1.0"
-source = { editable = "cookiemonster" }
-
-[[package]]
 name = "evaluation"
 version = "0.1.0"
 source = { editable = "evaluation" }
 dependencies = [
-    { name = "cookiemonster" },
+    { name = "pdslib" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "cookiemonster", editable = "cookiemonster" }]
+requires-dist = [{ name = "pdslib", editable = "pdslib" }]
 
 [[package]]
 name = "maturin"
@@ -50,21 +44,21 @@ name = "on-device-budgeting"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
-    { name = "cookiemonster" },
     { name = "evaluation" },
     { name = "maturin" },
     { name = "pdslib" },
     { name = "pip" },
+    { name = "rust-just" },
     { name = "uniffi-bindgen" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "cookiemonster", editable = "cookiemonster" },
     { name = "evaluation", editable = "evaluation" },
     { name = "maturin", specifier = ">=1.7.4" },
     { name = "pdslib", editable = "pdslib" },
     { name = "pip", specifier = ">=24.2" },
+    { name = "rust-just", specifier = ">=1.36.0" },
     { name = "uniffi-bindgen", specifier = ">=0.28.0" },
 ]
 
@@ -80,6 +74,28 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/4d/87/fb90046e096a03aeab235e139436b3fe804cdd447ed2093b0d70eba3f7f8/pip-24.2.tar.gz", hash = "sha256:5b5e490b5e9cb275c879595064adce9ebd31b854e3e803740b72f9ccf34a45b8", size = 1922041 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d4/55/90db48d85f7689ec6f81c0db0622d704306c5284850383c090e6c7195a5c/pip-24.2-py3-none-any.whl", hash = "sha256:2cd581cf58ab7fcfca4ce8efa6dcacd0de5bf8d0a3eb9ec927e07405f4d9e2a2", size = 1815170 },
+]
+
+[[package]]
+name = "rust-just"
+version = "1.36.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/5e/cf/6a9b00a10a98abc74b3ab6e53f53a7e738090dd4db8183d6fe7a2a80bb43/rust_just-1.36.0.tar.gz", hash = "sha256:9e1dd70afdc23f7c1223ec90213e4186113a6d2c85179576dc12d2930ca3b1b5", size = 1371677 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7d/03/fa2a9ecc02c4ab0dd2d6758f8f79be5796018867df4633a6e697a625a8e2/rust_just-1.36.0-py3-none-macosx_10_12_x86_64.whl", hash = "sha256:b3bd511b681bcf5a7acc44134571e9016f70811b69f951395d876f8c605a0dbc", size = 1722391 },
+    { url = "https://files.pythonhosted.org/packages/9b/dd/40d5513e89a37b068b0dde653422c00420371381c8fa233d47175dbdddc7/rust_just-1.36.0-py3-none-macosx_11_0_arm64.whl", hash = "sha256:4af6c6f4a5560bf6992624b994c590fa4cd4e5c6ace06e912c092456db76605d", size = 1596510 },
+    { url = "https://files.pythonhosted.org/packages/f9/03/8fb8081e43f1834c2cc53513d0ac8eef5a6f3e67b7c7b30cf3b7087ff796/rust_just-1.36.0-py3-none-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:c93cfacdd8ee0b37e4991d26e10636c4bebc1a5034e5dc7aa5ceb60c52deb594", size = 1763779 },
+    { url = "https://files.pythonhosted.org/packages/04/56/f3c95e58bfdf402dd787c83b517e5d7fe95529a6f92414d9b3cbd284513f/rust_just-1.36.0-py3-none-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:887a691b986e529db9441f219824743d3954869c5714c4193c99cdddd45a017a", size = 1769749 },
+    { url = "https://files.pythonhosted.org/packages/6d/5a/798a8c1456519692904ea367275aba9cb642e8055469bee09a97d57acc45/rust_just-1.36.0-py3-none-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:931c2645b55fbab70e646846613fcad0daa4fbd70e96d22f5a4be7c6898cb101", size = 1844813 },
+    { url = "https://files.pythonhosted.org/packages/76/8a/5562ceade5bbc6ac3abf96925964b445abd7d49f93f54b09034a14b768a4/rust_just-1.36.0-py3-none-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:bc771bb42be9f84e71e4796dfdf01f80f5c061d9c8065e375d0d54dda0177391", size = 1905175 },
+    { url = "https://files.pythonhosted.org/packages/5a/d7/d34891a5347f2d1f3e3ed0644a54541aef0fb17691604f77a5be6d82b2b1/rust_just-1.36.0-py3-none-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:5edcc088acfb6d3d5dc6912e742133ff0909d07b5db2f4874648078ccfb44e94", size = 2339272 },
+    { url = "https://files.pythonhosted.org/packages/14/17/43ae69d6bd8f92e7f5b4de299f69ae06fd8c6e6170158abbfb0ee829162e/rust_just-1.36.0-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:24aaa7b9defd41e020c62431b6bf068bdabe57c2938659ce7f513555dc98c100", size = 1843765 },
+    { url = "https://files.pythonhosted.org/packages/88/a5/248d0a2f4d07203eb93276d6a9799cde4a693d9c8355b4528a0dd81f63e8/rust_just-1.36.0-py3-none-musllinux_1_2_aarch64.whl", hash = "sha256:da69002d29f88796543787c3bd7a42643ce4a94b83b8e52ee87e27d98e6707d6", size = 1726161 },
+    { url = "https://files.pythonhosted.org/packages/fc/4c/ae3a36325bd8bee565daf3f1c809fb827dca5062b783db0226ff79121870/rust_just-1.36.0-py3-none-musllinux_1_2_armv7l.whl", hash = "sha256:c63f525cc8521c7dd912f68ae74a44f91ffc411cbadf4b7711ca508dde78c17a", size = 1722340 },
+    { url = "https://files.pythonhosted.org/packages/78/c3/86c4397bf29fb911acd1f3a5f77484f9551418297c1dd446e530fac92064/rust_just-1.36.0-py3-none-musllinux_1_2_i686.whl", hash = "sha256:31d1f4f654ee8995d0223abc4306c28c6f771ea1fa8df60154d1e93ceb16be09", size = 1765119 },
+    { url = "https://files.pythonhosted.org/packages/12/3d/4b75b529a61db178d0e43b8d3b5bb2a17f213efd7f859e7bd98adb35caf8/rust_just-1.36.0-py3-none-musllinux_1_2_x86_64.whl", hash = "sha256:a6e2194f6c01a152aa8d55e10f092e581000360f74de3d59eb288628c033cf7a", size = 1827204 },
+    { url = "https://files.pythonhosted.org/packages/9c/ec/719420c799eee63166340ae00b88a16e44be8f29dadde72f8853a3053152/rust_just-1.36.0-py3-none-win32.whl", hash = "sha256:24e362a56104d2ff20b9116a4ea8d907ddaba9915c4714d3fc5a7936133961c3", size = 1516040 },
+    { url = "https://files.pythonhosted.org/packages/72/33/fdcf2af7dd7fc9648452bb4b9a3515e991ee98df1f78a9cdd2b87c2f8cc9/rust_just-1.36.0-py3-none-win_amd64.whl", hash = "sha256:8556842d70d49ab4872ba179d375f3eba0473e00f11da07b2ca7391e3e6ecf96", size = 1644006 },
 ]
 
 [[package]]

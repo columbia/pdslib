@@ -1,9 +1,16 @@
-import cookiemonster
+import evaluation
+import pdslib
+from pdslib import add
+
 
 def main():
     print("Hello from on-device-budgeting!")
-    
-    print(cookiemonster.hello())
+
+    print(evaluation.hello())
+
+    print(add(1, 2))
+
+    print(pdslib.__dict__)
 
 
 if __name__ == "__main__":

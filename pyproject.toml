@@ -5,11 +5,17 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12.7"
 dependencies = [
-    "cookiemonster"
+    "evaluation",
+    "pdslib",
+    "maturin>=1.7.4",
+    "pip>=24.2",
+    "uniffi-bindgen>=0.28.0",
 ]
 
 [tool.uv.workspace]
-members = ["packages/cookiemonster", "packages/evaluation"]
+members = ["evaluation", "pdslib"]
 
 [tool.uv.sources]
-cookiemonster = { workspace = true }
+evaluation = { workspace = true }
+pdslib = { workspace = true }
+

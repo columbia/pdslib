@@ -6,23 +6,44 @@ members = [
     "cookiemonster",
     "evaluation",
     "on-device-budgeting",
+    "pdslib",
 ]
 
 [[package]]
 name = "cookiemonster"
 version = "0.1.0"
-source = { editable = "packages/cookiemonster" }
+source = { editable = "cookiemonster" }
 
 [[package]]
 name = "evaluation"
 version = "0.1.0"
-source = { editable = "packages/evaluation" }
+source = { editable = "evaluation" }
 dependencies = [
     { name = "cookiemonster" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "cookiemonster", editable = "packages/cookiemonster" }]
+requires-dist = [{ name = "cookiemonster", editable = "cookiemonster" }]
+
+[[package]]
+name = "maturin"
+version = "1.7.4"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/51/28/31a650d9209d873b6aec759c944bd284155154d7a01f7f541786d7c435ca/maturin-1.7.4.tar.gz", hash = "sha256:2b349d742a07527d236f0b4b6cab26f53ebecad0ceabfc09ec4c6a396e3176f9", size = 191145 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/85/19/b5be36f3cb30ba72aa2232492d4462409955da134ea25083f0e625618082/maturin-1.7.4-py3-none-linux_armv6l.whl", hash = "sha256:eb7b7753b733ae302c08f80bca7b0c3fda1eea665c2b1922c58795f35a54c833", size = 8215481 },
+    { url = "https://files.pythonhosted.org/packages/4f/0a/1b2a2fda3f338dedd219de358d77b01f1138bc4bc6b4c73b6ea01d8ddd9e/maturin-1.7.4-py3-none-macosx_10_12_x86_64.macosx_11_0_arm64.macosx_10_12_universal2.whl", hash = "sha256:0182a9638399c8835afd39d2aeacf56908e37cba3f7abb15816b9df6774fab81", size = 15930801 },
+    { url = "https://files.pythonhosted.org/packages/21/df/f75dcd8472f3be5b528942b11444eb4a82aa1aced7d105a8ba39bb85ece8/maturin-1.7.4-py3-none-macosx_10_12_x86_64.whl", hash = "sha256:41a29c5b23f3ebdfe7633637e3de256579a1b2700c04cd68c16ed46934440c5a", size = 8166643 },
+    { url = "https://files.pythonhosted.org/packages/87/43/52baa75e6dae9848ea22ae6bd405e7f7da091ba63409b07912048fde2083/maturin-1.7.4-py3-none-manylinux_2_12_i686.manylinux2010_i686.musllinux_1_1_i686.whl", hash = "sha256:23fae44e345a2da5cb391ae878726fb793394826e2f97febe41710bd4099460e", size = 8560688 },
+    { url = "https://files.pythonhosted.org/packages/84/97/5e2bfbcf42725ba5f64310423edcf00d90e684a61d55dd0a26b2313a44b6/maturin-1.7.4-py3-none-manylinux_2_12_x86_64.manylinux2010_x86_64.musllinux_1_1_x86_64.whl", hash = "sha256:8b441521c151f0dbe70ed06fb1feb29b855d787bda038ff4330ca962e5d56641", size = 8939107 },
+    { url = "https://files.pythonhosted.org/packages/34/59/e0d58ce67a8a6245dcb74ffb81cb12f0cda8b622c8d902f2371de742ae04/maturin-1.7.4-py3-none-manylinux_2_17_aarch64.manylinux2014_aarch64.musllinux_1_1_aarch64.whl", hash = "sha256:7ccb66d0c5297cf06652c5f72cb398f447d3a332eccf5d1e73b3fe14dbc9498c", size = 8425431 },
+    { url = "https://files.pythonhosted.org/packages/53/20/4b79324b14a1f39b2c66eb1ad681cf8b0fff1f905374b0cca59fc9c8ef7a/maturin-1.7.4-py3-none-manylinux_2_17_armv7l.manylinux2014_armv7l.musllinux_1_1_armv7l.whl", hash = "sha256:71f668f19e719048605dbca6a1f4d0dc03b987c922ad9c4bf5be03b9b278e4c3", size = 8104459 },
+    { url = "https://files.pythonhosted.org/packages/7f/fa/8d9497c62451fc19f52cda1ad652c5dca4e9646ff93be35250070afbc2af/maturin-1.7.4-py3-none-manylinux_2_17_ppc64le.manylinux2014_ppc64le.musllinux_1_1_ppc64le.whl", hash = "sha256:c179fcb2b494f19186781b667320e43d95b3e71fcb1c98fffad9ef6bd6e276b3", size = 8729663 },
+    { url = "https://files.pythonhosted.org/packages/a4/e9/15a24263de981928303ca64465d5d9d5062f248b9ceaab3de5857ee0ba83/maturin-1.7.4-py3-none-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:fd5b4b95286f2f376437340f8a4908f4761587212170263084455be8099099a7", size = 10142511 },
+    { url = "https://files.pythonhosted.org/packages/a5/5d/59765561ea1a5f993141a403eb4ae85b7a8bd118971de0ed14048e3faf7f/maturin-1.7.4-py3-none-win32.whl", hash = "sha256:35487a424467d1fda4567cbb02d21f09febb10eda22f5fd647b130bc0767dc61", size = 6578873 },
+    { url = "https://files.pythonhosted.org/packages/72/50/a9b402aa506bad6c066c7775b1cb3036b7b1c74b9de708ed537ee804ea4a/maturin-1.7.4-py3-none-win_amd64.whl", hash = "sha256:f70c1c8ec9bd4749a53c0f3ae8fdbb326ce45be4f1c5551985ee25a6d7150328", size = 7442039 },
+    { url = "https://files.pythonhosted.org/packages/30/38/8e27282ab6ff94291f04e3eb11ba960dfb487605d73cec75177d3a29879a/maturin-1.7.4-py3-none-win_arm64.whl", hash = "sha256:f3d38a6d0c7fd7b04bec30dd470b2173cf9bd184ab6220c1acaf49df6b48faf5", size = 6388008 },
+]
 
 [[package]]
 name = "on-device-budgeting"
@@ -30,7 +51,48 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "cookiemonster" },
+    { name = "evaluation" },
+    { name = "maturin" },
+    { name = "pdslib" },
+    { name = "pip" },
+    { name = "uniffi-bindgen" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "cookiemonster", editable = "packages/cookiemonster" }]
+requires-dist = [
+    { name = "cookiemonster", editable = "cookiemonster" },
+    { name = "evaluation", editable = "evaluation" },
+    { name = "maturin", specifier = ">=1.7.4" },
+    { name = "pdslib", editable = "pdslib" },
+    { name = "pip", specifier = ">=24.2" },
+    { name = "uniffi-bindgen", specifier = ">=0.28.0" },
+]
+
+[[package]]
+name = "pdslib"
+version = "0.1.0"
+source = { editable = "pdslib" }
+
+[[package]]
+name = "pip"
+version = "24.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/4d/87/fb90046e096a03aeab235e139436b3fe804cdd447ed2093b0d70eba3f7f8/pip-24.2.tar.gz", hash = "sha256:5b5e490b5e9cb275c879595064adce9ebd31b854e3e803740b72f9ccf34a45b8", size = 1922041 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d4/55/90db48d85f7689ec6f81c0db0622d704306c5284850383c090e6c7195a5c/pip-24.2-py3-none-any.whl", hash = "sha256:2cd581cf58ab7fcfca4ce8efa6dcacd0de5bf8d0a3eb9ec927e07405f4d9e2a2", size = 1815170 },
+]
+
+[[package]]
+name = "uniffi-bindgen"
+version = "0.28.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/d1/4c/8aa439a8983527c4588867e63ef1066dafdaaf6548a150348498e7bcb1dc/uniffi_bindgen-0.28.0.tar.gz", hash = "sha256:66bf35bc028841f4a04a6fff079b41765f7c077b98d9ad861d85356eeba01e8a", size = 5380 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b3/c7/f8fac0c48641ea76a939fc91bf847bccbc91348d91941cfcdcfb6d8d75bc/uniffi_bindgen-0.28.0-py3-none-macosx_10_12_x86_64.whl", hash = "sha256:8cc8d736416f60434d0ac22e35d0725c623c683e322fadc62bd96a0903c8f73e", size = 1800618 },
+    { url = "https://files.pythonhosted.org/packages/b7/1a/5156360c4b5d7f385acc91a854cf1e071d18862cb1c6e877a824c89886be/uniffi_bindgen-0.28.0-py3-none-macosx_11_0_arm64.whl", hash = "sha256:44cf1a390b7cda93795a4b307e10706374d950724ec722617544045d5e89c643", size = 1747565 },
+    { url = "https://files.pythonhosted.org/packages/07/9d/7d8ba2d8fcb384dc3709d9bdfd4877229f0ae73f6ee6cb0a7e959ffabe5e/uniffi_bindgen-0.28.0-py3-none-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:0ec6262d2189e874effb3fd3c650d1d63d87e71637087cbdc20352690d31dd3a", size = 1901839 },
+    { url = "https://files.pythonhosted.org/packages/05/41/e493e6de4d07c0b1ef462b3f813019634e52b945046cc85b72b5bc4444b1/uniffi_bindgen-0.28.0-py3-none-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:eaa949db1662cdebe8d2c5bc3ff3f287a6f285ab33062069bf1523355ebd698e", size = 2059217 },
+    { url = "https://files.pythonhosted.org/packages/44/26/3de3c34fd5bd887d41bbae24d98f8cf0a5cc8c6370ed817337a0e36a07ec/uniffi_bindgen-0.28.0-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:f350f325ced42864f1ad1e6fc632eba371cd19638e830894dabc750a3881befe", size = 1916449 },
+    { url = "https://files.pythonhosted.org/packages/c4/e2/2fa593fd6b6d5aee76e52bbe882f3882bdf18d444095d3086cb5d011e6f4/uniffi_bindgen-0.28.0-py3-none-win32.whl", hash = "sha256:ec6b73e7df26d5baf68e6a5fe1aff6b210fd5efd432d0dbec56dafc09e798a6a", size = 1402869 },
+    { url = "https://files.pythonhosted.org/packages/9b/36/cac8c55c84d9e7f891fe0035f401076b576293b241aaf923d7c5dd2a2b06/uniffi_bindgen-0.28.0-py3-none-win_amd64.whl", hash = "sha256:cbe8cab2c2327f7a40b3c512ace6ee5dd8ec285289b90defb144a14b5fbba8e1", size = 1585817 },
+]

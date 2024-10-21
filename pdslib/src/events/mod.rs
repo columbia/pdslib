@@ -1,2 +1,2 @@
 pub mod traits;
-pub mod simple;
+pub mod simple_events;

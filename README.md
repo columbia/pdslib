@@ -2,9 +2,9 @@
 
 ## Tasks
 
-- [] What can we learn from https://private-attribution.github.io/api/? Terminology, API design, structure. Any implementation? Also see slides: https://github.com/patcg/meetings/blob/main/2024/09/27-tpac/Privacy-Preserving%20Attribution%20Proposed%20Roadmap.pdf. But keep in mind that we want to support use cases beyond advertising.
-- [] Generate Kotlin bindings with UniFFI to check that the Rust `pdslib` crate will be usable in Android. See https://mozilla.github.io/uniffi-rs/latest/tutorial/foreign_language_bindings.html
-- [] Check whether we can reuse the OpenDP accountant if we want to use RDP/zCDP, without having to execute a measurement on real data. Check out the `compose` function here: https://docs.rs/opendp/latest/opendp/measures/struct.ZeroConcentratedDivergence.html, check if they offer filters directly.
+- [ ] What can we learn from https://private-attribution.github.io/api/? Terminology, API design, structure. Any implementation? Also see slides: https://github.com/patcg/meetings/blob/main/2024/09/27-tpac/Privacy-Preserving%20Attribution%20Proposed%20Roadmap.pdf. But keep in mind that we want to support use cases beyond advertising.
+- [ ] Generate Kotlin bindings with UniFFI to check that the Rust `pdslib` crate will be usable in Android. See https://mozilla.github.io/uniffi-rs/latest/tutorial/foreign_language_bindings.html
+- [ ] Check whether we can reuse the OpenDP accountant if we want to use RDP/zCDP, without having to execute a measurement on real data. Check out the `compose` function here: https://docs.rs/opendp/latest/opendp/measures/struct.ZeroConcentratedDivergence.html, check if they offer filters directly.
 
 ## Getting started
 

@@ -10,7 +10,9 @@ pub struct PureDPBudgetFilter {
 
 impl Filter<PureDPBudget> for PureDPBudgetFilter {
     fn new(capacity: PureDPBudget) -> Self {
-        Self { remaining_budget: capacity }
+        Self {
+            remaining_budget: capacity,
+        }
     }
 
     fn try_consume(&mut self, budget: PureDPBudget) -> Result<(), ()> {

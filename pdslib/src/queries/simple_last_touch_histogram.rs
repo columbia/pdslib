@@ -5,7 +5,7 @@ use crate::queries::traits::ReportRequest;
 // TODO: relevant events?
 
 #[derive(Debug)]
-pub struct SimpleLastTouchHistograRequest {
+pub struct SimpleLastTouchHistogramRequest {
     pub epoch_start: usize,
     pub epoch_end: usize,
     pub attributable_value: f64,
@@ -17,7 +17,7 @@ pub struct SimpleLastTouchHistogramReport {
     pub attributed_value: Option<(String, f64)>,
 }
 
-impl ReportRequest for SimpleLastTouchHistograRequest {
+impl ReportRequest for SimpleLastTouchHistogramRequest {
     type EpochId = usize;
     type EpochEvents = SimpleEpochEvents;
     type Report = SimpleLastTouchHistogramReport;

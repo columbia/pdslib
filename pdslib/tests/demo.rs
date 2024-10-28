@@ -3,10 +3,7 @@ use pdslib::budget::pure_dp_filter::{PureDPBudget, PureDPBudgetFilter};
 use pdslib::events::simple_events::{SimpleEvent, SimpleEventStorage};
 use pdslib::pds::implem::PrivateDataServiceImpl;
 use pdslib::pds::traits::PrivateDataService;
-use pdslib::queries::simple_last_touch_histogram::{
-    SimpleLastTouchAttributionReportRequest, SimpleLastTouchHistogramQuery,
-    SimpleLastTouchHistogramReport,
-};
+use pdslib::queries::simple_last_touch_histogram::SimpleLastTouchHistogramRequest;
 
 #[test]
 fn main() {
@@ -20,6 +17,7 @@ fn main() {
     let mut pds = PrivateDataServiceImpl {
         filter_storage: filters,
         event_storage: events,
+        _phantom: std::marker::PhantomData::<SimpleLastTouchHistogramRequest>,
     };
 
     let event = SimpleEvent {
@@ -28,10 +26,11 @@ fn main() {
         value: 3,
     };
     pds.register_event(event).unwrap();
-    let report_request = SimpleLastTouchAttributionReportRequest {
+    let report_request = SimpleLastTouchHistogramRequest {
+        epoch_start: 1,
+        epoch_end: 1,
         attributable_value: 3.0,
     };
-    let report =
-        pds.compute_report::<SimpleLastTouchHistogramQuery>(report_request);
+    let report = pds.compute_report(report_request);
     assert_eq!(report.attributed_value, None);
 }

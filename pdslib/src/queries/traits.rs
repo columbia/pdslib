@@ -2,8 +2,6 @@
 
 use std::fmt::Debug;
 
-use crate::events::traits::{Event, EventStorage};
-
 // TODO: another trait for queries, that combine reports?
 
 /// Trait for an epoch-based query.

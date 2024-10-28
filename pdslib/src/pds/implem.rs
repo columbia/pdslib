@@ -7,20 +7,24 @@ use crate::queries::traits::ReportRequest;
 /// storage and event storage interfaces. We might want other implementations
 /// eventually, but at first this implementation should cover most use cases,
 /// as we can swap the types of events, filters and queries.
-pub struct PrivateDataServiceImpl<Filters: FilterStorage, Events: EventStorage, RR: ReportRequest>
-{
+pub struct PrivateDataServiceImpl<
+    Filters: FilterStorage,
+    Events: EventStorage,
+    RR: ReportRequest,
+> {
     pub filter_storage: Filters,
     pub event_storage: Events,
-    pub report_request: RR
+    pub _phantom: std::marker::PhantomData<RR>, // Store the type of accepted queries.
 }
 
-impl<FS, ES, E, RR, EI, EE> PrivateDataService for PrivateDataServiceImpl<FS, ES, RR>
+impl<FS, ES, E, RR, EI, EE> PrivateDataService
+    for PrivateDataServiceImpl<FS, ES, RR>
 where
     // Q: Query, // TODO: maybe particular type?
     FS: FilterStorage,
     ES: EventStorage<Event = E, EpochEvents = EE>,
     E: Event<EpochId = EI>,
-    RR: ReportRequest<EpochId = EI, EpochEvents = EE>
+    RR: ReportRequest<EpochId = EI, EpochEvents = EE>,
 {
     type Event = E;
     type ReportRequest = RR;
@@ -31,8 +35,7 @@ where
         self.event_storage.add_event(event)
     }
 
-    fn compute_report(&mut self, request: Self:: ReportRequest) -> Self::Report
-    {
+    fn compute_report(&mut self, request: Self::ReportRequest) -> Self::Report {
         print!("Computing report for request {:?}", request);
         // TODO: collect events from event storage.
         // It means the request should give a list of epochs.
@@ -48,11 +51,11 @@ where
 
         // TODO: ensure types match.
         let unbiased_report = request.compute_report(&all_epoch_events);
-        
+
         // TODO: compute individual budgets for each epoch, consume from filters, compute biased report.
         // NOTE: for debugging, we'd like an unbiased report. Use a tuple then?
 
-        // TODO: return the report that is desired. Temporarily returning unbiased_report to compile successfully. 
+        // TODO: return the report that is desired. Temporarily returning unbiased_report to compile successfully.
         unbiased_report
     }
 }

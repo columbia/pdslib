@@ -1,5 +1,3 @@
-use crate::queries::traits::ReportRequest;
-
 pub trait PrivateDataService {
     type Event;
     type ReportRequest;
@@ -8,5 +6,5 @@ pub trait PrivateDataService {
     fn register_event(&mut self, event: Self::Event) -> Result<(), ()>;
 
     // TODO: where do we restrict the list of supported query types? Maybe allow them all to run for now, an return null reports if not supported?
-    fn compute_report(&mut self, request: Self:: ReportRequest) -> Self::Report;
+    fn compute_report(&mut self, request: Self::ReportRequest) -> Self::Report;
 }

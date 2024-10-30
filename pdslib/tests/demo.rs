@@ -23,27 +23,27 @@ fn main() {
     let event = SimpleEvent {
         id: 1,
         epoch_number: 1,
-        value: 3.0,
+        event_key: 3,
     };
     let event2 = SimpleEvent {
         id: 1,
         epoch_number: 2,
-        value: 3.0,
+        event_key: 3,
     };
     let event3 = SimpleEvent {
         id: 2,
         epoch_number: 2,
-        value: 3.0,
+        event_key: 3,
     };
     let event4 = SimpleEvent {
         id: 1,
         epoch_number: 3,
-        value: 3.0,
+        event_key: 3,
     };
 
-    let bucket = Some((format!("{}_{}", event.id, event.epoch_number), event.value));
-    let bucket2 = Some((format!("{}_{}", event3.id, event3.epoch_number), event3.value));
-    let bucket3 = Some((format!("{}_{}", event4.id, event4.epoch_number), 1.0));
+    let bucket = Some((format!("{}_{}_{}", event.id, event.epoch_number, event.event_key), 3.0));
+    let bucket2 = Some((format!("{}_{}_{}", event3.id, event3.epoch_number, event2.event_key), 3.0));
+    let bucket3 = Some((format!("{}_{}_{}", event4.id, event4.epoch_number, event3.event_key), 3.0));
 
     pds.register_event(event).unwrap();
     let report_request = SimpleLastTouchHistogramRequest {
@@ -77,7 +77,7 @@ fn main() {
     let report_request3 = SimpleLastTouchHistogramRequest {
         epoch_start: 1,
         epoch_end: 3,
-        attributable_value: 1.0,
+        attributable_value: 3.0,
     };
     let report3 = pds.compute_report(report_request3);
     assert_eq!(report3.attributed_value, bucket3);

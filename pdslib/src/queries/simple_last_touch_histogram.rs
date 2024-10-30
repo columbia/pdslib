@@ -35,15 +35,18 @@ impl ReportRequest for SimpleLastTouchHistogramRequest {
     {
         // We assume that all_epoch_events is always stored in the order that they occured
         for epoch_events in all_epoch_events.iter().rev() {
+            // For now, we assume that all the events are relevant, so we just need to check the most recent one.
+            // TODO: eventually add the notion of "relevant events" to the `SimpleEvent` struct, and browse all the events from `epoch_events` instead of the last one.
             if let Some(last_impression) = epoch_events.last() {
                 if last_impression.epoch_number > self.epoch_end || last_impression.epoch_number < self.epoch_start {
                     continue;
                 }
                 let impression_epoch_number = last_impression.epoch_number;
                 let impression_id = last_impression.id;
+                let impression_event_key = last_impression.event_key;
 
-                let bucket_key = format!("{}_{}", impression_id, impression_epoch_number);
-                let bucket_value = last_impression.value.min(self.attributable_value);
+                let bucket_key = format!("{}_{}_{}", impression_id, impression_epoch_number, impression_event_key);
+                let bucket_value = self.attributable_value;
              
                 return SimpleLastTouchHistogramReport {
                     attributed_value: Some((bucket_key, bucket_value)),
@@ -54,7 +57,7 @@ impl ReportRequest for SimpleLastTouchHistogramRequest {
         // No impressions were found so we return a report with a zero-value bucket.
         let bucket_key = format!("{}_{}", 0, 0);
         SimpleLastTouchHistogramReport {
-            attributed_value: Some((bucket_key, 0.0)),
+            attributed_value: None,
         }
     }
 

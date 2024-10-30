@@ -14,7 +14,7 @@ pub struct SimpleLastTouchHistogramRequest {
 #[derive(Debug)]
 pub struct SimpleLastTouchHistogramReport {
     // Value attributed to one bin or None if no attribution
-    pub attributed_value: Option<(String, f64)>,
+    pub attributed_value: Option<(usize, f64)>,
 }
 
 impl ReportRequest for SimpleLastTouchHistogramRequest {
@@ -31,8 +31,28 @@ impl ReportRequest for SimpleLastTouchHistogramRequest {
     fn compute_report(
         &self,
         all_epoch_events: &Vec<Self::EpochEvents>,
-    ) -> Self::Report {
-        // TODO: implement for real
+    ) -> Self::Report 
+    {
+        // We assume that all_epoch_events is always stored in the order that they occured
+        for epoch_events in all_epoch_events.iter().rev() {
+            // For now, we assume that all the events are relevant, so we just need to check the most recent one.
+            // TODO: eventually add the notion of "relevant events" to the `SimpleEvent` struct, and browse all the events from `epoch_events` instead of the last one.
+            if let Some(last_impression) = epoch_events.last() {
+                if last_impression.epoch_number > self.epoch_end || last_impression.epoch_number < self.epoch_start {
+                    continue;
+                }
+
+                // TODO: allow ReportRequest to give a custom impression_key -> bucket_key mapping. Also potentially depending on the conversion key. Check how ARA implements it with the source/trigger keypiece.
+                let bucket_key = last_impression.event_key; 
+                let bucket_value = self.attributable_value;
+             
+                return SimpleLastTouchHistogramReport {
+                    attributed_value: Some((bucket_key, bucket_value)),
+                };
+            }
+        }
+
+        // No impressions were found so we return a report with a None bucket.
         SimpleLastTouchHistogramReport {
             attributed_value: None,
         }

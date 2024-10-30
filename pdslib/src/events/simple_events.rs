@@ -6,7 +6,8 @@ use std::collections::HashMap;
 pub struct SimpleEvent {
     pub id: usize,
     pub epoch_number: usize,
-    pub value: usize,
+    pub event_key: usize,
+    // TODO: consider adding timestamp
 }
 
 impl Event for SimpleEvent {
@@ -66,7 +67,7 @@ mod tests {
         let event = SimpleEvent {
             id: 1,
             epoch_number: 1,
-            value: 3,
+            event_key: 3,
         };
         assert_eq!(event.id, 1);
     }

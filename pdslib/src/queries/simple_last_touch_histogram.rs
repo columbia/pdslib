@@ -31,10 +31,30 @@ impl ReportRequest for SimpleLastTouchHistogramRequest {
     fn compute_report(
         &self,
         all_epoch_events: &Vec<Self::EpochEvents>,
-    ) -> Self::Report {
-        // TODO: implement for real
+    ) -> Self::Report 
+    {
+        // We assume that all_epoch_events is always stored in the order that they occured
+        for epoch_events in all_epoch_events.iter().rev() {
+            if let Some(last_impression) = epoch_events.last() {
+                if last_impression.epoch_number > self.epoch_end || last_impression.epoch_number < self.epoch_start {
+                    continue;
+                }
+                let impression_epoch_number = last_impression.epoch_number;
+                let impression_id = last_impression.id;
+
+                let bucket_key = format!("{}_{}", impression_id, impression_epoch_number);
+                let bucket_value = last_impression.value.min(self.attributable_value);
+             
+                return SimpleLastTouchHistogramReport {
+                    attributed_value: Some((bucket_key, bucket_value)),
+                };
+            }
+        }
+
+        // No impressions were found so we return a report with a zero-value bucket.
+        let bucket_key = format!("{}_{}", 0, 0);
         SimpleLastTouchHistogramReport {
-            attributed_value: None,
+            attributed_value: Some((bucket_key, 0.0)),
         }
     }
 

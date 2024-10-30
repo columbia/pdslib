@@ -22,3 +22,11 @@ jobs:
     - name: Run tests
       working-directory: ./pdslib
       run: cargo test --verbose
+
+  demo:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: extractions/setup-just@v2
+    - name: Demo
+      run: just demo

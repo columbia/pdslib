@@ -41,9 +41,9 @@ fn main() {
         event_key: 3,
     };
 
-    let bucket = Some((format!("{}_{}_{}", event.id, event.epoch_number, event.event_key), 3.0));
-    let bucket2 = Some((format!("{}_{}_{}", event3.id, event3.epoch_number, event2.event_key), 3.0));
-    let bucket3 = Some((format!("{}_{}_{}", event4.id, event4.epoch_number, event3.event_key), 3.0));
+    let bucket = Some((event.event_key, 3.0));
+    let bucket2 = Some((event2.event_key, 3.0));
+    let bucket3 = Some((event3.event_key, 3.0));
 
     pds.register_event(event).unwrap();
     let report_request = SimpleLastTouchHistogramRequest {

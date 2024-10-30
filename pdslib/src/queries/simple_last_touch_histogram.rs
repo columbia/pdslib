@@ -45,6 +45,7 @@ impl ReportRequest for SimpleLastTouchHistogramRequest {
                 let impression_id = last_impression.id;
                 let impression_event_key = last_impression.event_key;
 
+                // TODO: allow ReportRequest to give a custom impression_key -> bucket_key mapping. Also potentially depending on the conversion key. Check how ARA implements it with the source/trigger keypiece.
                 let bucket_key = format!("{}_{}_{}", impression_id, impression_epoch_number, impression_event_key);
                 let bucket_value = self.attributable_value;
              

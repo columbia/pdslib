@@ -10,6 +10,7 @@ pub trait ReportRequest: Debug {
     type EpochEvents: Debug;
     type Report: Debug;
     type PrivacyBudget;
+    type ReportGlobalSensitivity;
 
     // TODO: add function to compute report
 
@@ -29,4 +30,20 @@ pub trait ReportRequest: Debug {
         &self,
         epoch_events: &Self::EpochEvents,
     ) -> Self::PrivacyBudget;
+
+    fn get_attributed_value(&self, report: &Self::Report) -> f64 {
+        // Returns 0 if not filled with value
+        0.0
+    }
+
+    fn get_global_sensitivity(&self) -> f64 {
+        0.0
+    }
+
+    fn get_requested_epsilon(
+        &self,
+        epoch_events: &Self::EpochEvents,
+    ) -> f64 {
+        0.0
+    }
 }

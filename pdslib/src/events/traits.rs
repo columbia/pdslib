@@ -21,6 +21,11 @@ pub trait EventStorage {
     // TODO: allow to filter relevant events for a query?
     fn get_epoch_events(
         &self,
-        epoch_id: <Self::Event as Event>::EpochId,
+        epoch_id: &<Self::Event as Event>::EpochId,
     ) -> Option<Self::EpochEvents>;
+
+    fn get_event_count(
+        &self,
+        epoch_id: &<Self::Event as Event>::EpochId,
+    ) -> usize;
 }

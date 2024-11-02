@@ -50,6 +50,8 @@ fn main() {
         epoch_start: 1,
         epoch_end: 1,
         attributable_value: 3.0,
+        global_sensitivity: 100.0,
+        requested_epsilon: 1.0,
     };
     let report = pds.compute_report(report_request);
     assert_eq!(report.attributed_value, bucket);
@@ -61,6 +63,8 @@ fn main() {
         epoch_start: 1,
         epoch_end: 1,  //test restricting the end epoch
         attributable_value: 3.0,
+        global_sensitivity: 100.0,
+        requested_epsilon: 1.0,
     };
     let report2 = pds.compute_report(report_request2);
     assert_eq!(report2.attributed_value, bucket);
@@ -68,6 +72,8 @@ fn main() {
         epoch_start: 1,
         epoch_end: 2,
         attributable_value: 3.0,
+        global_sensitivity: 100.0,
+        requested_epsilon: 1.0,
     };
     let report2 = pds.compute_report(report_request2);
     assert_eq!(report2.attributed_value, bucket2);
@@ -78,6 +84,8 @@ fn main() {
         epoch_start: 1,
         epoch_end: 3,
         attributable_value: 3.0,
+        global_sensitivity: 100.0,
+        requested_epsilon: 1.0,
     };
     let report3 = pds.compute_report(report_request3);
     assert_eq!(report3.attributed_value, bucket3);

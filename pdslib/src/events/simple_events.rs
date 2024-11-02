@@ -52,9 +52,16 @@ impl EventStorage for SimpleEventStorage {
 
     fn get_epoch_events(
         &self,
-        epoch_id: <Self::Event as Event>::EpochId,
+        epoch_id: &<Self::Event as Event>::EpochId,
     ) -> Option<Self::EpochEvents> {
         self.epochs.get(&epoch_id).cloned()
+    }
+
+    fn get_event_count(
+        &self,
+        epoch_id: &<Self::Event as Event>::EpochId,
+    ) -> usize {
+        self.get_epoch_events(&epoch_id).map_or(0, |events| events.len())
     }
 }
 

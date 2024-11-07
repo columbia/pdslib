@@ -9,7 +9,6 @@ pub struct SimpleLastTouchHistogramRequest {
     pub epoch_start: usize,
     pub epoch_end: usize,
     pub attributable_value: f64,
-    pub global_sensitivity: f64,
     pub requested_epsilon: f64,
 }
 
@@ -61,27 +60,16 @@ impl ReportRequest for SimpleLastTouchHistogramRequest {
         }
     }
 
-    fn compute_individual_budget(
-        &self,
-        epoch_events: &Self::EpochEvents,
-    ) -> Self::PrivacyBudget {
-        // TODO: implement for real
-        PureDPBudget { epsilon: 1.0 }
-    }
-
     fn get_attributed_value(&self, report: &Self::Report) -> f64 {
         report.attributed_value.map_or(0.0, |(_, value)| value)
     }
 
     fn get_global_sensitivity(&self) -> f64 {
-        return self.global_sensitivity;
+        return self.attributable_value;
     }
 
-    fn get_requested_epsilon(
-        &self,
-        epoch_events: &Self::EpochEvents,
-    ) -> f64 {
-        return self.compute_individual_budget(&epoch_events).epsilon;
+    fn get_requested_epsilon(&self) -> f64 {
+        return self.requested_epsilon;
     }
 
 }

@@ -2,6 +2,7 @@ use crate::budget::traits::FilterStorage;
 use crate::events::traits::{Event, EventStorage};
 use crate::pds::traits::PrivateDataService;
 use crate::queries::traits::ReportRequest;
+use crate::events::simple_events::SimpleEvent;
 
 /// Epoch-based private data service implementation, using generic filter
 /// storage and event storage interfaces. We might want other implementations
@@ -24,7 +25,7 @@ where
     FS: FilterStorage,
     ES: EventStorage<Event = E, EpochEvents = EE>,
     E: Event<EpochId = EI>,
-    RR: ReportRequest<EpochId = EI, EpochEvents = EE>, EE: std::fmt::Debug + Clone
+    RR: ReportRequest<EpochId = EI, EpochEvents = EE>, EE: std::fmt::Debug + Clone + AsRef<[SimpleEvent]>,
 {
     type Event = E;
     type ReportRequest = RR;
@@ -42,14 +43,11 @@ where
         // It means the request should give a list of epochs.
 
         let mut all_epoch_events: Vec<_> = vec![];
-        let mut all_epoch_events_with_counts: Vec<_> = vec![];
         for epoch_id in request.get_epoch_ids() {
             // TODO: ensure epochs match.
             let epoch_events = self.event_storage.get_epoch_events(&epoch_id);
-            let epoch_events_count = self.event_storage.get_event_count(&epoch_id);
             if let Some(epoch_events) = epoch_events {
-                all_epoch_events.push(epoch_events.clone()); // TODO: else, push empty evc or actually None? COMMENT(Mark): Think it works better to push empty evc. 
-                all_epoch_events_with_counts.push((epoch_events, epoch_events_count));
+                all_epoch_events.push(epoch_events.clone()); // TODO: else, push empty evc or actually None? COMMENT(Mark): Think it works better to push empty evc.
             }
         }
 
@@ -59,32 +57,13 @@ where
         // TODO: compute individual sensitivity for each epoch, consume from filters; return null for
         // that part of the report if budget depleted.
         // NOTE: for debugging, we'd like an unbiased report. Use a tuple then?
-        for (epoch_events, epoch_events_count) in all_epoch_events_with_counts.iter() {
-            let individual_sensitivity = self.compute_individual_privacy_loss(&request, &epoch_events, *epoch_events_count, &unbiased_report);
+        for epoch_events in all_epoch_events.iter() {
+            let individual_sensitivity = self.compute_individual_privacy_loss(&request, epoch_events, &unbiased_report);
             println!("Individual sensitivity: {:?}", individual_sensitivity);
         }
 
         // TODO: return the report that is desired. Temporarily returning unbiased_report to compile successfully.
         unbiased_report
-    }
-
-    fn compute_individual_privacy_loss(&self, request: &Self::ReportRequest, epoch_events: &Self::EpochEvents, epoch_events_count: usize, computed_attribution: &Self::Report) -> f64 {
-        // Implement the logic to compute individual privacy loss
-        // Case 1: Empty epoch_event.
-        if epoch_events_count == 0 {
-            return 0.0;
-        }
-
-        let individual_sensitivity: f64;
-        if epoch_events_count == 1 {
-            // Case 2: Exactly one event in epoch_events, then individual sensitivity is the one attribution value.
-            individual_sensitivity = request.get_attributed_value(computed_attribution);
-        }
-        else {
-            // Case 3: Multiple events in epoch_events.
-            individual_sensitivity = request.get_global_sensitivity();
-        }
-        return request.get_requested_epsilon(epoch_events) * individual_sensitivity / request.get_global_sensitivity();
     }
 
     // fn check_and_consume(&self, epoch_data: &EE, budget: &mut f64) -> Option<EE> {
@@ -96,4 +75,33 @@ where
     //         None // Return None if budget is depleted
     //     }
     // }
+}
+
+impl<FS, ES, E, RR, EI, EE> PrivateDataServiceImpl<FS, ES, RR>
+where
+    FS: FilterStorage,
+    ES: EventStorage<Event = E, EpochEvents = EE>,
+    E: Event<EpochId = EI>,
+    RR: ReportRequest<EpochId = EI, EpochEvents = EE>, EE: std::fmt::Debug + Clone + AsRef<[SimpleEvent]>,
+{
+    fn compute_individual_privacy_loss(&self, request: &RR, epoch_events: &EE, computed_attribution: &RR::Report) -> f64 {
+        // Implement the logic to compute individual privacy loss
+        let events_slice = epoch_events.as_ref().to_vec();
+
+        // Case 1: Empty epoch_event.
+        if events_slice.is_empty() {
+            return 0.0;
+        }
+
+        let individual_sensitivity: f64;
+        if events_slice.len() == 1 {
+            // Case 2: Exactly one event in epoch_events, then individual sensitivity is the one attribution value.
+            individual_sensitivity = request.get_attributed_value(computed_attribution);
+        }
+        else {
+            // Case 3: Multiple events in epoch_events.
+            individual_sensitivity = request.get_global_sensitivity();
+        }
+        return request.get_requested_epsilon() * individual_sensitivity / request.get_global_sensitivity();
+    }
 }

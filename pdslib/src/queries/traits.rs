@@ -23,14 +23,6 @@ pub trait ReportRequest: Debug {
         all_epoch_events: &Vec<Self::EpochEvents>, // TODO: maybe take a mapping from epoch Ids to epoch events?
     ) -> Self::Report;
 
-    /// NOTE: more efficient to compute all the budgets at once?
-    /// But seems cleaner to have the budget only depend on one event.
-    /// Refactor if this is too inefficient.
-    fn compute_individual_budget(
-        &self,
-        epoch_events: &Self::EpochEvents,
-    ) -> Self::PrivacyBudget;
-
     fn get_attributed_value(&self, report: &Self::Report) -> f64 {
         // Returns 0 if not filled with value
         0.0
@@ -40,10 +32,7 @@ pub trait ReportRequest: Debug {
         0.0
     }
 
-    fn get_requested_epsilon(
-        &self,
-        epoch_events: &Self::EpochEvents,
-    ) -> f64 {
+    fn get_requested_epsilon(&self) -> f64 {
         0.0
     }
 }

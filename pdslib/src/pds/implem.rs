@@ -102,6 +102,6 @@ where
             // Case 3: Multiple events in epoch_events.
             individual_sensitivity = request.get_global_sensitivity();
         }
-        return request.get_noise_scale() * individual_sensitivity / request.get_global_sensitivity();
+        return request.get_noise_scale() * individual_sensitivity;
     }
 }

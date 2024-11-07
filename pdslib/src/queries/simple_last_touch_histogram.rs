@@ -9,7 +9,7 @@ pub struct SimpleLastTouchHistogramRequest {
     pub epoch_start: usize,
     pub epoch_end: usize,
     pub attributable_value: f64,
-    pub requested_epsilon: f64,
+    pub noise_scale: f64,
 }
 
 #[derive(Debug)]
@@ -90,8 +90,8 @@ impl ReportRequest for SimpleLastTouchHistogramRequest {
         return self.attributable_value;
     }
 
-    fn get_requested_epsilon(&self) -> f64 {
-        return self.requested_epsilon;
+    fn get_noise_scale(&self) -> f64 {
+        return self.noise_scale;
     }
 
 }

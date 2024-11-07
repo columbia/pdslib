@@ -23,7 +23,7 @@ pub trait ReportRequest: Debug {
         all_epoch_events: &Vec<Self::EpochEvents>, // TODO: maybe take a mapping from epoch Ids to epoch events?
     ) -> Self::Report;
 
-    fn get_single_epoch_individual_sensitivity(&self, report: &Self::Report, is_gaussian: bool) -> f64 {
+    fn get_single_epoch_individual_sensitivity(&self, _report: &Self::Report, _is_gaussian: bool) -> f64 {
         // Returns 0 if not filled with value
         0.0
     }
@@ -32,7 +32,7 @@ pub trait ReportRequest: Debug {
         0.0
     }
 
-    fn get_requested_epsilon(&self) -> f64 {
+    fn get_noise_scale(&self) -> f64 {
         0.0
     }
 }

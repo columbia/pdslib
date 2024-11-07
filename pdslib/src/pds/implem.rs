@@ -96,7 +96,7 @@ where
         let individual_sensitivity: f64;
         if events_slice.len() == 1 {
             // Case 2: Exactly one event in epoch_events, then individual sensitivity is the one attribution value.
-            individual_sensitivity = request.get_attributed_value(computed_attribution);
+            individual_sensitivity = request.get_single_epoch_individual_sensitivity(computed_attribution, false);
         }
         else {
             // Case 3: Multiple events in epoch_events.

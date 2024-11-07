@@ -60,8 +60,30 @@ impl ReportRequest for SimpleLastTouchHistogramRequest {
         }
     }
 
-    fn get_attributed_value(&self, report: &Self::Report) -> f64 {
-        report.attributed_value.map_or(0.0, |(_, value)| value)
+    fn get_single_epoch_individual_sensitivity(&self, report: &Self::Report, is_gaussian: bool) -> f64 {
+        if is_gaussian {
+            // L2 norm.
+            match report.attributed_value {
+                Some((_, av)) => {
+                    let av_abs = av.abs();
+                    return av_abs;
+                }
+                None => {
+                    return 0.0;
+                }
+            }
+        } else {
+            // L1 norm.
+            match report.attributed_value {
+                Some((_, av)) => {
+                    let av_abs = av.abs();
+                    return (av_abs * av_abs).sqrt();
+                }
+                None => {
+                    return 0.0;
+                }
+            }
+        }
     }
 
     fn get_global_sensitivity(&self) -> f64 {

@@ -6,6 +6,7 @@ use crate::queries::simple_last_touch_histogram::NormType;
 use crate::queries::simple_last_touch_histogram::SimpleLastTouchHistogramReport;
 use crate::queries::traits::ReportRequest;
 use crate::budget::pure_dp_filter::PureDPBudget;
+use std::borrow::Borrow;
 use std::hash::Hash;
 use indexmap::IndexMap;
 
@@ -27,16 +28,15 @@ impl<FS, ES, E, RR, EI, EE> PrivateDataService
     for PrivateDataServiceImpl<FS, ES, RR>
 where
     // Q: Query, // TODO: maybe particular type?
-    FS: FilterStorage + std::fmt::Debug,
-    <FS as FilterStorage>::FilterId: From<usize> + Clone,
+    FS: FilterStorage<FilterId = EI> + std::fmt::Debug,
     <FS as FilterStorage>::Budget: From<PureDPBudget>,
     <FS as FilterStorage>::Filter: std::fmt::Debug,
     ES: EventStorage<Event = E, EpochEvents = EE>,
     E: Event<EpochId = EI>,
-    EI: Hash + std::cmp::Eq + AsAny,
+    EI: Hash + std::cmp::Eq + Clone + From<usize> + Borrow<usize>,
     RR: ReportRequest<EpochId = EI, EpochEvents = EE> + std::any::Any + std::fmt::Debug,
     RR::Report: AsAny + From<SimpleLastTouchHistogramReport> + Default,
-    EE: AsAny + std::fmt::Debug + Clone + AsRef<[SimpleEvent]>,
+    EE: std::fmt::Debug + Clone + AsRef<[SimpleEvent]>,
 {
     type Budget = <FS as FilterStorage>::Budget;
     type EpochEvents = EE;
@@ -52,16 +52,15 @@ where
 
     fn register_epoch_capacity(&mut self, epoch_id: Self::EpochId, capacity: Self::Budget) -> Result<(), ()> {
         let mut res = Err(());
-        if let Some(&epoch_id_in_usize) = epoch_id.as_any().downcast_ref::<usize>() {
-            let filter_id: <FS as FilterStorage>::FilterId = epoch_id_in_usize.into();
-            if !self.filter_storage.get_filter(filter_id.clone()).is_none() {
-                // The filter has already been set.
-                return res;
-            }
 
-            // The filter has not been set yet, so we initialize new filter.
-            res = self.filter_storage.new_filter(filter_id.clone(), capacity);
+        let filter_id: <FS as FilterStorage>::FilterId = epoch_id;
+        if !self.filter_storage.get_filter(filter_id.clone()).is_none() {
+            // The filter has already been set.
+            return res;
         }
+
+        // The filter has not been set yet, so we initialize new filter.
+        res = self.filter_storage.new_filter(filter_id.clone(), capacity);
         
         res
     }
@@ -77,13 +76,11 @@ where
         }.into();
 
         // `events_of_all_epochs` is a vector of vectors of events, where each vector of events corresponds to an epoch.
-        let mut map_of_events_set_over_epochs: IndexMap<usize, EE> = IndexMap::new();
+        let mut map_of_events_set_over_epochs: IndexMap<EI, EE> = IndexMap::new();
         for epoch_id in request.get_epoch_ids() {
             // TODO: ensure epochs match.
-            if let Some(&epoch_id_in_usize) = epoch_id.as_any().downcast_ref::<usize>() {
-                if let Some(epoch_events) = self.event_storage.get_epoch_events(&epoch_id) {
-                    map_of_events_set_over_epochs.insert(epoch_id_in_usize, epoch_events);  // TODO: else, push empty evc or actually None? COMMENT(Mark): Think it works better to push empty vec.
-                }
+            if let Some(epoch_events) = self.event_storage.get_epoch_events(&epoch_id) {
+                map_of_events_set_over_epochs.insert(epoch_id, epoch_events);  // TODO: else, push empty evc or actually None? COMMENT(Mark): Think it works better to push empty vec.
             }
         }
         let num_epochs: usize = map_of_events_set_over_epochs.len();
@@ -97,7 +94,7 @@ where
             // NOTE: for debugging, we'd like an unbiased report. Use a tuple then?
             if let Some((epoch_id, _, _)) = unbiased_report_parsed.attributed_value {
                 // Get the epoch events for the epoch_id in the report.
-                let set_of_events_for_relevant_epoch = map_of_events_set_over_epochs.get(&epoch_id).unwrap();
+                let set_of_events_for_relevant_epoch = map_of_events_set_over_epochs.get(&epoch_id.clone()).unwrap();
 
                 // Compute the individual sensitivity for the relevant epoch.
                 let individual_sensitivity = self.compute_individual_privacy_loss(
@@ -182,10 +179,4 @@ where
 // Cast from the generic Self::Report to SimpleLastTouchHistogramReport.
 pub trait AsAny {
     fn as_any(&self) -> &dyn std::any::Any;
-}
-
-impl AsAny for usize {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
 }

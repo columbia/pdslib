@@ -1,6 +1,5 @@
 use crate::events::traits::{Event, EventStorage};
 use std::collections::HashMap;
-use crate::pds::implem::AsAny;
 
 // TODO: add enough things to run basic queries and filter by attributes.
 #[derive(Debug, Clone)]
@@ -21,12 +20,6 @@ impl Event for SimpleEvent {
 
 // NOTE: wrap in a struct if we need to implement more traits on this.
 pub type SimpleEpochEvents = Vec<SimpleEvent>;
-
-impl AsAny for SimpleEpochEvents {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-}
 
 // TODO: if we have other event types, we could make this a generic, like the filter hashmap.
 #[derive(Debug)]

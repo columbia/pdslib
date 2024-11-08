@@ -5,7 +5,7 @@ use crate::pds::traits::PrivateDataService;
 use crate::queries::simple_last_touch_histogram::NormType;
 use crate::queries::simple_last_touch_histogram::SimpleLastTouchHistogramReport;
 use crate::queries::traits::ReportRequest;
-use core::num;
+use crate::budget::pure_dp_filter::PureDPBudget;
 use std::hash::Hash;
 use indexmap::IndexMap;
 
@@ -27,7 +27,10 @@ impl<FS, ES, E, RR, EI, EE> PrivateDataService
     for PrivateDataServiceImpl<FS, ES, RR>
 where
     // Q: Query, // TODO: maybe particular type?
-    FS: FilterStorage,
+    FS: FilterStorage + std::fmt::Debug,
+    <FS as FilterStorage>::FilterId: From<usize> + Clone,
+    <FS as FilterStorage>::Budget: From<PureDPBudget>,
+    <FS as FilterStorage>::Filter: std::fmt::Debug,
     ES: EventStorage<Event = E, EpochEvents = EE>,
     E: Event<EpochId = EI>,
     EI: Hash + std::cmp::Eq + AsAny,
@@ -35,14 +38,32 @@ where
     RR::Report: AsAny + From<SimpleLastTouchHistogramReport> + Default,
     EE: AsAny + std::fmt::Debug + Clone + AsRef<[SimpleEvent]>,
 {
-    type Event = E;
-    type ReportRequest = RR;
-    type Report = RR::Report;
+    type Budget = <FS as FilterStorage>::Budget;
     type EpochEvents = EE;
+    type EpochId = EI;
+    type Event = E;
+    type Report = RR::Report;
+    type ReportRequest = RR;
 
     fn register_event(&mut self, event: E) -> Result<(), ()> {
         println!("Registering event {:?}", event);
         self.event_storage.add_event(event)
+    }
+
+    fn register_epoch_capacity(&mut self, epoch_id: Self::EpochId, capacity: Self::Budget) -> Result<(), ()> {
+        let mut res = Err(());
+        if let Some(&epoch_id_in_usize) = epoch_id.as_any().downcast_ref::<usize>() {
+            let filter_id: <FS as FilterStorage>::FilterId = epoch_id_in_usize.into();
+            if !self.filter_storage.get_filter(filter_id.clone()).is_none() {
+                // The filter has already been set.
+                return res;
+            }
+
+            // The filter has not been set yet, so we initialize new filter.
+            res = self.filter_storage.new_filter(filter_id.clone(), capacity);
+        }
+        
+        res
     }
 
     fn compute_report(&mut self, request: Self::ReportRequest) -> Self::Report {
@@ -85,16 +106,40 @@ where
                     &unbiased_report,
                     num_epochs,
                 );
-                println!("Individual sensitivity: {:?}", individual_sensitivity);
 
-                // TODO(mark): Check if the individual sensitivity is less than the remaining budget.
-                // Note that, when this goes over, it should rather be clearing the relevant events than clearing the report.
-                // But as it stands right now, it may make sense to try to return Null report by searching up by the epoch_id.
-
-                // self.filter_storage.try_consume(individual_sensitivity);
-                return SimpleLastTouchHistogramReport {
-                    attributed_value: unbiased_report_parsed.attributed_value.clone(),
+                // Finalize report values based on budget consumptions.
+                // Get the filter_id and filter_budget from the unbiased_report.
+                let filter_id: <FS as FilterStorage>::FilterId = epoch_id.into();
+                let sensitivity_to_consume: <FS as FilterStorage>::Budget = PureDPBudget{
+                    epsilon: individual_sensitivity
                 }.into();
+                if self.filter_storage.get_filter(filter_id.clone()).is_none() {
+                    // The filter is not set yet, so should be an error case.
+                    // For now, treat as error and return default report.
+                    // TODO: What's the right thing to do here?
+                    return default_report;
+                }
+                // If epoch_id is in the filter storage, then we try to consume budget from the filter for the filter_id set to the current epoch.
+                match self.filter_storage.try_consume(filter_id, sensitivity_to_consume) {
+                    Ok(Ok(())) => {
+                        // The budget is not depleted, then we return the unbiased report.
+                        println!("Enough budget for epoch_id: {:?}, so we should return the unbiased report!", epoch_id);
+                        return SimpleLastTouchHistogramReport {
+                            attributed_value: unbiased_report_parsed.attributed_value.clone(),
+                        }.into();
+                    }
+                    Ok(Err(())) => {
+                        // The budget is depleted / current reuqets requires more budget than the currently remaining, then we return the default report.
+                        // TODO: In this case, we should try going back and find an earlier epoch that has enouggh budget remaining.
+                        println!("Budget not enough for the current query on epoch_id: {:?}, so return null report that is biased.", epoch_id);
+                        return default_report;
+                    }
+                    Err(_) => {
+                        // This should never happen, but required case to deal with.
+                        println!("Expected error case happened for: {:?}", epoch_id);
+                        return default_report;
+                    }
+                }
             } else {
                 println!("No attributed value in the unbiased report. Treat as None.");
             }

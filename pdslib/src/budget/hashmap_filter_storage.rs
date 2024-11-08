@@ -4,6 +4,7 @@ use std::marker::PhantomData;
 
 /// Simple implementation of FilterStorage using a HashMap.
 /// Works for any Filter that implements the Filter trait.
+#[derive(Debug)]
 pub struct HashMapFilterStorage<K, F, Budget> {
     filters: HashMap<K, F>,
     _marker: PhantomData<Budget>,
@@ -31,6 +32,10 @@ where
         let filter = F::new(capacity);
         self.filters.insert(filter_id, filter);
         Ok(())
+    }
+
+    fn get_filter(&mut self, filter_id: K) -> Option<&F> {
+        self.filters.get(&filter_id)
     }
 
     // TODO: PDS will be in charge of creating filters when missing?

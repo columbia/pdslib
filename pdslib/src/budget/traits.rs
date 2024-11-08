@@ -20,6 +20,11 @@ pub trait FilterStorage {
         capacity: Self::Budget,
     ) -> Result<(), ()>;
 
+    fn get_filter(
+        &mut self,
+        filter_id: Self::FilterId,
+    ) -> Option<&Self::Filter>;
+
     fn try_consume(
         &mut self,
         filter_id: Self::FilterId,

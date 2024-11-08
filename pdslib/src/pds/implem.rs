@@ -1,8 +1,12 @@
 use crate::budget::traits::FilterStorage;
+use crate::events::simple_events::SimpleEvent;
 use crate::events::traits::{Event, EventStorage};
 use crate::pds::traits::PrivateDataService;
+use crate::queries::simple_last_touch_histogram::SimpleLastTouchHistogramReport;
 use crate::queries::traits::ReportRequest;
-use crate::events::simple_events::SimpleEvent;
+use core::num;
+use std::hash::Hash;
+use indexmap::IndexMap;
 
 /// Epoch-based private data service implementation, using generic filter
 /// storage and event storage interfaces. We might want other implementations
@@ -25,7 +29,10 @@ where
     FS: FilterStorage,
     ES: EventStorage<Event = E, EpochEvents = EE>,
     E: Event<EpochId = EI>,
-    RR: ReportRequest<EpochId = EI, EpochEvents = EE>, EE: std::fmt::Debug + Clone + AsRef<[SimpleEvent]>,
+    EI: Hash + std::cmp::Eq + AsAny,
+    RR: ReportRequest<EpochId = EI, EpochEvents = EE> + std::any::Any + std::fmt::Debug,
+    RR::Report: AsAny + From<SimpleLastTouchHistogramReport> + Default,
+    EE: AsAny + std::fmt::Debug + Clone + AsRef<[SimpleEvent]>,
 {
     type Event = E;
     type ReportRequest = RR;
@@ -38,43 +45,63 @@ where
     }
 
     fn compute_report(&mut self, request: Self::ReportRequest) -> Self::Report {
-        print!("Computing report for request {:?}", request);
+        println!("Computing report for request {:?}", request);
         // TODO: collect events from event storage.
         // It means the request should give a list of epochs.
 
-        let mut all_epoch_events: Vec<_> = vec![];
+        // Default return value.
+        let default_report: Self::Report = SimpleLastTouchHistogramReport {
+            attributed_value: None,
+        }.into();
+
+        // `events_of_all_epochs` is a vector of vectors of events, where each vector of events corresponds to an epoch.
+        let mut map_of_events_set_over_epochs: IndexMap<usize, EE> = IndexMap::new();
         for epoch_id in request.get_epoch_ids() {
             // TODO: ensure epochs match.
-            let epoch_events = self.event_storage.get_epoch_events(&epoch_id);
-            if let Some(epoch_events) = epoch_events {
-                all_epoch_events.push(epoch_events.clone()); // TODO: else, push empty evc or actually None? COMMENT(Mark): Think it works better to push empty evc.
+            if let Some(&epoch_id_in_usize) = epoch_id.as_any().downcast_ref::<usize>() {
+                if let Some(epoch_events) = self.event_storage.get_epoch_events(&epoch_id) {
+                    map_of_events_set_over_epochs.insert(epoch_id_in_usize, epoch_events);  // TODO: else, push empty evc or actually None? COMMENT(Mark): Think it works better to push empty vec.
+                }
             }
         }
+        let num_epochs: usize = map_of_events_set_over_epochs.len();
 
         // TODO: ensure types match.
-        let unbiased_report = request.compute_report(&all_epoch_events);
+        let unbiased_report = request.compute_report(&map_of_events_set_over_epochs);
 
-        // TODO: compute individual sensitivity for each epoch, consume from filters; return null for
-        // that part of the report if budget depleted.
-        // NOTE: for debugging, we'd like an unbiased report. Use a tuple then?
-        for epoch_events in all_epoch_events.iter() {
-            let individual_sensitivity = self.compute_individual_privacy_loss(&request, epoch_events, &unbiased_report);
-            println!("Individual sensitivity: {:?}", individual_sensitivity);
+        if let Some(unbiased_report_parsed) = unbiased_report.as_any().downcast_ref::<SimpleLastTouchHistogramReport>() {
+            // TODO: compute individual sensitivity for each epoch, consume from filters; return null for
+            // that part of the report if budget depleted.
+            // NOTE: for debugging, we'd like an unbiased report. Use a tuple then?
+            if let Some((epoch_id, _, _)) = unbiased_report_parsed.attributed_value {
+                // Get the epoch events for the epoch_id in the report.
+                let set_of_events_for_relevant_epoch = map_of_events_set_over_epochs.get(&epoch_id).unwrap();
+
+                // Compute the individual sensitivity for the relevant epoch.
+                let individual_sensitivity = self.compute_individual_privacy_loss(
+                    &request,
+                    set_of_events_for_relevant_epoch,
+                    &unbiased_report,
+                );
+                println!("Individual sensitivity: {:?}", individual_sensitivity);
+
+                // TODO(mark): Check if the individual sensitivity is less than the remaining budget.
+                // Note that, when this goes over, it should rather be clearing the relevant events than clearing the report.
+                // But as it stands right now, it may make sense to try to return Null report by searching up by the epoch_id.
+
+                // self.filter_storage.try_consume(individual_sensitivity);
+                return SimpleLastTouchHistogramReport {
+                    attributed_value: unbiased_report_parsed.attributed_value.clone(),
+                }.into();
+            } else {
+                println!("No attributed value in the unbiased report. Treat as None.");
+            }
+        } else {
+            println!("Data cannot be casted to SimpleLastTouchHistogramReport type. Treat as None.");
         }
 
-        // TODO: return the report that is desired. Temporarily returning unbiased_report to compile successfully.
-        unbiased_report
+        default_report
     }
-
-    // fn check_and_consume(&self, epoch_data: &EE, budget: &mut f64) -> Option<EE> {
-    //     let privacy_loss = self.compute_individual_privacy_loss(epoch_data);
-    //     if *budget >= privacy_loss {
-    //         *budget -= privacy_loss;
-    //         Some(epoch_data.clone()) // Return the original data if budget is sufficient
-    //     } else {
-    //         None // Return None if budget is depleted
-    //     }
-    // }
 }
 
 impl<FS, ES, E, RR, EI, EE> PrivateDataServiceImpl<FS, ES, RR>
@@ -82,7 +109,8 @@ where
     FS: FilterStorage,
     ES: EventStorage<Event = E, EpochEvents = EE>,
     E: Event<EpochId = EI>,
-    RR: ReportRequest<EpochId = EI, EpochEvents = EE>, EE: std::fmt::Debug + Clone + AsRef<[SimpleEvent]>,
+    RR: ReportRequest<EpochId = EI, EpochEvents = EE>,
+    EE: std::fmt::Debug + Clone + AsRef<[SimpleEvent]>,
 {
     fn compute_individual_privacy_loss(&self, request: &RR, epoch_events: &EE, computed_attribution: &RR::Report) -> f64 {
         // Implement the logic to compute individual privacy loss
@@ -103,5 +131,16 @@ where
             individual_sensitivity = request.get_global_sensitivity();
         }
         return request.get_noise_scale() * individual_sensitivity;
+    }
+}
+
+// Cast from the generic Self::Report to SimpleLastTouchHistogramReport.
+pub trait AsAny {
+    fn as_any(&self) -> &dyn std::any::Any;
+}
+
+impl AsAny for usize {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }

@@ -41,9 +41,9 @@ fn main() {
         event_key: 3,
     };
 
-    let bucket = Some((event.event_key, 3.0));
-    let bucket2 = Some((event2.event_key, 3.0));
-    let bucket3 = Some((event3.event_key, 3.0));
+    let bucket = Some((event.epoch_number, event.event_key, 3.0));
+    let bucket2 = Some((event2.epoch_number, event2.event_key, 3.0));
+    let bucket3 = Some((event4.epoch_number, event3.event_key, 3.0));
 
     pds.register_event(event).unwrap();
     let report_request = SimpleLastTouchHistogramRequest {
@@ -56,6 +56,7 @@ fn main() {
     assert_eq!(report.attributed_value, bucket);
 
     //test having multiple events in one epoch
+    println!("");
     pds.register_event(event2).unwrap();
     pds.register_event(event3).unwrap();
     let report_request2 = SimpleLastTouchHistogramRequest {
@@ -75,7 +76,19 @@ fn main() {
     let report2 = pds.compute_report(report_request2);
     assert_eq!(report2.attributed_value, bucket2);
 
+    // Test request for epoch empty yet.
+    println!("");
+    let report_request3_empty = SimpleLastTouchHistogramRequest {
+        epoch_start: 3,  // Epoch 3 not created yet.
+        epoch_end: 3,    // Epoch 3 not created yet.
+        attributable_value: 3.0,
+        noise_scale: 1.0,
+    };
+    let report3_empty = pds.compute_report(report_request3_empty);
+    assert_eq!(report3_empty.attributed_value, None);
+
     //test restricting attributable_value
+    println!("");
     pds.register_event(event4).unwrap();
     let report_request3 = SimpleLastTouchHistogramRequest {
         epoch_start: 1,

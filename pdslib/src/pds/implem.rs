@@ -2,6 +2,7 @@ use crate::budget::traits::FilterStorage;
 use crate::events::simple_events::SimpleEvent;
 use crate::events::traits::{Event, EventStorage};
 use crate::pds::traits::PrivateDataService;
+use crate::queries::simple_last_touch_histogram::NormType;
 use crate::queries::simple_last_touch_histogram::SimpleLastTouchHistogramReport;
 use crate::queries::traits::ReportRequest;
 use core::num;
@@ -82,6 +83,7 @@ where
                     &request,
                     set_of_events_for_relevant_epoch,
                     &unbiased_report,
+                    num_epochs,
                 );
                 println!("Individual sensitivity: {:?}", individual_sensitivity);
 
@@ -112,19 +114,17 @@ where
     RR: ReportRequest<EpochId = EI, EpochEvents = EE>,
     EE: std::fmt::Debug + Clone + AsRef<[SimpleEvent]>,
 {
-    fn compute_individual_privacy_loss(&self, request: &RR, epoch_events: &EE, computed_attribution: &RR::Report) -> f64 {
+    fn compute_individual_privacy_loss(&self, request: &RR, epoch_events: &EE, computed_attribution: &RR::Report, num_epochs: usize) -> f64 {
         // Implement the logic to compute individual privacy loss
-        let events_slice = epoch_events.as_ref().to_vec();
-
         // Case 1: Empty epoch_event.
-        if events_slice.is_empty() {
+        if epoch_events.as_ref().to_vec().is_empty() {
             return 0.0;
         }
 
         let individual_sensitivity: f64;
-        if events_slice.len() == 1 {
+        if num_epochs == 1 {
             // Case 2: Exactly one event in epoch_events, then individual sensitivity is the one attribution value.
-            individual_sensitivity = request.get_single_epoch_individual_sensitivity(computed_attribution, false);
+            individual_sensitivity = request.get_single_epoch_individual_sensitivity(computed_attribution, NormType::L1);
         }
         else {
             // Case 3: Multiple events in epoch_events.

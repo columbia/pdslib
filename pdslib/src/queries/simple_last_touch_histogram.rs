@@ -23,6 +23,12 @@ pub struct SimpleLastTouchHistogramReport {
     )>,
 }
 
+#[derive(PartialEq)]
+pub enum NormType {
+    L1,
+    L2,
+}
+
 impl AsAny for SimpleLastTouchHistogramReport {
     fn as_any(&self) -> &dyn std::any::Any {
         self
@@ -80,8 +86,8 @@ impl ReportRequest for SimpleLastTouchHistogramRequest {
         }
     }
 
-    fn get_single_epoch_individual_sensitivity(&self, report: &Self::Report, is_gaussian: bool) -> f64 {
-        if is_gaussian {
+    fn get_single_epoch_individual_sensitivity(&self, report: &Self::Report, norm_type: NormType) -> f64 {
+        if norm_type == NormType::L1 {
             // L2 norm.
             match report.attributed_value {
                 Some((_, _, av)) => {
@@ -92,7 +98,7 @@ impl ReportRequest for SimpleLastTouchHistogramRequest {
                     return 0.0;
                 }
             }
-        } else {
+        } else if norm_type == NormType::L2 {
             // L1 norm.
             match report.attributed_value {
                 Some((_, _, av)) => {
@@ -103,6 +109,8 @@ impl ReportRequest for SimpleLastTouchHistogramRequest {
                     return 0.0;
                 }
             }
+        } else {
+            panic!("Unsupported norm type.");
         }
     }
 

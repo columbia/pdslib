@@ -1,7 +1,8 @@
 // TODO: traits for attribution fn maybe?
 
-use std::fmt::Debug;
+use crate::queries::simple_last_touch_histogram::NormType;
 use indexmap::IndexMap;
+use std::fmt::Debug;
 
 // TODO: another trait for queries, that combine reports?
 
@@ -24,16 +25,9 @@ pub trait ReportRequest: Debug {
         all_epoch_events: &IndexMap<usize, Self::EpochEvents>, // TODO: maybe take a mapping from epoch Ids to epoch events?  // COMMENT(Mark): I think what we need is an IndexMap since HashMap doesn't preserve insertion order.
     ) -> Self::Report;
 
-    fn get_single_epoch_individual_sensitivity(&self, _report: &Self::Report, _is_gaussian: bool) -> f64 {
-        // Returns 0 if not filled with value
-        0.0
-    }
+    fn get_single_epoch_individual_sensitivity(&self, _report: &Self::Report, _norm_type: NormType) -> f64;
 
-    fn get_global_sensitivity(&self) -> f64 {
-        0.0
-    }
+    fn get_global_sensitivity(&self) -> f64;
 
-    fn get_noise_scale(&self) -> f64 {
-        0.0
-    }
+    fn get_noise_scale(&self) -> f64;
 }

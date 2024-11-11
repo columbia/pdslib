@@ -1,6 +1,8 @@
 use crate::events::traits::{Event, EventStorage};
 use std::collections::HashMap;
 
+use super::traits::EpochEvents;
+
 // TODO: add enough things to run basic queries and filter by attributes.
 #[derive(Debug, Clone)]
 pub struct SimpleEvent {
@@ -20,6 +22,12 @@ impl Event for SimpleEvent {
 
 // NOTE: wrap in a struct if we need to implement more traits on this.
 pub type SimpleEpochEvents = Vec<SimpleEvent>;
+
+impl EpochEvents for SimpleEpochEvents {
+    fn is_empty(&self) -> bool {
+        self.is_empty()
+    }
+}
 
 // TODO: if we have other event types, we could make this a generic, like the filter hashmap.
 #[derive(Debug)]
@@ -61,7 +69,8 @@ impl EventStorage for SimpleEventStorage {
         &self,
         epoch_id: &<Self::Event as Event>::EpochId,
     ) -> usize {
-        self.get_epoch_events(&epoch_id).map_or(0, |events| events.len())
+        self.get_epoch_events(&epoch_id)
+            .map_or(0, |events| events.len())
     }
 }
 

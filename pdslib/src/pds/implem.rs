@@ -1,14 +1,11 @@
+use crate::budget::pure_dp_filter::PureDPBudget;
 use crate::budget::traits::FilterStorage;
-use crate::events::simple_events::SimpleEvent;
-use crate::events::traits::{Event, EventStorage};
+use crate::events::traits::{EpochEvents, Event, EventStorage};
 use crate::pds::traits::PrivateDataService;
 use crate::queries::simple_last_touch_histogram::NormType;
-use crate::queries::simple_last_touch_histogram::SimpleLastTouchHistogramReport;
 use crate::queries::traits::ReportRequest;
-use crate::budget::pure_dp_filter::PureDPBudget;
-use std::borrow::Borrow;
+use std::collections::HashMap;
 use std::hash::Hash;
-use indexmap::IndexMap;
 
 /// Epoch-based private data service implementation, using generic filter
 /// storage and event storage interfaces. We might want other implementations
@@ -27,16 +24,13 @@ pub struct PrivateDataServiceImpl<
 impl<FS, ES, E, RR, EI, EE> PrivateDataService
     for PrivateDataServiceImpl<FS, ES, RR>
 where
-    // Q: Query, // TODO: maybe particular type?
-    FS: FilterStorage<FilterId = EI> + std::fmt::Debug,
-    <FS as FilterStorage>::Budget: From<PureDPBudget>,
-    <FS as FilterStorage>::Filter: std::fmt::Debug,
-    ES: EventStorage<Event = E, EpochEvents = EE>,
+    EI: Hash + std::cmp::Eq + Clone,
     E: Event<EpochId = EI>,
-    EI: Hash + std::cmp::Eq + Clone + From<usize> + Borrow<usize>,
-    RR: ReportRequest<EpochId = EI, EpochEvents = EE> + std::any::Any + std::fmt::Debug,
-    RR::Report: AsAny + From<SimpleLastTouchHistogramReport> + Default,
-    EE: std::fmt::Debug + Clone + AsRef<[SimpleEvent]>,
+    EE: EpochEvents,
+    FS: FilterStorage<FilterId = EI, Budget = PureDPBudget>,
+    ES: EventStorage<Event = E, EpochEvents = EE>,
+    RR: ReportRequest<EpochId = EI, EpochEvents = EE>,
+    RR::Report: Default,
 {
     type Budget = <FS as FilterStorage>::Budget;
     type EpochEvents = EE;
@@ -50,133 +44,134 @@ where
         self.event_storage.add_event(event)
     }
 
-    fn register_epoch_capacity(&mut self, epoch_id: Self::EpochId, capacity: Self::Budget) -> Result<(), ()> {
+    fn register_epoch_capacity(
+        &mut self,
+        epoch_id: Self::EpochId,
+        capacity: Self::Budget,
+    ) -> Result<(), ()> {
         let mut res = Err(());
-
-        let filter_id: <FS as FilterStorage>::FilterId = epoch_id;
-        if !self.filter_storage.get_filter(filter_id.clone()).is_none() {
+        if !self.filter_storage.get_filter(&epoch_id).is_none() {
             // The filter has already been set.
             return res;
         }
 
         // The filter has not been set yet, so we initialize new filter.
-        res = self.filter_storage.new_filter(filter_id.clone(), capacity);
-        
+        res = self.filter_storage.new_filter(epoch_id, capacity);
+
         res
     }
 
     fn compute_report(&mut self, request: Self::ReportRequest) -> Self::Report {
         println!("Computing report for request {:?}", request);
-        // TODO: collect events from event storage.
-        // It means the request should give a list of epochs.
-
-        // Default return value.
-        let default_report: Self::Report = SimpleLastTouchHistogramReport {
-            attributed_value: None,
-        }.into();
-
-        // `events_of_all_epochs` is a vector of vectors of events, where each vector of events corresponds to an epoch.
-        let mut map_of_events_set_over_epochs: IndexMap<EI, EE> = IndexMap::new();
+        // Collect events from event storage.
+        let mut map_of_events_set_over_epochs: HashMap<Self::EpochId, EE> =
+            HashMap::new();
         for epoch_id in request.get_epoch_ids() {
-            // TODO: ensure epochs match.
-            if let Some(epoch_events) = self.event_storage.get_epoch_events(&epoch_id) {
-                map_of_events_set_over_epochs.insert(epoch_id, epoch_events);  // TODO: else, push empty evc or actually None? COMMENT(Mark): Think it works better to push empty vec.
+            if let Some(epoch_events) =
+                self.event_storage.get_epoch_events(&epoch_id)
+            {
+                map_of_events_set_over_epochs.insert(epoch_id, epoch_events); // TODO: else, push empty evc or actually None? COMMENT(Mark): Think it works better to push empty vec.
             }
         }
         let num_epochs: usize = map_of_events_set_over_epochs.len();
 
         // TODO: ensure types match.
-        let unbiased_report = request.compute_report(&map_of_events_set_over_epochs);
+        let unbiased_report =
+            request.compute_report(&map_of_events_set_over_epochs);
 
-        if let Some(unbiased_report_parsed) = unbiased_report.as_any().downcast_ref::<SimpleLastTouchHistogramReport>() {
-            // TODO: compute individual sensitivity for each epoch, consume from filters; return null for
-            // that part of the report if budget depleted.
-            // NOTE: for debugging, we'd like an unbiased report. Use a tuple then?
-            if let Some((epoch_id, _, _)) = unbiased_report_parsed.attributed_value {
-                // Get the epoch events for the epoch_id in the report.
-                let set_of_events_for_relevant_epoch = map_of_events_set_over_epochs.get(&epoch_id.clone()).unwrap();
+        // TODO: compute individual sensitivity for each epoch, consume from filters; return null for
+        // that part of the report if budget depleted.
+        for epoch_id in request.get_epoch_ids() {
+            // Get the epoch events for the epoch_id in the report.
+            let set_of_events_for_relevant_epoch =
+                map_of_events_set_over_epochs.get(&epoch_id);
 
-                // Compute the individual sensitivity for the relevant epoch.
-                let individual_sensitivity = self.compute_individual_privacy_loss(
-                    &request,
-                    set_of_events_for_relevant_epoch,
-                    &unbiased_report,
-                    num_epochs,
-                );
+            // Compute the individual sensitivity for the relevant epoch.
+            let individual_privacy_loss = self.compute_individual_privacy_loss(
+                &request,
+                set_of_events_for_relevant_epoch,
+                &unbiased_report,
+                num_epochs,
+            );
 
-                // Finalize report values based on budget consumptions.
-                // Get the filter_id and filter_budget from the unbiased_report.
-                let filter_id: <FS as FilterStorage>::FilterId = epoch_id.into();
-                let sensitivity_to_consume: <FS as FilterStorage>::Budget = PureDPBudget{
-                    epsilon: individual_sensitivity
-                }.into();
-                if self.filter_storage.get_filter(filter_id.clone()).is_none() {
-                    // The filter is not set yet, so should be an error case.
-                    // For now, treat as error and return default report.
-                    // TODO: What's the right thing to do here?
-                    return default_report;
-                }
-                // If epoch_id is in the filter storage, then we try to consume budget from the filter for the filter_id set to the current epoch.
-                match self.filter_storage.try_consume(filter_id, sensitivity_to_consume) {
-                    Ok(Ok(())) => {
-                        // The budget is not depleted, then we return the unbiased report.
-                        println!("Enough budget for epoch_id: {:?}, so we should return the unbiased report!", epoch_id);
-                        return SimpleLastTouchHistogramReport {
-                            attributed_value: unbiased_report_parsed.attributed_value.clone(),
-                        }.into();
-                    }
-                    Ok(Err(())) => {
-                        // The budget is depleted / current reuqets requires more budget than the currently remaining, then we return the default report.
-                        // TODO: In this case, we should try going back and find an earlier epoch that has enouggh budget remaining.
-                        println!("Budget not enough for the current query on epoch_id: {:?}, so return null report that is biased.", epoch_id);
-                        return default_report;
-                    }
-                    Err(_) => {
-                        // This should never happen, but required case to deal with.
-                        println!("Expected error case happened for: {:?}", epoch_id);
-                        return default_report;
-                    }
-                }
-            } else {
-                println!("No attributed value in the unbiased report. Treat as None.");
+            // Finalize report values based on budget consumptions.
+            // Get the filter_id and filter_budget from the unbiased_report.
+            if self.filter_storage.get_filter(&epoch_id).is_none() {
+                // The filter is not set yet, so should be an error case.
+                // For now, treat as error and return default report.
+                // TODO: initialize new filter with default budget.
+                return Default::default();
             }
-        } else {
-            println!("Data cannot be casted to SimpleLastTouchHistogramReport type. Treat as None.");
+            // If epoch_id is in the filter storage, then we try to consume budget from the filter for the filter_id set to the current epoch.
+            match self
+                .filter_storage
+                .try_consume(&epoch_id, individual_privacy_loss)
+            {
+                Ok(Ok(())) => {
+                    // The budget is not depleted, keep events.
+                }
+                Ok(Err(())) => {
+                    // The budget is depleted / current reuqets requires more budget than the currently remaining, then drop events.
+                    map_of_events_set_over_epochs.remove(&epoch_id);
+                }
+                Err(_) => {
+                    // TODO: raise error properly
+                    panic!("Storage failed to call filter.");
+                }
+            }
         }
 
-        default_report
+        // Now that we've dropped OOB epochs, we can compute the final report.
+        let filtered_report =
+            request.compute_report(&map_of_events_set_over_epochs);
+        filtered_report
     }
 }
 
 impl<FS, ES, E, RR, EI, EE> PrivateDataServiceImpl<FS, ES, RR>
 where
+    E: Event<EpochId = EI>,
+    EE: EpochEvents,
     FS: FilterStorage,
     ES: EventStorage<Event = E, EpochEvents = EE>,
-    E: Event<EpochId = EI>,
     RR: ReportRequest<EpochId = EI, EpochEvents = EE>,
-    EE: std::fmt::Debug + Clone + AsRef<[SimpleEvent]>,
 {
-    fn compute_individual_privacy_loss(&self, request: &RR, epoch_events: &EE, computed_attribution: &RR::Report, num_epochs: usize) -> f64 {
+    fn compute_individual_privacy_loss(
+        &self,
+        request: &RR,
+        epoch_events: Option<&EE>,
+        computed_attribution: &RR::Report,
+        num_epochs: usize,
+    ) -> PureDPBudget {
         // Implement the logic to compute individual privacy loss
         // Case 1: Empty epoch_event.
-        if epoch_events.as_ref().to_vec().is_empty() {
-            return 0.0;
+        match epoch_events {
+            None => {
+                return PureDPBudget { epsilon: 0.0 };
+            }
+            Some(epoch_events) => {
+                if epoch_events.is_empty() {
+                    return PureDPBudget { epsilon: 0.0 };
+                }
+            }
         }
 
         let individual_sensitivity: f64;
         if num_epochs == 1 {
             // Case 2: Exactly one event in epoch_events, then individual sensitivity is the one attribution value.
-            individual_sensitivity = request.get_single_epoch_individual_sensitivity(computed_attribution, NormType::L1);
-        }
-        else {
+            individual_sensitivity = request
+                .get_single_epoch_individual_sensitivity(
+                    computed_attribution,
+                    NormType::L1,
+                );
+        } else {
             // Case 3: Multiple events in epoch_events.
             individual_sensitivity = request.get_global_sensitivity();
         }
-        return request.get_noise_scale() * individual_sensitivity;
-    }
-}
 
-// Cast from the generic Self::Report to SimpleLastTouchHistogramReport.
-pub trait AsAny {
-    fn as_any(&self) -> &dyn std::any::Any;
+        // TODO: allow other types of budgets, e.g. with type bound
+        return PureDPBudget {
+            epsilon: request.get_noise_scale() * individual_sensitivity,
+        };
+    }
 }

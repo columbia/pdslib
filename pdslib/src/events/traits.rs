@@ -5,10 +5,14 @@ pub trait Event: Debug {
     fn get_epoch_id(&self) -> Self::EpochId;
 }
 
+pub trait EpochEvents: Debug {
+    fn is_empty(&self) -> bool;
+}
+
 // TODO: do we need epochs? Could we use an abstact notion of Event Key instead?
 pub trait EventStorage {
     type Event: Event;
-    type EpochEvents;
+    type EpochEvents: EpochEvents;
     // type QuerierId;
 
     fn add_event(
@@ -21,6 +25,11 @@ pub trait EventStorage {
     // TODO: allow to filter relevant events for a query?
     fn get_epoch_events(
         &self,
-        epoch_id: <Self::Event as Event>::EpochId,
+        epoch_id: &<Self::Event as Event>::EpochId,
     ) -> Option<Self::EpochEvents>;
+
+    fn get_event_count(
+        &self,
+        epoch_id: &<Self::Event as Event>::EpochId,
+    ) -> usize;
 }

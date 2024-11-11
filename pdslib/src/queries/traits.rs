@@ -1,6 +1,9 @@
 // TODO: traits for attribution fn maybe?
 
+use std::collections::HashMap;
 use std::fmt::Debug;
+
+use crate::queries::simple_last_touch_histogram::NormType;
 
 // TODO: another trait for queries, that combine reports?
 
@@ -10,6 +13,7 @@ pub trait ReportRequest: Debug {
     type EpochEvents: Debug;
     type Report: Debug;
     type PrivacyBudget;
+    type ReportGlobalSensitivity;
 
     // TODO: add function to compute report
 
@@ -19,14 +23,16 @@ pub trait ReportRequest: Debug {
     // we want to keep the same attribution function but use a different accounting.
     fn compute_report(
         &self,
-        all_epoch_events: &Vec<Self::EpochEvents>, // TODO: maybe take a mapping from epoch Ids to epoch events?
+        all_epoch_events: &HashMap<Self::EpochId, Self::EpochEvents>, // TODO: maybe take a mapping from epoch Ids to epoch events?  // COMMENT(Mark): I think what we need is an IndexMap since HashMap doesn't preserve insertion order.
     ) -> Self::Report;
 
-    /// NOTE: more efficient to compute all the budgets at once?
-    /// But seems cleaner to have the budget only depend on one event.
-    /// Refactor if this is too inefficient.
-    fn compute_individual_budget(
+    fn get_single_epoch_individual_sensitivity(
         &self,
-        epoch_events: &Self::EpochEvents,
-    ) -> Self::PrivacyBudget;
+        _report: &Self::Report,
+        _norm_type: NormType,
+    ) -> f64;
+
+    fn get_global_sensitivity(&self) -> f64;
+
+    fn get_noise_scale(&self) -> f64;
 }

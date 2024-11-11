@@ -10,6 +10,7 @@ crate-type = ["cdylib", "lib"]
 
 [dependencies]
 uniffi = "0.28.0"
+indexmap = "1.9"
 
 [build-dependencies]
 uniffi = { version = "0.28.0", features = ["build"] }

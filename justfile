@@ -1,5 +1,11 @@
 set shell := ["zsh", "-uc"]
 
+build:
+    cd pdslib; cargo build
+
+test:
+    cd pdslib; cargo test
+
 demo:
     cd pdslib; cargo test --package pdslib --test demo -- --nocapture 
 

@@ -1,58 +1,56 @@
 use crate::budget::pure_dp_filter::PureDPBudget;
 use crate::budget::traits::{FilterError, FilterStorage, FilterStorageError};
-use crate::events::traits::{EpochEvents, Event, EventStorage};
+use crate::events::traits::{EpochEvents, EpochId, Event, EventStorage};
+use crate::mechanisms::NormType;
 use crate::pds::traits::PrivateDataService;
-use crate::queries::simple_last_touch_histogram::NormType;
-use crate::queries::traits::ReportRequest;
+use crate::queries::traits::{EpochQuery, Query};
 use std::collections::HashMap;
-use std::hash::Hash;
 
 /// Epoch-based private data service implementation, using generic filter
 /// storage and event storage interfaces. We might want other implementations
 /// eventually, but at first this implementation should cover most use cases,
 /// as we can swap the types of events, filters and queries.
 pub struct PrivateDataServiceImpl<
-    Filters: FilterStorage,
-    Events: EventStorage,
-    RR: ReportRequest,
+    FS: FilterStorage,
+    ES: EventStorage,
+    Q: EpochQuery,
 > {
-    pub filter_storage: Filters,
-    pub event_storage: Events,
-    pub epoch_capacity: Filters::Budget, /* Same default capacity for all
-                                          * epochs */
-    pub _phantom: std::marker::PhantomData<RR>, /* Store the type of
-                                                 * accepted queries. */
+    /// Filter storage interface.
+    pub filter_storage: FS,
+
+    /// Event storage interface.
+    pub event_storage: ES,
+
+    /// Default capacity that will be used for all new epochs
+    pub epoch_capacity: FS::Budget,
+
+    /// Type of accepted queries.
+    pub _phantom: std::marker::PhantomData<Q>,
 }
 
-impl<FS, ES, E, RR, EI, EE> PrivateDataService
-    for PrivateDataServiceImpl<FS, ES, RR>
+impl<EI, E, EE, FS, ES, Q> PrivateDataService
+    for PrivateDataServiceImpl<FS, ES, Q>
 where
-    EI: Hash + std::cmp::Eq + Clone,
+    EI: EpochId,
     E: Event<EpochId = EI>,
     EE: EpochEvents,
     FS: FilterStorage<FilterId = EI, Budget = PureDPBudget>, /* NOTE: we'll want to support other budgets eventually */
     ES: EventStorage<Event = E, EpochEvents = EE>,
-    RR: ReportRequest<EpochId = EI, EpochEvents = EE>,
-    RR::Report: Default,
+    Q: EpochQuery<EpochId = EI, EpochEvents = EE>,
 {
-    type Budget = PureDPBudget;
-    type EpochEvents = EE;
-    type EpochId = EI;
     type Event = E;
-    type Report = RR::Report;
-    type ReportRequest = RR;
+    type Query = Q;
 
     fn register_event(&mut self, event: E) -> Result<(), ()> {
         println!("Registering event {:?}", event);
         self.event_storage.add_event(event)
     }
 
-    fn compute_report(&mut self, request: Self::ReportRequest) -> Self::Report {
+    fn compute_report(&mut self, request: Q) -> <Q as Query>::Report {
         println!("Computing report for request {:?}", request);
         // Collect events from event storage. If an epoch has no relevant
         // events, don't add it to the mapping.
-        let mut map_of_events_set_over_epochs: HashMap<Self::EpochId, EE> =
-            HashMap::new();
+        let mut map_of_events_set_over_epochs: HashMap<EI, EE> = HashMap::new();
         for epoch_id in request.get_epoch_ids() {
             if let Some(epoch_events) =
                 self.event_storage.get_epoch_events(&epoch_id)
@@ -117,19 +115,21 @@ where
     }
 }
 
-impl<FS, ES, E, RR, EI, EE> PrivateDataServiceImpl<FS, ES, RR>
+/// Utility methods for individual privacy loss computation.
+/// TODO: generalize to other types of budget.
+impl<EI, E, EE, FS, ES, Q> PrivateDataServiceImpl<FS, ES, Q>
 where
     E: Event<EpochId = EI>,
     EE: EpochEvents,
     FS: FilterStorage,
     ES: EventStorage<Event = E, EpochEvents = EE>,
-    RR: ReportRequest<EpochId = EI, EpochEvents = EE>,
+    Q: EpochQuery<EpochId = EI, EpochEvents = EE>,
 {
     fn compute_individual_privacy_loss(
         &self,
-        request: &RR,
+        request: &Q,
         epoch_events: Option<&EE>,
-        computed_attribution: &RR::Report,
+        computed_attribution: &<Q as Query>::Report,
         num_epochs: usize,
     ) -> PureDPBudget {
         // Implement the logic to compute individual privacy loss

@@ -1,7 +1,7 @@
 use crate::events::traits::{Event, EventStorage};
 use std::collections::HashMap;
 
-use super::traits::EpochEvents;
+use super::traits::{EpochEvents, EpochId};
 
 // TODO: add enough things to run basic queries and filter by attributes.
 #[derive(Debug, Clone)]
@@ -11,6 +11,8 @@ pub struct SimpleEvent {
     pub event_key: usize,
     // TODO: consider adding timestamp
 }
+
+impl EpochId for usize {}
 
 impl Event for SimpleEvent {
     type EpochId = usize;
@@ -65,14 +67,6 @@ impl EventStorage for SimpleEventStorage {
         epoch_id: &<Self::Event as Event>::EpochId,
     ) -> Option<Self::EpochEvents> {
         self.epochs.get(&epoch_id).cloned()
-    }
-
-    fn get_event_count(
-        &self,
-        epoch_id: &<Self::Event as Event>::EpochId,
-    ) -> usize {
-        self.get_epoch_events(&epoch_id)
-            .map_or(0, |events| events.len())
     }
 }
 

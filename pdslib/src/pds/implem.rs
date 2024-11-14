@@ -1,86 +1,68 @@
 use crate::budget::pure_dp_filter::PureDPBudget;
-use crate::budget::traits::FilterStorage;
-use crate::events::traits::{EpochEvents, Event, EventStorage};
+use crate::budget::traits::{FilterError, FilterStorage, FilterStorageError};
+use crate::events::traits::{EpochEvents, EpochId, Event, EventStorage};
+use crate::mechanisms::NormType;
 use crate::pds::traits::PrivateDataService;
-use crate::queries::simple_last_touch_histogram::NormType;
-use crate::queries::traits::ReportRequest;
+use crate::queries::traits::{EpochQuery, Query};
 use std::collections::HashMap;
-use std::hash::Hash;
 
 /// Epoch-based private data service implementation, using generic filter
 /// storage and event storage interfaces. We might want other implementations
 /// eventually, but at first this implementation should cover most use cases,
 /// as we can swap the types of events, filters and queries.
 pub struct PrivateDataServiceImpl<
-    Filters: FilterStorage,
-    Events: EventStorage,
-    RR: ReportRequest,
+    FS: FilterStorage,
+    ES: EventStorage,
+    Q: EpochQuery,
 > {
-    pub filter_storage: Filters,
-    pub event_storage: Events,
-    pub _phantom: std::marker::PhantomData<RR>, // Store the type of accepted queries.
+    /// Filter storage interface.
+    pub filter_storage: FS,
+
+    /// Event storage interface.
+    pub event_storage: ES,
+
+    /// Default capacity that will be used for all new epochs
+    pub epoch_capacity: FS::Budget,
+
+    /// Type of accepted queries.
+    pub _phantom: std::marker::PhantomData<Q>,
 }
 
-impl<FS, ES, E, RR, EI, EE> PrivateDataService
-    for PrivateDataServiceImpl<FS, ES, RR>
+impl<EI, E, EE, FS, ES, Q> PrivateDataService
+    for PrivateDataServiceImpl<FS, ES, Q>
 where
-    EI: Hash + std::cmp::Eq + Clone,
+    EI: EpochId,
     E: Event<EpochId = EI>,
     EE: EpochEvents,
-    FS: FilterStorage<FilterId = EI, Budget = PureDPBudget>,
+    FS: FilterStorage<FilterId = EI, Budget = PureDPBudget>, /* NOTE: we'll want to support other budgets eventually */
     ES: EventStorage<Event = E, EpochEvents = EE>,
-    RR: ReportRequest<EpochId = EI, EpochEvents = EE>,
-    RR::Report: Default,
+    Q: EpochQuery<EpochId = EI, EpochEvents = EE>,
 {
-    type Budget = <FS as FilterStorage>::Budget;
-    type EpochEvents = EE;
-    type EpochId = EI;
     type Event = E;
-    type Report = RR::Report;
-    type ReportRequest = RR;
+    type Query = Q;
 
     fn register_event(&mut self, event: E) -> Result<(), ()> {
         println!("Registering event {:?}", event);
         self.event_storage.add_event(event)
     }
 
-    fn register_epoch_capacity(
-        &mut self,
-        epoch_id: Self::EpochId,
-        capacity: Self::Budget,
-    ) -> Result<(), ()> {
-        let mut res = Err(());
-        if !self.filter_storage.get_filter(&epoch_id).is_none() {
-            // The filter has already been set.
-            return res;
-        }
-
-        // The filter has not been set yet, so we initialize new filter.
-        res = self.filter_storage.new_filter(epoch_id, capacity);
-
-        res
-    }
-
-    fn compute_report(&mut self, request: Self::ReportRequest) -> Self::Report {
+    fn compute_report(&mut self, request: Q) -> <Q as Query>::Report {
         println!("Computing report for request {:?}", request);
-        // Collect events from event storage.
-        let mut map_of_events_set_over_epochs: HashMap<Self::EpochId, EE> =
-            HashMap::new();
+        // Collect events from event storage. If an epoch has no relevant
+        // events, don't add it to the mapping.
+        let mut map_of_events_set_over_epochs: HashMap<EI, EE> = HashMap::new();
         for epoch_id in request.get_epoch_ids() {
             if let Some(epoch_events) =
                 self.event_storage.get_epoch_events(&epoch_id)
             {
-                map_of_events_set_over_epochs.insert(epoch_id, epoch_events); // TODO: else, push empty evc or actually None? COMMENT(Mark): Think it works better to push empty vec.
+                map_of_events_set_over_epochs.insert(epoch_id, epoch_events);
             }
         }
         let num_epochs: usize = map_of_events_set_over_epochs.len();
 
-        // TODO: ensure types match.
         let unbiased_report =
             request.compute_report(&map_of_events_set_over_epochs);
 
-        // TODO: compute individual sensitivity for each epoch, consume from filters; return null for
-        // that part of the report if budget depleted.
         for epoch_id in request.get_epoch_ids() {
             // Get the epoch events for the epoch_id in the report.
             let set_of_events_for_relevant_epoch =
@@ -94,29 +76,34 @@ where
                 num_epochs,
             );
 
-            // Finalize report values based on budget consumptions.
-            // Get the filter_id and filter_budget from the unbiased_report.
-            if self.filter_storage.get_filter(&epoch_id).is_none() {
-                // The filter is not set yet, so should be an error case.
-                // For now, treat as error and return default report.
-                // TODO: initialize new filter with default budget.
-                return Default::default();
+            // Initialize filter if necessary.
+            if !self.filter_storage.is_initialized(&epoch_id) {
+                if self
+                    .filter_storage
+                    .new_filter(epoch_id.clone(), self.epoch_capacity.clone())
+                    .is_err()
+                {
+                    return Default::default();
+                }
             }
-            // If epoch_id is in the filter storage, then we try to consume budget from the filter for the filter_id set to the current epoch.
+
+            // Try to consume budget from current epoch, drop events if OOB.
             match self
                 .filter_storage
-                .try_consume(&epoch_id, individual_privacy_loss)
+                .try_consume(&epoch_id, &individual_privacy_loss)
             {
-                Ok(Ok(())) => {
+                Ok(_) => {
                     // The budget is not depleted, keep events.
                 }
-                Ok(Err(())) => {
-                    // The budget is depleted / current reuqets requires more budget than the currently remaining, then drop events.
+                Err(FilterStorageError::FilterError(
+                    FilterError::OutOfBudget,
+                )) => {
+                    // The budget is depleted, drop events.
                     map_of_events_set_over_epochs.remove(&epoch_id);
                 }
-                Err(_) => {
-                    // TODO: raise error properly
-                    panic!("Storage failed to call filter.");
+                _ => {
+                    // Return default report if anything else goes wrong.
+                    return Default::default();
                 }
             }
         }
@@ -128,19 +115,21 @@ where
     }
 }
 
-impl<FS, ES, E, RR, EI, EE> PrivateDataServiceImpl<FS, ES, RR>
+/// Utility methods for individual privacy loss computation.
+/// TODO: generalize to other types of budget.
+impl<EI, E, EE, FS, ES, Q> PrivateDataServiceImpl<FS, ES, Q>
 where
     E: Event<EpochId = EI>,
     EE: EpochEvents,
     FS: FilterStorage,
     ES: EventStorage<Event = E, EpochEvents = EE>,
-    RR: ReportRequest<EpochId = EI, EpochEvents = EE>,
+    Q: EpochQuery<EpochId = EI, EpochEvents = EE>,
 {
     fn compute_individual_privacy_loss(
         &self,
-        request: &RR,
+        request: &Q,
         epoch_events: Option<&EE>,
-        computed_attribution: &RR::Report,
+        computed_attribution: &<Q as Query>::Report,
         num_epochs: usize,
     ) -> PureDPBudget {
         // Implement the logic to compute individual privacy loss
@@ -158,7 +147,8 @@ where
 
         let individual_sensitivity: f64;
         if num_epochs == 1 {
-            // Case 2: Exactly one event in epoch_events, then individual sensitivity is the one attribution value.
+            // Case 2: Exactly one event in epoch_events, then individual
+            // sensitivity is the one attribution value.
             individual_sensitivity = request
                 .get_single_epoch_individual_sensitivity(
                     computed_attribution,
@@ -169,7 +159,6 @@ where
             individual_sensitivity = request.get_global_sensitivity();
         }
 
-        // TODO: allow other types of budgets, e.g. with type bound
         return PureDPBudget {
             epsilon: request.get_noise_scale() * individual_sensitivity,
         };

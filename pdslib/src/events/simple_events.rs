@@ -1,9 +1,10 @@
 use crate::events::traits::{Event, EventStorage};
 use std::collections::HashMap;
 
-use super::traits::EpochEvents;
+use super::traits::{EpochEvents, EpochId};
 
-// TODO: add enough things to run basic queries and filter by attributes.
+/// TODO: add enough things to run basic queries and filter by attributes.
+/// use https://github.com/patcg/meetings/blob/main/2024/09/27-tpac/Privacy-Preserving%20Attribution%20Proposed%20Roadmap.pdf
 #[derive(Debug, Clone)]
 pub struct SimpleEvent {
     pub id: usize,
@@ -11,6 +12,8 @@ pub struct SimpleEvent {
     pub event_key: usize,
     // TODO: consider adding timestamp
 }
+
+impl EpochId for usize {}
 
 impl Event for SimpleEvent {
     type EpochId = usize;
@@ -29,7 +32,8 @@ impl EpochEvents for SimpleEpochEvents {
     }
 }
 
-// TODO: if we have other event types, we could make this a generic, like the filter hashmap.
+// TODO: if we have other event types, we could make this a generic, like the
+// filter hashmap.
 #[derive(Debug)]
 pub struct SimpleEventStorage {
     pub epochs: HashMap<usize, SimpleEpochEvents>,
@@ -45,7 +49,8 @@ impl SimpleEventStorage {
 
 impl EventStorage for SimpleEventStorage {
     type Event = SimpleEvent;
-    type EpochEvents = SimpleEpochEvents; // TODO: use a pointer and add lifetime? Or just copy for now, nice to edit inplace anyway.
+    type EpochEvents = SimpleEpochEvents; // TODO: use a pointer and add lifetime? Or just copy for now, nice to edit
+                                          // inplace anyway.
 
     fn add_event(
         &mut self,
@@ -63,14 +68,6 @@ impl EventStorage for SimpleEventStorage {
         epoch_id: &<Self::Event as Event>::EpochId,
     ) -> Option<Self::EpochEvents> {
         self.epochs.get(&epoch_id).cloned()
-    }
-
-    fn get_event_count(
-        &self,
-        epoch_id: &<Self::Event as Event>::EpochId,
-    ) -> usize {
-        self.get_epoch_events(&epoch_id)
-            .map_or(0, |events| events.len())
     }
 }
 

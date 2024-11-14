@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use crate::budget::pure_dp_filter::PureDPBudget;
 use crate::events::simple_events::SimpleEpochEvents;
-use crate::queries::traits::ReportRequest;
-// TODO: relevant events?
+use crate::mechanisms::NormType;
+use crate::queries::traits::{EpochQuery, Query, Report};
 
 #[derive(Debug)]
 pub struct SimpleLastTouchHistogramRequest {
@@ -23,16 +23,15 @@ pub struct SimpleLastTouchHistogramReport {
     )>,
 }
 
-#[derive(PartialEq)]
-pub enum NormType {
-    L1,
-    L2,
+impl Report for SimpleLastTouchHistogramReport {}
+
+impl Query for SimpleLastTouchHistogramRequest {
+    type Report = SimpleLastTouchHistogramReport;
 }
 
-impl ReportRequest for SimpleLastTouchHistogramRequest {
+impl EpochQuery for SimpleLastTouchHistogramRequest {
     type EpochId = usize;
     type EpochEvents = SimpleEpochEvents;
-    type Report = SimpleLastTouchHistogramReport;
     type PrivacyBudget = PureDPBudget;
     type ReportGlobalSensitivity = f64;
 
@@ -45,11 +44,15 @@ impl ReportRequest for SimpleLastTouchHistogramRequest {
         &self,
         all_epoch_events: &HashMap<usize, Self::EpochEvents>,
     ) -> Self::Report {
-        // TODO: Browse epochs in the order given by `get_epoch_ids`.
-        // We assume that all_epoch_events is always stored in the order that they occured
+        // We browse epochs in the order given by `get_epoch_ids, most recent
+        // epoch first. Within each epoch, we assume that events are
+        // stored in the order that they occured
         for epoch_id in self.get_epoch_ids() {
-            // For now, we assume that all the events are relevant, so we just need to check the most recent one.
-            // TODO: eventually add the notion of "relevant events" to the `SimpleEvent` struct, and browse all the events from `epoch_events` instead of the last one.
+            // For now, we assume that all the events are relevant, so we just
+            // need to check the most recent one. TODO: eventually
+            // add the notion of "relevant events" to the `SimpleEvent` struct,
+            // and browse all the events from `epoch_events` instead of the last
+            // one.
             if let Some(epoch_events) = all_epoch_events.get(&epoch_id) {
                 if let Some(last_impression) = epoch_events.last() {
                     if last_impression.epoch_number > self.epoch_end
@@ -58,7 +61,10 @@ impl ReportRequest for SimpleLastTouchHistogramRequest {
                         continue;
                     }
 
-                    // TODO: allow ReportRequest to give a custom impression_key -> bucket_key mapping. Also potentially depending on the conversion key. Check how ARA implements it with the source/trigger keypiece.
+                    // TODO: allow ReportRequest to give a custom impression_key
+                    // -> bucket_key mapping. Also potentially depending on the
+                    // conversion key. Check how ARA implements it with the
+                    // source/trigger keypiece.
                     let event_id = last_impression.event_key;
                     let attributed_value = self.attributable_value;
 

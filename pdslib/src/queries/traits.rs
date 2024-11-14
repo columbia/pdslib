@@ -3,36 +3,48 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 
-use crate::queries::simple_last_touch_histogram::NormType;
+use crate::events::traits::{EpochEvents, EpochId};
+use crate::mechanisms::NormType;
 
-// TODO: another trait for queries, that combine reports?
+/// Trait for report types returned by a device (in plaintext). Must implement a
+/// default variant for null reports, so devices with errors or no budget
+/// left are still sending something (and are thus indistinguishable from other
+/// devices once reports are encrypted). TODO: marker trait for now, might add
+/// aggregation methods later.
+pub trait Report: Debug + Default {}
+
+/// Trait for a generic query.
+pub trait Query: Debug {
+    type Report: Report;
+}
 
 /// Trait for an epoch-based query.
-pub trait ReportRequest: Debug {
-    type EpochId;
-    type EpochEvents: Debug;
-    type Report: Debug;
+pub trait EpochQuery: Query {
+    type EpochId: EpochId;
+    type EpochEvents: EpochEvents;
     type PrivacyBudget;
     type ReportGlobalSensitivity;
 
-    // TODO: add function to compute report
-
+    /// Returns the list of epoch IDs, in the order the attribution should run.
     fn get_epoch_ids(&self) -> Vec<Self::EpochId>;
 
-    // TODO: split this out to AttributionFunction if
-    // we want to keep the same attribution function but use a different accounting.
+    /// Computes the report for the given request and epoch events.
     fn compute_report(
         &self,
-        all_epoch_events: &HashMap<Self::EpochId, Self::EpochEvents>, // TODO: maybe take a mapping from epoch Ids to epoch events?  // COMMENT(Mark): I think what we need is an IndexMap since HashMap doesn't preserve insertion order.
+        all_epoch_events: &HashMap<Self::EpochId, Self::EpochEvents>,
     ) -> Self::Report;
 
+    /// Computes the individual sensitivity for the query when the report is
+    /// computed over a single epoch.
     fn get_single_epoch_individual_sensitivity(
         &self,
-        _report: &Self::Report,
-        _norm_type: NormType,
+        report: &Self::Report,
+        norm_type: NormType,
     ) -> f64;
 
+    /// Computes the global sensitivity for the query.
     fn get_global_sensitivity(&self) -> f64;
 
+    /// Retrieves the scale of the noise that will be added by the aggregator.
     fn get_noise_scale(&self) -> f64;
 }

@@ -15,15 +15,15 @@ pub trait ReportRequest: Debug {
     type PrivacyBudget;
     type ReportGlobalSensitivity;
 
-    // TODO: add function to compute report
-
+    /// Returns the list of epoch IDs, in the order the attribution should run.
     fn get_epoch_ids(&self) -> Vec<Self::EpochId>;
 
     // TODO: split this out to AttributionFunction if
-    // we want to keep the same attribution function but use a different accounting.
+    // we want to keep the same attribution function but use a different
+    // accounting.
     fn compute_report(
         &self,
-        all_epoch_events: &HashMap<Self::EpochId, Self::EpochEvents>, // TODO: maybe take a mapping from epoch Ids to epoch events?  // COMMENT(Mark): I think what we need is an IndexMap since HashMap doesn't preserve insertion order.
+        all_epoch_events: &HashMap<Self::EpochId, Self::EpochEvents>,
     ) -> Self::Report;
 
     fn get_single_epoch_individual_sensitivity(

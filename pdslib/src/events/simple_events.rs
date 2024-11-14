@@ -29,7 +29,8 @@ impl EpochEvents for SimpleEpochEvents {
     }
 }
 
-// TODO: if we have other event types, we could make this a generic, like the filter hashmap.
+// TODO: if we have other event types, we could make this a generic, like the
+// filter hashmap.
 #[derive(Debug)]
 pub struct SimpleEventStorage {
     pub epochs: HashMap<usize, SimpleEpochEvents>,
@@ -45,7 +46,8 @@ impl SimpleEventStorage {
 
 impl EventStorage for SimpleEventStorage {
     type Event = SimpleEvent;
-    type EpochEvents = SimpleEpochEvents; // TODO: use a pointer and add lifetime? Or just copy for now, nice to edit inplace anyway.
+    type EpochEvents = SimpleEpochEvents; // TODO: use a pointer and add lifetime? Or just copy for now, nice to edit
+                                          // inplace anyway.
 
     fn add_event(
         &mut self,

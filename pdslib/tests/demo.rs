@@ -7,16 +7,14 @@ use pdslib::queries::simple_last_touch_histogram::SimpleLastTouchHistogramReques
 
 #[test]
 fn main() {
-    let mut events: SimpleEventStorage = SimpleEventStorage::new();
-    let mut filters: HashMapFilterStorage<
-        usize,
-        PureDPBudgetFilter,
-        PureDPBudget,
-    > = HashMapFilterStorage::new();
+    let events: SimpleEventStorage = SimpleEventStorage::new();
+    let filters: HashMapFilterStorage<usize, PureDPBudgetFilter, PureDPBudget> =
+        HashMapFilterStorage::new();
 
     let mut pds = PrivateDataServiceImpl {
         filter_storage: filters,
         event_storage: events,
+        epoch_capacity: PureDPBudget { epsilon: 3.0 },
         _phantom: std::marker::PhantomData::<SimpleLastTouchHistogramRequest>,
     };
 
@@ -46,9 +44,6 @@ fn main() {
     let bucket3 = Some((event4.epoch_number, event3.event_key, 3.0));
 
     pds.register_event(event.clone()).unwrap();
-    pds.register_epoch_capacity(event.clone().epoch_number, PureDPBudget {
-        epsilon: 3.0,
-    }).unwrap();
     let report_request = SimpleLastTouchHistogramRequest {
         epoch_start: 1,
         epoch_end: 1,
@@ -62,23 +57,19 @@ fn main() {
     println!("");
     pds.register_event(event2.clone()).unwrap();
     // pds.register_event(event3.clone()).unwrap();
-    pds.register_epoch_capacity(event2.clone().epoch_number, PureDPBudget {
-        epsilon: 3.0,
-    }).unwrap();
-    assert!(matches!(
-        pds.register_epoch_capacity(event3.clone().epoch_number, PureDPBudget {
-            epsilon: 3.0,
-        }),  // This would be error because the Filter for this epoch_number has already been set by the previous registration.
-        Err(())
-    ));
+
     let report_request2 = SimpleLastTouchHistogramRequest {
         epoch_start: 1,
-        epoch_end: 1,  //test restricting the end epoch
-        attributable_value: 0.1,  // Even 0.1 should be enough to go over the limit as the current budget left for epoch 1 is 0.
+        epoch_end: 1, //test restricting the end epoch
+        attributable_value: 0.1, /* Even 0.1 should be enough to go over the
+                       * limit as the current budget left for
+                       * epoch 1 is 0. */
         noise_scale: 1.0,
     };
     let report2 = pds.compute_report(report_request2);
-    // Allocated budget for epoch 1 is 3.0, but 3.0 has already been consumed in the last request, so the budget is depleted. Now, the null report should be returned for this additional query.
+    // Allocated budget for epoch 1 is 3.0, but 3.0 has already been consumed in
+    // the last request, so the budget is depleted. Now, the null report should
+    // be returned for this additional query.
     assert_eq!(report2.attributed_value, None);
     let report_request2 = SimpleLastTouchHistogramRequest {
         epoch_start: 1,
@@ -92,8 +83,8 @@ fn main() {
     // Test request for epoch empty yet.
     println!("");
     let report_request3_empty = SimpleLastTouchHistogramRequest {
-        epoch_start: 3,  // Epoch 3 not created yet.
-        epoch_end: 3,    // Epoch 3 not created yet.
+        epoch_start: 3, // Epoch 3 not created yet.
+        epoch_end: 3,   // Epoch 3 not created yet.
         attributable_value: 0.0,
         noise_scale: 1.0,
     };
@@ -102,9 +93,6 @@ fn main() {
 
     //test restricting attributable_value
     println!("");
-    pds.register_epoch_capacity(event4.clone().epoch_number, PureDPBudget {
-        epsilon: 3.0,
-    }).unwrap();
     pds.register_event(event4).unwrap();
     let report_request3_over_budget = SimpleLastTouchHistogramRequest {
         epoch_start: 1,
@@ -114,7 +102,8 @@ fn main() {
     };
     let report3_over_budget = pds.compute_report(report_request3_over_budget);
     assert_eq!(report3_over_budget.attributed_value, None);
-    // This tests the case where we meet the first event in epoch 3, below the budget not used.
+    // This tests the case where we meet the first event in epoch 3, below the
+    // budget not used.
     let report_request3 = SimpleLastTouchHistogramRequest {
         epoch_start: 1,
         epoch_end: 3,

@@ -5,3 +5,6 @@ demo:
 
 install:
     source .venv/bin/activate; uv sync; cd pdslib; env -u CONDA_PREFIX maturin develop;
+
+format:
+    cd pdslib; cargo +nightly fmt

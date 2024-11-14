@@ -46,10 +46,14 @@ impl ReportRequest for SimpleLastTouchHistogramRequest {
         all_epoch_events: &HashMap<usize, Self::EpochEvents>,
     ) -> Self::Report {
         // TODO: Browse epochs in the order given by `get_epoch_ids`.
-        // We assume that all_epoch_events is always stored in the order that they occured
+        // We assume that all_epoch_events is always stored in the order that
+        // they occured
         for epoch_id in self.get_epoch_ids() {
-            // For now, we assume that all the events are relevant, so we just need to check the most recent one.
-            // TODO: eventually add the notion of "relevant events" to the `SimpleEvent` struct, and browse all the events from `epoch_events` instead of the last one.
+            // For now, we assume that all the events are relevant, so we just
+            // need to check the most recent one. TODO: eventually
+            // add the notion of "relevant events" to the `SimpleEvent` struct,
+            // and browse all the events from `epoch_events` instead of the last
+            // one.
             if let Some(epoch_events) = all_epoch_events.get(&epoch_id) {
                 if let Some(last_impression) = epoch_events.last() {
                     if last_impression.epoch_number > self.epoch_end
@@ -58,7 +62,10 @@ impl ReportRequest for SimpleLastTouchHistogramRequest {
                         continue;
                     }
 
-                    // TODO: allow ReportRequest to give a custom impression_key -> bucket_key mapping. Also potentially depending on the conversion key. Check how ARA implements it with the source/trigger keypiece.
+                    // TODO: allow ReportRequest to give a custom impression_key
+                    // -> bucket_key mapping. Also potentially depending on the
+                    // conversion key. Check how ARA implements it with the
+                    // source/trigger keypiece.
                     let event_id = last_impression.event_key;
                     let attributed_value = self.attributable_value;
 

@@ -8,8 +8,9 @@ use crate::mechanisms::NormType;
 
 /// Trait for report types returned by a device (in plaintext). Must implement a
 /// default variant for null reports, so devices with errors or no budget
-/// left are still sending something (and are thus indistinguishable from other devices once reports are encrypted).
-/// TODO: marker trait for now, might add aggregation methods later.
+/// left are still sending something (and are thus indistinguishable from other
+/// devices once reports are encrypted). TODO: marker trait for now, might add
+/// aggregation methods later.
 pub trait Report: Debug + Default {}
 
 /// Trait for a generic query.
@@ -33,7 +34,8 @@ pub trait EpochQuery: Query {
         all_epoch_events: &HashMap<Self::EpochId, Self::EpochEvents>,
     ) -> Self::Report;
 
-    /// Computes the individual sensitivity for the query when the report is computed over a single epoch.
+    /// Computes the individual sensitivity for the query when the report is
+    /// computed over a single epoch.
     fn get_single_epoch_individual_sensitivity(
         &self,
         report: &Self::Report,

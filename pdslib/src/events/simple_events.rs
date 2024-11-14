@@ -3,7 +3,8 @@ use std::collections::HashMap;
 
 use super::traits::{EpochEvents, EpochId};
 
-// TODO: add enough things to run basic queries and filter by attributes.
+/// TODO: add enough things to run basic queries and filter by attributes.
+/// use https://github.com/patcg/meetings/blob/main/2024/09/27-tpac/Privacy-Preserving%20Attribution%20Proposed%20Roadmap.pdf
 #[derive(Debug, Clone)]
 pub struct SimpleEvent {
     pub id: usize,

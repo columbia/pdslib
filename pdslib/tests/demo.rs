@@ -39,10 +39,6 @@ fn main() {
         event_key: 3,
     };
 
-    let bucket = Some((event.epoch_number, event.event_key, 3.0));
-    let bucket2 = Some((event2.epoch_number, event2.event_key, 3.0));
-    let bucket3 = Some((event4.epoch_number, event3.event_key, 3.0));
-
     pds.register_event(event.clone()).unwrap();
     let report_request = SimpleLastTouchHistogramRequest {
         epoch_start: 1,
@@ -51,12 +47,12 @@ fn main() {
         noise_scale: 1.0,
     };
     let report = pds.compute_report(report_request);
+    let bucket = Some((event.epoch_number, event.event_key, 3.0));
     assert_eq!(report.attributed_value, bucket);
 
-    //test having multiple events in one epoch
+    // Test having multiple events in one epoch
     println!("");
     pds.register_event(event2.clone()).unwrap();
-    // pds.register_event(event3.clone()).unwrap();
 
     let report_request2 = SimpleLastTouchHistogramRequest {
         epoch_start: 1,
@@ -71,6 +67,7 @@ fn main() {
     // the last request, so the budget is depleted. Now, the null report should
     // be returned for this additional query.
     assert_eq!(report2.attributed_value, None);
+
     let report_request2 = SimpleLastTouchHistogramRequest {
         epoch_start: 1,
         epoch_end: 2,
@@ -78,6 +75,7 @@ fn main() {
         noise_scale: 1.0,
     };
     let report2 = pds.compute_report(report_request2);
+    let bucket2 = Some((event2.epoch_number, event2.event_key, 3.0));
     assert_eq!(report2.attributed_value, bucket2);
 
     // Test request for epoch empty yet.
@@ -91,9 +89,9 @@ fn main() {
     let report3_empty = pds.compute_report(report_request3_empty);
     assert_eq!(report3_empty.attributed_value, None);
 
-    //test restricting attributable_value
+    // Test restricting attributable_value
     println!("");
-    pds.register_event(event4).unwrap();
+    pds.register_event(event4.clone()).unwrap();
     let report_request3_over_budget = SimpleLastTouchHistogramRequest {
         epoch_start: 1,
         epoch_end: 3,
@@ -102,6 +100,7 @@ fn main() {
     };
     let report3_over_budget = pds.compute_report(report_request3_over_budget);
     assert_eq!(report3_over_budget.attributed_value, None);
+
     // This tests the case where we meet the first event in epoch 3, below the
     // budget not used.
     let report_request3 = SimpleLastTouchHistogramRequest {
@@ -111,5 +110,6 @@ fn main() {
         noise_scale: 1.0,
     };
     let report3 = pds.compute_report(report_request3);
+    let bucket3 = Some((event4.epoch_number, event3.event_key, 3.0));
     assert_eq!(report3.attributed_value, bucket3);
 }

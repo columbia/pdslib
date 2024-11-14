@@ -44,9 +44,9 @@ impl EpochQuery for SimpleLastTouchHistogramRequest {
         &self,
         all_epoch_events: &HashMap<usize, Self::EpochEvents>,
     ) -> Self::Report {
-        // We browse epochs in the order given by `get_epoch_ids, most recent epoch first.
-        // Within each epoch, we assume that events are stored in the order that
-        // they occured
+        // We browse epochs in the order given by `get_epoch_ids, most recent
+        // epoch first. Within each epoch, we assume that events are
+        // stored in the order that they occured
         for epoch_id in self.get_epoch_ids() {
             // For now, we assume that all the events are relevant, so we just
             // need to check the most recent one. TODO: eventually

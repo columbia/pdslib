@@ -1,10 +1,13 @@
 # On-device budgeting
 
-## Tasks
+## Overview
 
-- [ ] What can we learn from https://private-attribution.github.io/api/? Terminology, API design, structure. Any implementation? Also see slides: https://github.com/patcg/meetings/blob/main/2024/09/27-tpac/Privacy-Preserving%20Attribution%20Proposed%20Roadmap.pdf. But keep in mind that we want to support use cases beyond advertising.
-- [ ] Generate Kotlin bindings with UniFFI to check that the Rust `pdslib` crate will be usable in Android. See https://mozilla.github.io/uniffi-rs/latest/tutorial/foreign_language_bindings.html
-- [ ] Check whether we can reuse the OpenDP accountant if we want to use RDP/zCDP, without having to execute a measurement on real data. Check out the `compose` function here: https://docs.rs/opendp/latest/opendp/measures/struct.ZeroConcentratedDivergence.html, check if they offer filters directly.
+- `pdslib` is a standalone Rust library (crate) containing the core IDP budgeting interfaces
+    - `src` contains the following main components: `budget`, `events`, `mechanisms` (no dependencies), `queries` (depends on `budget`, `events`, `mechnisms`) and `pds` (depends on the rest).
+    - `src/*/traits.rs` define interfaces. Other files in `src/*` implement these interfaces, with very simple in-memory datastructures for now. Eventually I expect that we will have implementations for the same interfaces using browser storage or SQLite databases.
+    - `src/pds` is structured to work with  `budget`, `events`, `queries` only through interfaces. So we should be able to swap a the implementaiton for event storage or replace the type of query, and still obtain a working implementation of the `PrivateDataService` interface.
+    - `tests` contains integration tests. In particular, `tests/demo.rs` shows how an external application can use `pdslib` to register events and request reports on a device. 
+- `evaluation` is a Python package using `pdslib` through FFI. It's empty for now. We might build a Rust evaluation crate instead of Python.
 
 ## Getting started
 
@@ -17,3 +20,7 @@
 ## Contributing
 
 - Feel free to add useful shell commands to the `justfile`.
+
+## Tasks
+
+- [ ] Generate Kotlin bindings with UniFFI to check that the Rust `pdslib` crate will be usable in Android. See https://mozilla.github.io/uniffi-rs/latest/tutorial/foreign_language_bindings.html

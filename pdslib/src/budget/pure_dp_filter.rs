@@ -5,6 +5,8 @@ pub struct PureDPBudget {
     pub epsilon: f64,
 }
 
+// TODO: Check whether we can reuse the OpenDP accountant if we want to use RDP/zCDP, without having to execute a measurement on real data. Check out the `compose` function here: https://docs.rs/opendp/latest/opendp/measures/struct.ZeroConcentratedDivergence.html, check if they offer filters directly.
+
 #[derive(Debug)]
 pub struct PureDPBudgetFilter {
     pub remaining_budget: PureDPBudget,

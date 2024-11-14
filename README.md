@@ -3,9 +3,9 @@
 ## Overview
 
 - `pdslib` is a standalone Rust library (crate) containing the core IDP budgeting interfaces
-    - `src` contains the following main components: `budget`, `events`, `mechanisms` (no dependencies), `queries` (depends on `budget`, `events`, `mechnisms`) and `pds` (depends on the rest).
+    - `src` contains the following main components: `budget`, `events`, `mechanisms` (no dependencies), `queries` (depends on `budget`, `events`, `mechanisms`) and `pds` (depends on the rest).
     - `src/*/traits.rs` define interfaces. Other files in `src/*` implement these interfaces, with very simple in-memory datastructures for now. Eventually I expect that we will have implementations for the same interfaces using browser storage or SQLite databases.
-    - `src/pds` is structured to work with  `budget`, `events`, `queries` only through interfaces. So we should be able to swap a the implementaiton for event storage or replace the type of query, and still obtain a working implementation of the `PrivateDataService` interface.
+    - `src/pds` is structured to work with  `budget`, `events`, `queries` only through interfaces. So we should be able to swap the implementation for event storage or replace the type of query, and still obtain a working implementation of the `PrivateDataService` interface.
     - `tests` contains integration tests. In particular, `tests/demo.rs` shows how an external application can use `pdslib` to register events and request reports on a device. 
 - `evaluation` is a Python package using `pdslib` through FFI. It's empty for now. We might build a Rust evaluation crate instead of Python.
 

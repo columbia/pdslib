@@ -63,11 +63,18 @@ impl EventStorage for SimpleEventStorage {
         Ok(())
     }
 
-    fn get_epoch_events(
+    fn get_epoch_events<F>(
         &self,
         epoch_id: &<Self::Event as Event>::EpochId,
-    ) -> Option<Self::EpochEvents> {
-        self.epochs.get(&epoch_id).cloned()
+        is_relevant_event: F,
+    ) -> Option<Self::EpochEvents> 
+    where
+        F: Fn(&Self::Event) -> bool,
+    {
+        // Return relevant events for a given epoch_id
+        self.epochs.get(&epoch_id).map(|events|{
+            events.iter().filter(|event| is_relevant_event(event)).cloned().collect()
+        })
     }
 }
 

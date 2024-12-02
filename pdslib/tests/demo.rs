@@ -46,7 +46,7 @@ fn main() {
         attributable_value: 3.0,
         noise_scale: 1.0,
     };
-    let report = pds.compute_report(report_request);
+    let report = pds.compute_report(report_request, always_relevant_event);
     let bucket = Some((event.epoch_number, event.event_key, 3.0));
     assert_eq!(report.attributed_value, bucket);
 
@@ -62,7 +62,7 @@ fn main() {
                        * epoch 1 is 0. */
         noise_scale: 1.0,
     };
-    let report2 = pds.compute_report(report_request2);
+    let report2 = pds.compute_report(report_request2, always_relevant_event);
     // Allocated budget for epoch 1 is 3.0, but 3.0 has already been consumed in
     // the last request, so the budget is depleted. Now, the null report should
     // be returned for this additional query.
@@ -74,7 +74,7 @@ fn main() {
         attributable_value: 3.0,
         noise_scale: 1.0,
     };
-    let report2 = pds.compute_report(report_request2);
+    let report2 = pds.compute_report(report_request2, always_relevant_event);
     let bucket2 = Some((event2.epoch_number, event2.event_key, 3.0));
     assert_eq!(report2.attributed_value, bucket2);
 
@@ -86,7 +86,7 @@ fn main() {
         attributable_value: 0.0,
         noise_scale: 1.0,
     };
-    let report3_empty = pds.compute_report(report_request3_empty);
+    let report3_empty = pds.compute_report(report_request3_empty, always_relevant_event);
     assert_eq!(report3_empty.attributed_value, None);
 
     // Test restricting attributable_value
@@ -98,7 +98,7 @@ fn main() {
         attributable_value: 4.0,
         noise_scale: 1.0,
     };
-    let report3_over_budget = pds.compute_report(report_request3_over_budget);
+    let report3_over_budget = pds.compute_report(report_request3_over_budget, always_relevant_event);
     assert_eq!(report3_over_budget.attributed_value, None);
 
     // This tests the case where we meet the first event in epoch 3, below the
@@ -109,7 +109,11 @@ fn main() {
         attributable_value: 3.0,
         noise_scale: 1.0,
     };
-    let report3 = pds.compute_report(report_request3);
+    let report3 = pds.compute_report(report_request3, always_relevant_event);
     let bucket3 = Some((event4.epoch_number, event3.event_key, 3.0));
     assert_eq!(report3.attributed_value, bucket3);
+}
+
+fn always_relevant_event(event : &SimpleEvent) -> bool{
+    true
 }

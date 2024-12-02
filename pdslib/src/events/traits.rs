@@ -27,8 +27,11 @@ pub trait EventStorage {
 
     /// Retrieves all events for a given epoch.
     /// TODO: allow to filter relevant events for a query?
-    fn get_epoch_events(
+    fn get_epoch_events<F>(
         &self,
         epoch_id: &<Self::Event as Event>::EpochId,
-    ) -> Option<Self::EpochEvents>;
+        is_relevant_event: F,
+    ) -> Option<Self::EpochEvents>
+    where 
+        F: Fn(&Self::Event) -> bool;
 }

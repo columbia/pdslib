@@ -46,14 +46,17 @@ where
         self.event_storage.add_event(event)
     }
 
-    fn compute_report(&mut self, request: Q) -> <Q as Query>::Report {
+    fn compute_report<F>(&mut self, request: Q, is_relevant_event: F) -> <Q as Query>::Report 
+    where 
+        F: Fn(&Self::Event) -> bool,
+    {
         println!("Computing report for request {:?}", request);
         // Collect events from event storage. If an epoch has no relevant
         // events, don't add it to the mapping.
         let mut map_of_events_set_over_epochs: HashMap<EI, EE> = HashMap::new();
         for epoch_id in request.get_epoch_ids() {
             if let Some(epoch_events) =
-                self.event_storage.get_epoch_events(&epoch_id)
+                self.event_storage.get_epoch_events(&epoch_id, &is_relevant_event)
             {
                 map_of_events_set_over_epochs.insert(epoch_id, epoch_events);
             }

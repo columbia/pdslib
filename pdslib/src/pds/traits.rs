@@ -12,8 +12,11 @@ pub trait PrivateDataService {
     fn register_event(&mut self, event: Self::Event) -> Result<(), ()>;
 
     /// Computes a report for the given query.
-    fn compute_report(
+    fn compute_report<F>(
         &mut self,
         query: Self::Query,
-    ) -> <Self::Query as Query>::Report;
+        is_relevant_event: F,
+    ) -> <Self::Query as Query>::Report
+    where 
+    F: Fn(&Self::Event) -> bool;
 }

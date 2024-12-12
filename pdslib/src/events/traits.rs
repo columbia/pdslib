@@ -21,17 +21,16 @@ pub trait EpochEvents: Debug {
 pub trait EventStorage {
     type Event: Event;
     type EpochEvents: EpochEvents;
+    type RelevantEventSelector;
 
     /// Stores a new event.
     fn add_event(&mut self, event: Self::Event) -> Result<(), ()>;
 
     /// Retrieves all events for a given epoch.
     /// TODO: allow to filter relevant events for a query?
-    fn get_epoch_events<F>(
+    fn get_epoch_events(
         &self,
         epoch_id: &<Self::Event as Event>::EpochId,
-        is_relevant_event: F,
-    ) -> Option<Self::EpochEvents>
-    where 
-        F: Fn(&Self::Event) -> bool;
+        relevant_event_selector: &Self::RelevantEventSelector,
+    ) -> Option<Self::EpochEvents>;
 }

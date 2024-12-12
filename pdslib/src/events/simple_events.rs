@@ -52,6 +52,8 @@ impl EventStorage for SimpleEventStorage {
     type EpochEvents = SimpleEpochEvents; // TODO: use a pointer and add lifetime? Or just copy for now, nice to edit
                                           // inplace anyway.
 
+    type RelevantEventSelector = fn(&Self::Event) -> bool;
+
     fn add_event(
         &mut self,
         event: Self::Event,
@@ -66,8 +68,16 @@ impl EventStorage for SimpleEventStorage {
     fn get_epoch_events(
         &self,
         epoch_id: &<Self::Event as Event>::EpochId,
+        is_relevant_event: &Self::RelevantEventSelector,
     ) -> Option<Self::EpochEvents> {
-        self.epochs.get(&epoch_id).cloned()
+        // Return relevant events for a given epoch_id
+        self.epochs.get(&epoch_id).map(|events| {
+            events
+                .iter()
+                .filter(|event| is_relevant_event(event))
+                .cloned()
+                .collect()
+        })
     }
 }
 

@@ -45,6 +45,7 @@ fn main() {
         epoch_end: 1,
         attributable_value: 3.0,
         noise_scale: 1.0,
+        is_relevant_event: always_relevant_event,
     };
     let report = pds.compute_report(report_request);
     let bucket = Some((event.epoch_number, event.event_key, 3.0));
@@ -61,6 +62,7 @@ fn main() {
                        * limit as the current budget left for
                        * epoch 1 is 0. */
         noise_scale: 1.0,
+        is_relevant_event: always_relevant_event,
     };
     let report2 = pds.compute_report(report_request2);
     // Allocated budget for epoch 1 is 3.0, but 3.0 has already been consumed in
@@ -73,6 +75,7 @@ fn main() {
         epoch_end: 2,
         attributable_value: 3.0,
         noise_scale: 1.0,
+        is_relevant_event: always_relevant_event,
     };
     let report2 = pds.compute_report(report_request2);
     let bucket2 = Some((event2.epoch_number, event2.event_key, 3.0));
@@ -85,6 +88,7 @@ fn main() {
         epoch_end: 3,   // Epoch 3 not created yet.
         attributable_value: 0.0,
         noise_scale: 1.0,
+        is_relevant_event: always_relevant_event,
     };
     let report3_empty = pds.compute_report(report_request3_empty);
     assert_eq!(report3_empty.attributed_value, None);
@@ -97,6 +101,7 @@ fn main() {
         epoch_end: 3,
         attributable_value: 4.0,
         noise_scale: 1.0,
+        is_relevant_event: always_relevant_event,
     };
     let report3_over_budget = pds.compute_report(report_request3_over_budget);
     assert_eq!(report3_over_budget.attributed_value, None);
@@ -108,8 +113,25 @@ fn main() {
         epoch_end: 3,
         attributable_value: 3.0,
         noise_scale: 1.0,
+        is_relevant_event: always_relevant_event,
     };
     let report3 = pds.compute_report(report_request3);
     let bucket3 = Some((event4.epoch_number, event3.event_key, 3.0));
     assert_eq!(report3.attributed_value, bucket3);
+
+    // Check that irrelevant events are ignored
+    let report_request4 = SimpleLastTouchHistogramRequest {
+        epoch_start: 1,
+        epoch_end: 3,
+        attributable_value: 3.0,
+        noise_scale: 1.0,
+        is_relevant_event: |e: &SimpleEvent| e.event_key == 1,
+    };
+    let report4 = pds.compute_report(report_request4);
+    let bucket4: Option<(usize, usize, f64)> = None;
+    assert_eq!(report4.attributed_value, bucket4);
+}
+
+fn always_relevant_event(_: &SimpleEvent) -> bool {
+    true
 }

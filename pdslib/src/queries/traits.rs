@@ -22,11 +22,16 @@ pub trait Query: Debug {
 pub trait EpochQuery: Query {
     type EpochId: EpochId;
     type EpochEvents: EpochEvents;
+    type RelevantEventSelector;
     type PrivacyBudget;
     type ReportGlobalSensitivity;
 
     /// Returns the list of epoch IDs, in the order the attribution should run.
     fn get_epoch_ids(&self) -> Vec<Self::EpochId>;
+
+    /// Returns the selector for relevant events for the query. The selector
+    /// can be passed to the event storage to retrieve only the relevant events.
+    fn get_relevant_event_selector(&self) -> Self::RelevantEventSelector;
 
     /// Computes the report for the given request and epoch events.
     fn compute_report(

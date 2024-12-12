@@ -28,15 +28,15 @@ pub struct PrivateDataServiceImpl<
     pub _phantom: std::marker::PhantomData<Q>,
 }
 
-impl<EI, E, EE, FS, ES, Q> PrivateDataService
+impl<EI, E, EE, RES, FS, ES, Q> PrivateDataService
     for PrivateDataServiceImpl<FS, ES, Q>
 where
     EI: EpochId,
     E: Event<EpochId = EI>,
     EE: EpochEvents,
     FS: FilterStorage<FilterId = EI, Budget = PureDPBudget>, /* NOTE: we'll want to support other budgets eventually */
-    ES: EventStorage<Event = E, EpochEvents = EE>,
-    Q: EpochQuery<EpochId = EI, EpochEvents = EE>,
+    ES: EventStorage<Event = E, EpochEvents = EE, RelevantEventSelector = RES>,
+    Q: EpochQuery<EpochId = EI, EpochEvents = EE, RelevantEventSelector = RES>,
 {
     type Event = E;
     type Query = Q;
@@ -51,9 +51,11 @@ where
         // Collect events from event storage. If an epoch has no relevant
         // events, don't add it to the mapping.
         let mut map_of_events_set_over_epochs: HashMap<EI, EE> = HashMap::new();
+        let relevant_event_selector = request.get_relevant_event_selector();
         for epoch_id in request.get_epoch_ids() {
-            if let Some(epoch_events) =
-                self.event_storage.get_epoch_events(&epoch_id)
+            if let Some(epoch_events) = self
+                .event_storage
+                .get_epoch_events(&epoch_id, &relevant_event_selector)
             {
                 map_of_events_set_over_epochs.insert(epoch_id, epoch_events);
             }

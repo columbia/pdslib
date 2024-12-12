@@ -21,6 +21,7 @@ pub trait EpochEvents: Debug {
 pub trait EventStorage {
     type Event: Event;
     type EpochEvents: EpochEvents;
+    type RelevantEventSelector;
 
     /// Stores a new event.
     fn add_event(&mut self, event: Self::Event) -> Result<(), ()>;
@@ -30,5 +31,6 @@ pub trait EventStorage {
     fn get_epoch_events(
         &self,
         epoch_id: &<Self::Event as Event>::EpochId,
+        relevant_event_selector: &Self::RelevantEventSelector,
     ) -> Option<Self::EpochEvents>;
 }

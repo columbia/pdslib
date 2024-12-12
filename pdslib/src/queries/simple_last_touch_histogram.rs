@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::budget::pure_dp_filter::PureDPBudget;
-use crate::events::simple_events::SimpleEpochEvents;
+use crate::events::simple_events::{SimpleEpochEvents, SimpleEvent};
 use crate::mechanisms::NormType;
 use crate::queries::traits::{EpochQuery, Query, Report};
 
@@ -11,6 +11,7 @@ pub struct SimpleLastTouchHistogramRequest {
     pub epoch_end: usize,
     pub attributable_value: f64,
     pub noise_scale: f64,
+    pub is_relevant_event: fn(&SimpleEvent) -> bool,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -18,7 +19,7 @@ pub struct SimpleLastTouchHistogramReport {
     // Value attributed to one bin or None if no attribution
     pub attributed_value: Option<(
         usize, // Epoch ID
-        usize, // Event ID
+        usize, // Event key
         f64,   // Attributed value
     )>,
 }
@@ -34,10 +35,15 @@ impl EpochQuery for SimpleLastTouchHistogramRequest {
     type EpochEvents = SimpleEpochEvents;
     type PrivacyBudget = PureDPBudget;
     type ReportGlobalSensitivity = f64;
+    type RelevantEventSelector = fn(&SimpleEvent) -> bool;
 
     fn get_epoch_ids(&self) -> Vec<Self::EpochId> {
         let range = self.epoch_start..=self.epoch_end;
         range.rev().collect()
+    }
+
+    fn get_relevant_event_selector(&self) -> Self::RelevantEventSelector {
+        self.is_relevant_event
     }
 
     fn compute_report(
@@ -65,13 +71,13 @@ impl EpochQuery for SimpleLastTouchHistogramRequest {
                     // -> bucket_key mapping. Also potentially depending on the
                     // conversion key. Check how ARA implements it with the
                     // source/trigger keypiece.
-                    let event_id = last_impression.event_key;
+                    let event_key = last_impression.event_key;
                     let attributed_value = self.attributable_value;
 
                     return SimpleLastTouchHistogramReport {
                         attributed_value: Some((
                             epoch_id,
-                            event_id,
+                            event_key,
                             attributed_value,
                         )),
                     };

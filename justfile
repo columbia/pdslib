@@ -1,16 +1,13 @@
 set shell := ["zsh", "-uc"]
 
 build:
-    cd pdslib; cargo build
+    cargo build
 
 test:
-    cd pdslib; cargo test
+    cargo test
 
 demo:
-    cd pdslib; cargo test --package pdslib --test demo -- --nocapture 
-
-install:
-    source .venv/bin/activate; uv sync; cd pdslib; env -u CONDA_PREFIX maturin develop;
+    cargo test --package pdslib --test demo -- --nocapture 
 
 format:
-    cd pdslib; cargo +nightly fmt
+    cargo +nightly fmt

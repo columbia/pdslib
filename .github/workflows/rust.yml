@@ -17,11 +17,8 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Build
-      working-directory: ./pdslib
       run: cargo build --verbose
     - name: Run tests
-      working-directory: ./pdslib
       run: cargo test --verbose
     - name: Run integration tests
-      working-directory: ./pdslib
       run: cargo test --package pdslib --test demo -- --nocapture 

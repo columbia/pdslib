@@ -1,9 +1,11 @@
-pub use crate::budget::traits::{Filter, FilterError};
+pub use crate::budget::traits::{Budget, Filter, FilterError};
 
 #[derive(Debug, Clone)]
 pub struct PureDPBudget {
     pub epsilon: f64,
 }
+
+impl Budget for PureDPBudget {}
 
 // TODO: Check whether we can reuse the OpenDP accountant if we want to use RDP/zCDP, without having to execute a measurement on real data. Check out the `compose` function here: https://docs.rs/opendp/latest/opendp/measures/struct.ZeroConcentratedDivergence.html, check if they offer filters directly.
 
@@ -30,6 +32,10 @@ impl Filter<PureDPBudget> for PureDPBudgetFilter {
         } else {
             Err(FilterError::OutOfBudget)
         }
+    }
+
+    fn get_remaining_budget(&self) -> PureDPBudget {
+        self.remaining_budget.clone()
     }
 }
 

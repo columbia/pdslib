@@ -1,4 +1,6 @@
-use crate::budget::traits::{Filter, FilterStorage, FilterStorageError};
+use crate::budget::traits::{
+    Budget, Filter, FilterStorage, FilterStorageError,
+};
 use std::collections::HashMap;
 use std::marker::PhantomData;
 
@@ -19,18 +21,19 @@ impl<K, F, Budget> HashMapFilterStorage<K, F, Budget> {
     }
 }
 
-impl<K, F, Budget> FilterStorage for HashMapFilterStorage<K, F, Budget>
+impl<K, F, B> FilterStorage for HashMapFilterStorage<K, F, B>
 where
-    F: Filter<Budget>,
+    B: Budget,
+    F: Filter<B>,
     K: Eq + std::hash::Hash,
 {
     type FilterId = K;
-    type Budget = Budget;
+    type Budget = B;
 
     fn new_filter(
         &mut self,
         filter_id: K,
-        capacity: Budget,
+        capacity: B,
     ) -> Result<(), FilterStorageError> {
         let filter = F::new(capacity);
         self.filters.insert(filter_id, filter);
@@ -45,7 +48,7 @@ where
     fn try_consume(
         &mut self,
         filter_id: &K,
-        budget: &Budget,
+        budget: &B,
     ) -> Result<(), FilterStorageError> {
         let filter = self
             .filters
@@ -53,6 +56,17 @@ where
             .ok_or(FilterStorageError::FilterDoesNotExist)?;
         filter.try_consume(budget)?;
         Ok(())
+    }
+
+    fn get_remaining_budget(
+        &self,
+        filter_id: &Self::FilterId,
+    ) -> Result<Self::Budget, FilterStorageError> {
+        let filter = self
+            .filters
+            .get(filter_id)
+            .ok_or(FilterStorageError::FilterDoesNotExist)?;
+        Ok(filter.get_remaining_budget())
     }
 }
 

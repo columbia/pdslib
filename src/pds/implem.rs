@@ -1,3 +1,5 @@
+use thiserror::Error;
+
 use crate::budget::pure_dp_filter::PureDPBudget;
 use crate::budget::traits::{FilterError, FilterStorage, FilterStorageError};
 use crate::events::traits::{EpochEvents, EpochId, Event, EventStorage};
@@ -30,6 +32,15 @@ pub struct PrivateDataServiceImpl<
     pub _phantom: std::marker::PhantomData<Q>,
 }
 
+#[derive(Debug, Error)]
+pub enum PDSImplError {
+    #[error("Failed to register event.")]
+    EventRegistrationError,
+
+    #[error("Failed to consume privacy budget from filter: {0}")]
+    FilterConsumptionError(#[from] FilterStorageError),
+}
+
 impl<EI, E, EE, RES, FS, ES, Q> PrivateDataService
     for PrivateDataServiceImpl<FS, ES, Q>
 where
@@ -48,10 +59,12 @@ where
     type Request = Q;
     type PassivePrivacyLossRequest =
         PassivePrivacyLossRequest<EI, PureDPBudget>;
-
-    fn register_event(&mut self, event: E) -> Result<(), ()> {
+    type Error = PDSImplError;
+    fn register_event(&mut self, event: E) -> Result<(), PDSImplError> {
         println!("Registering event {:?}", event);
-        self.event_storage.add_event(event)
+        self.event_storage
+            .add_event(event)
+            .map_err(|_| PDSImplError::EventRegistrationError)
     }
 
     fn compute_report(&mut self, request: Q) -> <Q as ReportRequest>::Report {
@@ -127,20 +140,23 @@ where
     fn account_for_passive_privacy_loss(
         &mut self,
         request: Self::PassivePrivacyLossRequest,
-    ) -> Result<(), ()> {
+    ) -> Result<(), PDSImplError> {
         // For each epoch, try to consume the privacy budget.
         for epoch_id in request.epoch_ids {
             // Initialize filter if necessary.
             if !self.filter_storage.is_initialized(&epoch_id) {
-                self.filter_storage
-                    .new_filter(epoch_id.clone(), self.epoch_capacity.clone())
-                    .map_err(|_| ())?;
+                self.filter_storage.new_filter(
+                    epoch_id.clone(),
+                    self.epoch_capacity.clone(),
+                )?;
             }
 
             // Try to consume budget from current epoch.
             self.filter_storage
-                .try_consume(&epoch_id, &request.privacy_budget)
-                .map_err(|_| ())?;
+                .try_consume(&epoch_id, &request.privacy_budget)?;
+
+            // TODO: unlike regular filters, deduct all the way to 0? This is a
+            // problem actually.
         }
         Ok(())
     }
@@ -193,5 +209,87 @@ where
         return PureDPBudget {
             epsilon: request.get_noise_scale() * individual_sensitivity,
         };
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::budget::hashmap_filter_storage::HashMapFilterStorage;
+    use crate::budget::pure_dp_filter::{PureDPBudget, PureDPBudgetFilter};
+    use crate::events::simple_events::SimpleEventStorage;
+    use crate::queries::simple_last_touch_histogram::SimpleLastTouchHistogramRequest;
+    use crate::queries::traits::PassivePrivacyLossRequest;
+
+    #[test]
+    fn test_account_for_passive_privacy_loss() {
+        let filters: HashMapFilterStorage<
+            usize,
+            PureDPBudgetFilter,
+            PureDPBudget,
+        > = HashMapFilterStorage::new();
+        let events = SimpleEventStorage::new();
+
+        let mut pds = PrivateDataServiceImpl {
+            filter_storage: filters,
+            event_storage: events,
+            epoch_capacity: PureDPBudget { epsilon: 3.0 },
+            _phantom: std::marker::PhantomData::<SimpleLastTouchHistogramRequest>,
+        };
+
+        // First request should succeed
+        let request = PassivePrivacyLossRequest {
+            epoch_ids: vec![1, 2, 3],
+            privacy_budget: PureDPBudget { epsilon: 1.0 },
+        };
+        let result = pds.account_for_passive_privacy_loss(request);
+        assert!(result.is_ok());
+
+        // Second request with same budget should succeed (2.0 total)
+        let request = PassivePrivacyLossRequest {
+            epoch_ids: vec![1, 2, 3],
+            privacy_budget: PureDPBudget { epsilon: 1.0 },
+        };
+        let result = pds.account_for_passive_privacy_loss(request);
+        assert!(result.is_ok());
+
+        // Verify remaining budgets
+        for epoch_id in 1..=3 {
+            let remaining = pds
+                .filter_storage
+                .get_remaining_budget(&epoch_id)
+                .expect("Failed to get remaining budget");
+            assert_eq!(remaining.epsilon, 1.0); // 3.0 - 2.0 = 1.0 remaining
+        }
+
+        // Attempting to consume more should fail.
+        let request = PassivePrivacyLossRequest {
+            epoch_ids: vec![2, 3],
+            privacy_budget: PureDPBudget { epsilon: 2.0 },
+        };
+        let result = pds.account_for_passive_privacy_loss(request);
+        assert!(result.is_err());
+
+        // Consume from just one epoch.
+        let request = PassivePrivacyLossRequest {
+            epoch_ids: vec![3],
+            privacy_budget: PureDPBudget { epsilon: 1.0 },
+        };
+        let result = pds.account_for_passive_privacy_loss(request);
+        assert!(result.is_ok());
+
+        // Verify remaining budgets
+        for epoch_id in 1..=2 {
+            let remaining = pds
+                .filter_storage
+                .get_remaining_budget(&epoch_id)
+                .expect("Failed to get remaining budget");
+            assert_eq!(remaining.epsilon, 1.0);
+        }
+        let remaining = pds
+            .filter_storage
+            .get_remaining_budget(&3)
+            .expect("Failed to get remaining budget");
+        assert_eq!(remaining.epsilon, 0.0);
     }
 }

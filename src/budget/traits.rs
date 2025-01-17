@@ -1,6 +1,9 @@
-// TODO: maybe Budget trait, and Filter<T: Budget> if we need?
-
 use thiserror::Error;
+
+/// Trait for privacy budgets
+pub trait Budget: Clone {
+    // For now just a marker trait requiring Clone
+}
 
 /// Error returned when trying to consume from a filter.
 #[derive(Error, Debug)]
@@ -10,12 +13,18 @@ pub enum FilterError {
 }
 
 /// Trait for a privacy filter.
-pub trait Filter<T> {
+pub trait Filter<T: Budget> {
     /// Initializes a new filter with a given capacity.
     fn new(capacity: T) -> Self;
 
-    /// Tries to consume a given budget from the filter. In the formalism from https://arxiv.org/abs/1605.08294, Ok(()) corresponds to CONTINUE, and Err(FilterError::OutOfBudget) corresponds to HALT..
+    /// Tries to consume a given budget from the filter.
+    /// In the formalism from https://arxiv.org/abs/1605.08294, Ok(()) corresponds to CONTINUE, and Err(FilterError::OutOfBudget) corresponds to HALT.
     fn try_consume(&mut self, budget: &T) -> Result<(), FilterError>;
+
+    /// Gets the remaining budget for this filter.
+    /// WARNING: this method is for local visualization only.
+    /// Its output should not be shared outside the device.
+    fn get_remaining_budget(&self) -> T;
 }
 
 /// Error returned when trying to interact with a filter storage.
@@ -32,7 +41,7 @@ pub enum FilterStorageError {
 /// Trait for an interface or object that maintains a collection of filters.
 pub trait FilterStorage {
     type FilterId;
-    type Budget;
+    type Budget: Budget;
 
     /// Initializes a new filter with an associated filter ID and capacity.
     fn new_filter(
@@ -50,4 +59,10 @@ pub trait FilterStorage {
         filter_id: &Self::FilterId,
         budget: &Self::Budget,
     ) -> Result<(), FilterStorageError>;
+
+    /// Gets the remaining budget for a filter.
+    fn get_remaining_budget(
+        &self,
+        filter_id: &Self::FilterId,
+    ) -> Result<Self::Budget, FilterStorageError>;
 }

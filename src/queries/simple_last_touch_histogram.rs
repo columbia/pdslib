@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::budget::pure_dp_filter::PureDPBudget;
 use crate::events::simple_events::{SimpleEpochEvents, SimpleEvent};
 use crate::mechanisms::NormType;
-use crate::queries::traits::{EpochReportRequest, ReportRequest, Report};
+use crate::queries::traits::{EpochReportRequest, Report, ReportRequest};
 
 #[derive(Debug)]
 pub struct SimpleLastTouchHistogramRequest {

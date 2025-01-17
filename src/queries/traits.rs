@@ -53,3 +53,10 @@ pub trait EpochReportRequest: ReportRequest {
     /// Retrieves the scale of the noise that will be added by the aggregator.
     fn get_noise_scale(&self) -> f64;
 }
+
+/// Type for passive privacy loss accounting. Uniform over all epochs for now.
+#[derive(Debug)]
+pub struct PassivePrivacyLossRequest<EI: EpochId, PrivacyBudget> {
+    pub epoch_ids: Vec<EI>,
+    pub privacy_budget: PrivacyBudget,
+}

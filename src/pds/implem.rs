@@ -3,7 +3,9 @@ use crate::budget::traits::{FilterError, FilterStorage, FilterStorageError};
 use crate::events::traits::{EpochEvents, EpochId, Event, EventStorage};
 use crate::mechanisms::NormType;
 use crate::pds::traits::PrivateDataService;
-use crate::queries::traits::{EpochReportRequest, ReportRequest};
+use crate::queries::traits::{
+    EpochReportRequest, PassivePrivacyLossRequest, ReportRequest,
+};
 use std::collections::HashMap;
 
 /// Epoch-based private data service implementation, using generic filter
@@ -36,10 +38,16 @@ where
     EE: EpochEvents,
     FS: FilterStorage<FilterId = EI, Budget = PureDPBudget>, /* NOTE: we'll want to support other budgets eventually */
     ES: EventStorage<Event = E, EpochEvents = EE, RelevantEventSelector = RES>,
-    Q: EpochReportRequest<EpochId = EI, EpochEvents = EE, RelevantEventSelector = RES>,
+    Q: EpochReportRequest<
+        EpochId = EI,
+        EpochEvents = EE,
+        RelevantEventSelector = RES,
+    >,
 {
     type Event = E;
     type Request = Q;
+    type PassivePrivacyLossRequest =
+        PassivePrivacyLossRequest<EI, PureDPBudget>;
 
     fn register_event(&mut self, event: E) -> Result<(), ()> {
         println!("Registering event {:?}", event);
@@ -114,6 +122,27 @@ where
         let filtered_report =
             request.compute_report(&map_of_events_set_over_epochs);
         filtered_report
+    }
+
+    fn account_for_passive_privacy_loss(
+        &mut self,
+        request: Self::PassivePrivacyLossRequest,
+    ) -> Result<(), ()> {
+        // For each epoch, try to consume the privacy budget.
+        for epoch_id in request.epoch_ids {
+            // Initialize filter if necessary.
+            if !self.filter_storage.is_initialized(&epoch_id) {
+                self.filter_storage
+                    .new_filter(epoch_id.clone(), self.epoch_capacity.clone())
+                    .map_err(|_| ())?;
+            }
+
+            // Try to consume budget from current epoch.
+            self.filter_storage
+                .try_consume(&epoch_id, &request.privacy_budget)
+                .map_err(|_| ())?;
+        }
+        Ok(())
     }
 }
 

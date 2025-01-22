@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
 use crate::budget::pure_dp_filter::PureDPBudget;
-use crate::events::simple_events::{SimpleEpochEvents, SimpleEvent};
+use crate::events::event_storage::VecEpochEvents;
+use crate::events::simple_event::SimpleEvent;
 use crate::mechanisms::NormType;
 use crate::queries::traits::{EpochReportRequest, Report, ReportRequest};
 
@@ -32,7 +33,7 @@ impl ReportRequest for SimpleLastTouchHistogramRequest {
 
 impl EpochReportRequest for SimpleLastTouchHistogramRequest {
     type EpochId = usize;
-    type EpochEvents = SimpleEpochEvents;
+    type EpochEvents = VecEpochEvents<SimpleEvent>;
     type PrivacyBudget = PureDPBudget;
     type ReportGlobalSensitivity = f64;
     type RelevantEventSelector = fn(&SimpleEvent) -> bool;

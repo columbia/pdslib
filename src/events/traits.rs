@@ -1,8 +1,11 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 
-///  Marker trait with bounds for epoch identifiers.
-pub trait EpochId: Hash + std::cmp::Eq + Clone {}
+/// Marker trait with bounds for epoch identifiers.
+pub trait EpochId: Hash + std::cmp::Eq + Clone + Debug {}
+
+/// Default EpochId
+impl EpochId for usize {}
 
 /// Event with an associated epoch.
 pub trait Event: Debug {

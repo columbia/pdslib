@@ -217,7 +217,7 @@ mod tests {
     use super::*;
     use crate::budget::hashmap_filter_storage::HashMapFilterStorage;
     use crate::budget::pure_dp_filter::{PureDPBudget, PureDPBudgetFilter};
-    use crate::events::simple_events::SimpleEventStorage;
+    use crate::events::event_storage::HashMapEventStorage;
     use crate::queries::simple_last_touch_histogram::SimpleLastTouchHistogramRequest;
     use crate::queries::traits::PassivePrivacyLossRequest;
 
@@ -228,7 +228,7 @@ mod tests {
             PureDPBudgetFilter,
             PureDPBudget,
         > = HashMapFilterStorage::new();
-        let events = SimpleEventStorage::new();
+        let events = HashMapEventStorage::new();
 
         let mut pds = PrivateDataServiceImpl {
             filter_storage: filters,

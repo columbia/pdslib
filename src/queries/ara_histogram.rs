@@ -49,7 +49,7 @@ impl HistogramRequest for AraHistogramRequest {
     type BucketKey = usize;
     type RelevantEventSelector = AraRelevantEventSelector;
 
-    fn get_epochs(&self) -> Vec<Self::EpochId> {
+    fn get_epochs_ids(&self) -> Vec<Self::EpochId> {
         (self.start_epoch..=self.end_epoch).rev().collect()
     }
 

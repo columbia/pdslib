@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::events::traits::{EpochEvents, EpochId, Event, EventStorage};
+use crate::events::traits::Event;
 
 /// Source event for ARA-style callers such as Chromium.
 /// Mimics the fields from https://source.chromium.org/chromium/chromium/src/+/main:content/browser/attribution_reporting/attribution_reporting.proto.

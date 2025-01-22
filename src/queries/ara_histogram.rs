@@ -10,7 +10,8 @@ use std::vec;
 #[derive(Debug, Clone)]
 pub struct AraRelevantEventSelector {
     pub filters: HashMap<String, Vec<String>>,
-    // source_key: String, // TODO: add this if we drop events without the right source key
+    // source_key: String, // TODO: add this if we drop events without the
+    // right source key
 }
 
 /// Select events using ARA-style filters.
@@ -33,8 +34,10 @@ impl RelevantEventSelector for AraRelevantEventSelector {
 pub struct AraHistogramRequest {
     pub start_epoch: usize,
     pub end_epoch: usize,
-    pub per_event_attributable_value: f64, // ARA can attribute to multiple events
-    pub attributable_value: f64, // E.g. 2^16 in ARA, with scaling as post-processing
+    pub per_event_attributable_value: f64, /* ARA can attribute to multiple
+                                            * events */
+    pub attributable_value: f64, /* E.g. 2^16 in ARA, with scaling as
+                                  * post-processing */
     pub noise_scale: f64,
     pub source_key: String,
     pub trigger_keypiece: usize,
@@ -78,9 +81,10 @@ impl HistogramRequest for AraHistogramRequest {
         bucket_key
     }
 
-    /// Returns the same value for each relevant event. Will be capped by `compute_report`.
-    /// An alternative would be to pick one event, or split the attribution cap uniformly.
-    /// TODO: Double check with Chromium logic.
+    /// Returns the same value for each relevant event. Will be capped by
+    /// `compute_report`. An alternative would be to pick one event, or
+    /// split the attribution cap uniformly. TODO: Double check with
+    /// Chromium logic.
     fn get_values<'a>(
         &self,
         all_epoch_events: &'a HashMap<Self::EpochId, Self::EpochEvents>,

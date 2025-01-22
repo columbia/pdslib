@@ -53,7 +53,8 @@ fn main() {
     let report1 = pds.compute_report(request1);
     println!("Report1: {:?}", report1);
 
-    // One event attributed to the binary OR of the source keypiece and trigger keypiece = 0x159 | 0x400
+    // One event attributed to the binary OR of the source keypiece and trigger
+    // keypiece = 0x159 | 0x400
     assert!(report1.bin_values.contains_key(&0x559));
     assert_eq!(report1.bin_values.get(&0x559), Some(&32768.0));
 

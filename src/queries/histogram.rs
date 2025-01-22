@@ -29,8 +29,8 @@ impl<BK> Default for HistogramReport<BK> {
 
 impl<BK: BucketKey> Report for HistogramReport<BK> {}
 
-/// Trait for generic histogram requests. Any type satisfying this interface will
-/// be callable as a valid ReportRequest with the right accounting.
+/// Trait for generic histogram requests. Any type satisfying this interface
+/// will be callable as a valid ReportRequest with the right accounting.
 /// Following the formalism from https://arxiv.org/pdf/2405.16719, Thm 18.
 /// Can be instantiated by ARA-style queries in particular.
 pub trait HistogramRequest: Debug {
@@ -51,9 +51,9 @@ pub trait HistogramRequest: Debug {
     /// attributed histogram.
     fn get_attributable_value(&self) -> f64;
 
-    /// Returns a selector object, that can be passed to the event storage to retrieve
-    /// relevant events. The selector can also output a boolean indicating whether a single
-    /// event is relevant.
+    /// Returns a selector object, that can be passed to the event storage to
+    /// retrieve relevant events. The selector can also output a boolean
+    /// indicating whether a single event is relevant.
     fn get_relevant_event_selector(&self) -> Self::RelevantEventSelector;
 
     /// Returns the histogram bucket key (bin) for a given event.
@@ -72,8 +72,8 @@ impl<H: HistogramRequest> ReportRequest for H {
     type Report = HistogramReport<<H as HistogramRequest>::BucketKey>;
 }
 
-/// We implement the EpochReportRequest trait, so any type that implements HistogramRequest can be used as an
-/// EpochReportRequest.
+/// We implement the EpochReportRequest trait, so any type that implements
+/// HistogramRequest can be used as an EpochReportRequest.
 impl<H: HistogramRequest> EpochReportRequest for H {
     type EpochId = H::EpochId;
     type EpochEvents = H::EpochEvents;
@@ -94,7 +94,8 @@ impl<H: HistogramRequest> EpochReportRequest for H {
         self.get_noise_scale()
     }
 
-    /// Computes the report by attributing values to events, and then summing events by bucket.
+    /// Computes the report by attributing values to events, and then summing
+    /// events by bucket.
     fn compute_report(
         &self,
         all_epoch_events: &HashMap<Self::EpochId, Self::EpochEvents>,

@@ -2,6 +2,7 @@ use thiserror::Error;
 
 use crate::budget::pure_dp_filter::PureDPBudget;
 use crate::budget::traits::{FilterError, FilterStorage, FilterStorageError};
+use crate::events::traits::RelevantEventSelector;
 use crate::events::traits::{EpochEvents, EpochId, Event, EventStorage};
 use crate::mechanisms::NormType;
 use crate::pds::traits::PrivateDataService;
@@ -48,6 +49,7 @@ where
     E: Event<EpochId = EI>,
     EE: EpochEvents,
     FS: FilterStorage<FilterId = EI, Budget = PureDPBudget>, /* NOTE: we'll want to support other budgets eventually */
+    RES: RelevantEventSelector<Event = E>,
     ES: EventStorage<Event = E, EpochEvents = EE, RelevantEventSelector = RES>,
     Q: EpochReportRequest<
         EpochId = EI,
@@ -217,7 +219,7 @@ mod tests {
     use super::*;
     use crate::budget::hashmap_filter_storage::HashMapFilterStorage;
     use crate::budget::pure_dp_filter::{PureDPBudget, PureDPBudgetFilter};
-    use crate::events::event_storage::HashMapEventStorage;
+    use crate::events::hashmap_event_storage::HashMapEventStorage;
     use crate::queries::simple_last_touch_histogram::SimpleLastTouchHistogramRequest;
     use crate::queries::traits::PassivePrivacyLossRequest;
 

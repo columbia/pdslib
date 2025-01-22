@@ -20,11 +20,21 @@ pub trait EpochEvents: Debug {
     fn is_empty(&self) -> bool;
 }
 
+/// Selector that can tag relevant events one by one. Can carry some state.
+/// (but storage implementations don't have to use this method, they can
+/// also implement bulk retrieval)
+/// TODO: do we really need a separate trait? Could also pass the whole request.
+pub trait RelevantEventSelector {
+    type Event: Event;
+
+    fn is_relevant_event(&self, event: &Self::Event) -> bool;
+}
+
 /// Interface to store events and retrieve them by epoch.
 pub trait EventStorage {
     type Event: Event;
     type EpochEvents: EpochEvents;
-    type RelevantEventSelector;
+    type RelevantEventSelector: RelevantEventSelector<Event = Self::Event>;
 
     /// Stores a new event.
     fn add_event(&mut self, event: Self::Event) -> Result<(), ()>;

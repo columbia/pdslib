@@ -1,6 +1,6 @@
 use pdslib::budget::hashmap_filter_storage::HashMapFilterStorage;
 use pdslib::budget::pure_dp_filter::{PureDPBudget, PureDPBudgetFilter};
-use pdslib::events::event_storage::HashMapEventStorage;
+use pdslib::events::hashmap_event_storage::HashMapEventStorage;
 use pdslib::events::simple_event::SimpleEvent;
 use pdslib::pds::implem::PrivateDataServiceImpl;
 use pdslib::pds::traits::PrivateDataService;

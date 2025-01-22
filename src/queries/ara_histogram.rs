@@ -8,8 +8,8 @@ use std::collections::HashMap;
 use std::vec;
 
 #[derive(Debug, Clone)]
-struct AraRelevantEventSelector {
-    filters: HashMap<String, Vec<String>>,
+pub struct AraRelevantEventSelector {
+    pub filters: HashMap<String, Vec<String>>,
     // source_key: String, // TODO: add this if we drop events without the right source key
 }
 
@@ -30,15 +30,15 @@ impl RelevantEventSelector for AraRelevantEventSelector {
 /// packed queries (which can be emulated by running multiple queries).
 /// TODO: what is "nonMatchingKeyIdsIgnored"?
 #[derive(Debug)]
-struct AraHistogramRequest {
-    start_epoch: usize,
-    end_epoch: usize,
-    per_event_attributable_value: f64, // ARA can attribute to multiple events
-    attributable_value: f64, // E.g. 2^16 in ARA, with scaling as post-processing
-    noise_scale: f64,
-    source_key: String,
-    trigger_keypiece: usize,
-    filters: AraRelevantEventSelector,
+pub struct AraHistogramRequest {
+    pub start_epoch: usize,
+    pub end_epoch: usize,
+    pub per_event_attributable_value: f64, // ARA can attribute to multiple events
+    pub attributable_value: f64, // E.g. 2^16 in ARA, with scaling as post-processing
+    pub noise_scale: f64,
+    pub source_key: String,
+    pub trigger_keypiece: usize,
+    pub filters: AraRelevantEventSelector,
 }
 
 /// See https://github.com/WICG/attribution-reporting-api/blob/main/AGGREGATE.md#attribution-trigger-registration.

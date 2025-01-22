@@ -1,0 +1,55 @@
+use pdslib::budget::hashmap_filter_storage::HashMapFilterStorage;
+use pdslib::budget::pure_dp_filter::{PureDPBudget, PureDPBudgetFilter};
+use pdslib::events::ara_event::AraEvent;
+use pdslib::events::hashmap_event_storage::HashMapEventStorage;
+use pdslib::pds::implem::PrivateDataServiceImpl;
+use pdslib::pds::traits::PrivateDataService;
+use pdslib::queries::ara_histogram::{
+    AraHistogramRequest, AraRelevantEventSelector,
+};
+use std::collections::HashMap;
+
+#[test]
+fn main() {
+    let events =
+        HashMapEventStorage::<AraEvent, AraRelevantEventSelector>::new();
+    let filters: HashMapFilterStorage<usize, PureDPBudgetFilter, PureDPBudget> =
+        HashMapFilterStorage::new();
+
+    let mut pds = PrivateDataServiceImpl {
+        filter_storage: filters,
+        event_storage: events,
+        epoch_capacity: PureDPBudget { epsilon: 3.0 },
+        _phantom: std::marker::PhantomData::<AraHistogramRequest>,
+    };
+
+    // Test similar to https://github.com/WICG/attribution-reporting-api/blob/main/AGGREGATE.md#attribution-trigger-registration
+    let mut sources1 = HashMap::new();
+    sources1.insert("campaignCounts".to_string(), 0x159);
+    sources1.insert("geoValue".to_string(), 0x5);
+
+    let event1 = AraEvent {
+        id: 1,
+        epoch_number: 1,
+        aggregatable_sources: sources1,
+    };
+
+    pds.register_event(event1.clone()).unwrap();
+
+    // Test basic attribution
+    let request1 = AraHistogramRequest {
+        start_epoch: 1,
+        end_epoch: 2,
+        per_event_attributable_value: 32768.0,
+        attributable_value: 65536.0,
+        noise_scale: 65536.0,
+        source_key: "campaignCounts".to_string(),
+        trigger_keypiece: 0x400,
+        filters: AraRelevantEventSelector {
+            filters: HashMap::new(),
+        }, // Not filtering yet.
+    };
+
+    let report1 = pds.compute_report(request1);
+    println!("Report1: {:?}", report1);
+}

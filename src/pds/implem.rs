@@ -209,7 +209,7 @@ where
         }
 
         return PureDPBudget {
-            epsilon: request.get_noise_scale() * individual_sensitivity,
+            epsilon: individual_sensitivity / request.get_noise_scale(),
         };
     }
 }

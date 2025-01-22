@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 
 use crate::budget::pure_dp_filter::PureDPBudget;
-use crate::events::simple_events::{SimpleEpochEvents, SimpleEvent};
+use crate::events::hashmap_event_storage::VecEpochEvents;
+use crate::events::simple_event::SimpleEvent;
+use crate::events::traits::RelevantEventSelector;
 use crate::mechanisms::NormType;
-use crate::queries::traits::{EpochQuery, Query, Report};
+use crate::queries::traits::{EpochReportRequest, Report, ReportRequest};
 
 #[derive(Debug)]
 pub struct SimpleLastTouchHistogramRequest {
@@ -12,6 +14,18 @@ pub struct SimpleLastTouchHistogramRequest {
     pub attributable_value: f64,
     pub noise_scale: f64,
     pub is_relevant_event: fn(&SimpleEvent) -> bool,
+}
+
+pub struct SimpleRelevantEventSelector {
+    pub lambda: fn(&SimpleEvent) -> bool,
+}
+
+impl RelevantEventSelector for SimpleRelevantEventSelector {
+    type Event = SimpleEvent;
+
+    fn is_relevant_event(&self, event: &SimpleEvent) -> bool {
+        (self.lambda)(event)
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -26,16 +40,16 @@ pub struct SimpleLastTouchHistogramReport {
 
 impl Report for SimpleLastTouchHistogramReport {}
 
-impl Query for SimpleLastTouchHistogramRequest {
+impl ReportRequest for SimpleLastTouchHistogramRequest {
     type Report = SimpleLastTouchHistogramReport;
 }
 
-impl EpochQuery for SimpleLastTouchHistogramRequest {
+impl EpochReportRequest for SimpleLastTouchHistogramRequest {
     type EpochId = usize;
-    type EpochEvents = SimpleEpochEvents;
+    type EpochEvents = VecEpochEvents<SimpleEvent>;
     type PrivacyBudget = PureDPBudget;
     type ReportGlobalSensitivity = f64;
-    type RelevantEventSelector = fn(&SimpleEvent) -> bool;
+    type RelevantEventSelector = SimpleRelevantEventSelector;
 
     fn get_epoch_ids(&self) -> Vec<Self::EpochId> {
         let range = self.epoch_start..=self.epoch_end;
@@ -43,7 +57,9 @@ impl EpochQuery for SimpleLastTouchHistogramRequest {
     }
 
     fn get_relevant_event_selector(&self) -> Self::RelevantEventSelector {
-        self.is_relevant_event
+        SimpleRelevantEventSelector {
+            lambda: self.is_relevant_event,
+        }
     }
 
     fn compute_report(

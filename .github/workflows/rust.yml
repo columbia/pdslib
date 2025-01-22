@@ -21,4 +21,6 @@ jobs:
     - name: Run tests
       run: cargo test --verbose
     - name: Run integration tests
-      run: cargo test --package pdslib --test demo -- --nocapture 
+      run: |
+        cargo test --package pdslib --test ara_demo -- --nocapture
+        cargo test --package pdslib --test simple_events_demo -- --nocapture

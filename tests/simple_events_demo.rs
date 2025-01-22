@@ -1,13 +1,14 @@
 use pdslib::budget::hashmap_filter_storage::HashMapFilterStorage;
 use pdslib::budget::pure_dp_filter::{PureDPBudget, PureDPBudgetFilter};
-use pdslib::events::simple_events::{SimpleEvent, SimpleEventStorage};
+use pdslib::events::hashmap_event_storage::HashMapEventStorage;
+use pdslib::events::simple_event::SimpleEvent;
 use pdslib::pds::implem::PrivateDataServiceImpl;
 use pdslib::pds::traits::PrivateDataService;
 use pdslib::queries::simple_last_touch_histogram::SimpleLastTouchHistogramRequest;
 
 #[test]
 fn main() {
-    let events: SimpleEventStorage = SimpleEventStorage::new();
+    let events = HashMapEventStorage::new();
     let filters: HashMapFilterStorage<usize, PureDPBudgetFilter, PureDPBudget> =
         HashMapFilterStorage::new();
 

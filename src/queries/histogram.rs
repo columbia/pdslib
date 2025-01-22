@@ -41,32 +41,16 @@ pub trait HistogramRequest: Debug {
 
     fn get_attributable_value(&self) -> f64;
 
-    // fn is_relevant_event(&self, event: &Self::Event) -> bool;
     fn get_relevant_event_selector(&self) -> Self::RelevantEventSelector;
 
     fn get_bucket_key(&self, event: &Self::Event) -> Self::BucketKey;
 
-    fn get_values(
+    /// Events can point to the all_epoch_events, hence the lifetime.
+    fn get_values<'a>(
         &self,
-        all_epoch_events: &HashMap<Self::EpochId, Self::EpochEvents>,
-    ) -> HashMap<&Self::Event, f64>;
+        all_epoch_events: &'a HashMap<Self::EpochId, Self::EpochEvents>,
+    ) -> Vec<(&'a Self::Event, f64)>;
 }
-
-// impl<H: HistogramRequest> RelevantEventSelector for H {
-//     type Event = H::Event;
-
-//     fn is_relevant_event(&self, event: &H::Event) -> bool {
-//         self.is_relevant_event(event)
-//     }
-// }
-
-// impl<EI, EE, E, BK> ReportRequest for HistogramRequest<EI, EE, E, BK>
-// where
-//     EI: EpochId,
-//     EE: EpochEvents,
-//     E: Event,
-//     BK: BucketKey,
-// {
 
 impl<H: HistogramRequest> ReportRequest for H {
     type Report = HistogramReport<<H as HistogramRequest>::BucketKey>;
@@ -98,12 +82,12 @@ impl<H: HistogramRequest> EpochReportRequest for H {
         let mut total_value: f64 = 0.0;
         let event_values = self.get_values(all_epoch_events);
 
+        // TODO: the order matters, use an ordered map?
         for (event, value) in event_values {
             total_value += value;
             if total_value > self.get_attributable_value() {
-                // Invalid attribution function, return empty report.
-                // Could also return partial attribution.
-                return HistogramReport::default();
+                // Return partial attribution to stay within the cap.
+                return HistogramReport { bin_values };
             }
             let bin = self.get_bucket_key(event);
             *bin_values.entry(bin).or_default() += value;

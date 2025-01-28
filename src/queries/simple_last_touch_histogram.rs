@@ -6,7 +6,6 @@ use crate::events::simple_event::SimpleEvent;
 use crate::events::traits::RelevantEventSelector;
 use crate::mechanisms::NormType;
 use crate::queries::traits::{EpochReportRequest, Report, ReportRequest};
-use crate::AlwaysRelevantSelectorInLib;
 
 #[derive(Debug)]
 pub struct SimpleLastTouchHistogramRequest {
@@ -50,7 +49,7 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
     type EpochEvents = VecEpochEvents<SimpleEvent>;
     type PrivacyBudget = PureDPBudget;
     type ReportGlobalSensitivity = f64;
-    type RelevantEventSelector = AlwaysRelevantSelectorInLib;
+    type RelevantEventSelector = SimpleRelevantEventSelector;
 
     fn get_epoch_ids(&self) -> Vec<Self::EpochId> {
         let range = self.epoch_start..=self.epoch_end;
@@ -58,7 +57,9 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
     }
 
     fn get_relevant_event_selector(&self) -> Self::RelevantEventSelector {
-        AlwaysRelevantSelectorInLib {}
+        SimpleRelevantEventSelector {
+            lambda: self.is_relevant_event,
+        }
     }
 
     fn compute_report(

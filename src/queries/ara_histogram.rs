@@ -19,7 +19,7 @@ pub struct AraRelevantEventSelector {
 impl RelevantEventSelector for AraRelevantEventSelector {
     type Event = AraEvent;
 
-    fn is_relevant_event(&self, event: &AraEvent) -> bool {
+    fn is_relevant_event(&self, _event: &AraEvent) -> bool {
         // TODO: add filters to events too, and implement ARA filtering
         true
     }

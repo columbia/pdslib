@@ -9,12 +9,8 @@ name = "pdslib"
 crate-type = ["cdylib", "lib"]
 
 [dependencies]
-uniffi = "0.28.0"
 thiserror = "2.0.3"
 anyhow = "1.0.93"
-
-[build-dependencies]
-uniffi = { version = "0.28.0", features = ["build"] }
 
 [profile.release]
 debug = true

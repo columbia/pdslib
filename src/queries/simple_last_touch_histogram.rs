@@ -144,6 +144,6 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
     }
 
     fn get_noise_scale(&self) -> f64 {
-        return self.noise_scale;
+        self.noise_scale
     }
 }

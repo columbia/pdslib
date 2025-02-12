@@ -19,7 +19,7 @@ fn main() {
     let mut pds = PrivateDataServiceImpl {
         filter_storage: filters,
         event_storage: events,
-        epoch_capacity: PureDPBudget { epsilon: 3.0 },
+        epoch_capacity: PureDPBudget::Epsilon(3.0),
         _phantom: std::marker::PhantomData::<AraHistogramRequest>,
     };
 

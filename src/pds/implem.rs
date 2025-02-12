@@ -185,11 +185,11 @@ where
         // Case 1: Empty epoch_event.
         match epoch_events {
             None => {
-                return PureDPBudget { epsilon: 0.0 };
+                return PureDPBudget::Epsilon(0.0);
             }
             Some(epoch_events) => {
                 if epoch_events.is_empty() {
-                    return PureDPBudget { epsilon: 0.0 };
+                    return PureDPBudget::Epsilon(0.0);
                 }
             }
         }
@@ -208,9 +208,11 @@ where
             individual_sensitivity = request.get_global_sensitivity();
         }
 
-        return PureDPBudget {
-            epsilon: individual_sensitivity / request.get_noise_scale(),
-        };
+        let noise_scale = request.get_noise_scale();
+        if noise_scale.abs() < f64::EPSILON {
+            return PureDPBudget::Infinite;
+        }
+        return PureDPBudget::Epsilon(individual_sensitivity / noise_scale);
     }
 }
 
@@ -235,14 +237,14 @@ mod tests {
         let mut pds = PrivateDataServiceImpl {
             filter_storage: filters,
             event_storage: events,
-            epoch_capacity: PureDPBudget { epsilon: 3.0 },
+            epoch_capacity: PureDPBudget::Epsilon(3.0),
             _phantom: std::marker::PhantomData::<SimpleLastTouchHistogramRequest>,
         };
 
         // First request should succeed
         let request = PassivePrivacyLossRequest {
             epoch_ids: vec![1, 2, 3],
-            privacy_budget: PureDPBudget { epsilon: 1.0 },
+            privacy_budget: PureDPBudget::Epsilon(1.0),
         };
         let result = pds.account_for_passive_privacy_loss(request);
         assert!(result.is_ok());
@@ -250,7 +252,7 @@ mod tests {
         // Second request with same budget should succeed (2.0 total)
         let request = PassivePrivacyLossRequest {
             epoch_ids: vec![1, 2, 3],
-            privacy_budget: PureDPBudget { epsilon: 1.0 },
+            privacy_budget: PureDPBudget::Epsilon(1.0),
         };
         let result = pds.account_for_passive_privacy_loss(request);
         assert!(result.is_ok());
@@ -261,13 +263,14 @@ mod tests {
                 .filter_storage
                 .get_remaining_budget(&epoch_id)
                 .expect("Failed to get remaining budget");
-            assert_eq!(remaining.epsilon, 1.0); // 3.0 - 2.0 = 1.0 remaining
+            assert_eq!(remaining, PureDPBudget::Epsilon(1.0)); // 3.0 - 2.0 =
+                                                               // 1.0 remaining
         }
 
         // Attempting to consume more should fail.
         let request = PassivePrivacyLossRequest {
             epoch_ids: vec![2, 3],
-            privacy_budget: PureDPBudget { epsilon: 2.0 },
+            privacy_budget: PureDPBudget::Epsilon(2.0),
         };
         let result = pds.account_for_passive_privacy_loss(request);
         assert!(result.is_err());
@@ -275,7 +278,7 @@ mod tests {
         // Consume from just one epoch.
         let request = PassivePrivacyLossRequest {
             epoch_ids: vec![3],
-            privacy_budget: PureDPBudget { epsilon: 1.0 },
+            privacy_budget: PureDPBudget::Epsilon(1.0),
         };
         let result = pds.account_for_passive_privacy_loss(request);
         assert!(result.is_ok());
@@ -286,12 +289,12 @@ mod tests {
                 .filter_storage
                 .get_remaining_budget(&epoch_id)
                 .expect("Failed to get remaining budget");
-            assert_eq!(remaining.epsilon, 1.0);
+            assert_eq!(remaining, PureDPBudget::Epsilon(1.0));
         }
         let remaining = pds
             .filter_storage
             .get_remaining_budget(&3)
             .expect("Failed to get remaining budget");
-        assert_eq!(remaining.epsilon, 0.0);
+        assert_eq!(remaining, PureDPBudget::Epsilon(0.0));
     }
 }

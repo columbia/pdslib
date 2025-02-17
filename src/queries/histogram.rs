@@ -1,7 +1,7 @@
 use crate::budget::pure_dp_filter::PureDPBudget;
 use crate::events::traits::RelevantEventSelector;
 use crate::events::traits::{EpochEvents, EpochId, Event};
-use crate::mechanisms::NormType;
+use crate::mechanisms::{NoiseScale, NormType};
 use crate::queries::traits::{EpochReportRequest, Report, ReportRequest};
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -29,8 +29,9 @@ impl<BK> Default for HistogramReport<BK> {
 
 impl<BK: BucketKey> Report for HistogramReport<BK> {}
 
-/// Trait for generic histogram requests. Any type satisfying this interface
-/// will be callable as a valid ReportRequest with the right accounting.
+/// Trait for generic histogram requests, with L1 sensitivity and Laplace noise.
+/// Any type satisfying this interface will be callable as a valid ReportRequest
+/// with the right accounting.
 /// Following the formalism from https://arxiv.org/pdf/2405.16719, Thm 18.
 /// Can be instantiated by ARA-style queries in particular.
 pub trait HistogramRequest: Debug {
@@ -45,7 +46,7 @@ pub trait HistogramRequest: Debug {
     fn get_epochs_ids(&self) -> Vec<Self::EpochId>;
 
     /// Returns the Laplace noise scale added after summing all the reports.
-    fn get_noise_scale(&self) -> f64;
+    fn get_laplace_noise_scale(&self) -> f64;
 
     /// Returns the maximum attributable value, i.e. the maximum L1 norm of an
     /// attributed histogram.
@@ -90,8 +91,8 @@ impl<H: HistogramRequest> EpochReportRequest for H {
         self.get_relevant_event_selector()
     }
 
-    fn get_noise_scale(&self) -> f64 {
-        self.get_noise_scale()
+    fn get_noise_scale(&self) -> NoiseScale {
+        NoiseScale::Laplace(self.get_laplace_noise_scale())
     }
 
     /// Computes the report by attributing values to events, and then summing

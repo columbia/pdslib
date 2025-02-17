@@ -4,7 +4,7 @@ use crate::budget::pure_dp_filter::PureDPBudget;
 use crate::budget::traits::{FilterError, FilterStorage, FilterStorageError};
 use crate::events::traits::RelevantEventSelector;
 use crate::events::traits::{EpochEvents, EpochId, Event, EventStorage};
-use crate::mechanisms::NormType;
+use crate::mechanisms::{NoiseScale, NormType};
 use crate::pds::traits::PrivateDataService;
 use crate::queries::traits::{
     EpochReportRequest, PassivePrivacyLossRequest, ReportRequest,
@@ -62,6 +62,7 @@ where
     type PassivePrivacyLossRequest =
         PassivePrivacyLossRequest<EI, PureDPBudget>;
     type Error = PDSImplError;
+
     fn register_event(&mut self, event: E) -> Result<(), PDSImplError> {
         println!("Registering event {:?}", event);
         self.event_storage
@@ -164,7 +165,7 @@ where
     }
 }
 
-/// Utility methods for individual privacy loss computation.
+/// Utility method for individual privacy loss computation.
 /// TODO: generalize to other types of budget.
 impl<EI, E, EE, FS, ES, Q> PrivateDataServiceImpl<FS, ES, Q>
 where
@@ -208,7 +209,10 @@ where
             individual_sensitivity = request.get_global_sensitivity();
         }
 
-        let noise_scale = request.get_noise_scale();
+        let noise_scale = match request.get_noise_scale() {
+            NoiseScale::Laplace(scale) => scale,
+        };
+
         if noise_scale.abs() < f64::EPSILON {
             return PureDPBudget::Infinite;
         }

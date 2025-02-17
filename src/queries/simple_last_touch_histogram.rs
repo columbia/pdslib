@@ -4,7 +4,7 @@ use crate::budget::pure_dp_filter::PureDPBudget;
 use crate::events::hashmap_event_storage::VecEpochEvents;
 use crate::events::simple_event::SimpleEvent;
 use crate::events::traits::RelevantEventSelector;
-use crate::mechanisms::NormType;
+use crate::mechanisms::{NoiseScale, NormType};
 use crate::queries::traits::{EpochReportRequest, Report, ReportRequest};
 
 #[derive(Debug)]
@@ -12,7 +12,7 @@ pub struct SimpleLastTouchHistogramRequest {
     pub epoch_start: usize,
     pub epoch_end: usize,
     pub attributable_value: f64,
-    pub noise_scale: f64,
+    pub laplace_noise_scale: f64,
     pub is_relevant_event: fn(&SimpleEvent) -> bool,
 }
 
@@ -112,30 +112,31 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
         report: &Self::Report,
         norm_type: NormType,
     ) -> f64 {
-        if norm_type == NormType::L1 {
-            // L2 norm.
-            match report.attributed_value {
-                Some((_, _, av)) => {
-                    let av_abs = av.abs();
-                    return av_abs;
-                }
-                None => {
-                    return 0.0;
-                }
-            }
-        } else if norm_type == NormType::L2 {
-            // L1 norm.
-            match report.attributed_value {
-                Some((_, _, av)) => {
-                    let av_abs = av.abs();
-                    return (av_abs * av_abs).sqrt();
-                }
-                None => {
-                    return 0.0;
+        match norm_type {
+            NormType::L1 => {
+                // L1 norm.
+                match report.attributed_value {
+                    Some((_, _, av)) => {
+                        let av_abs = av.abs();
+                        return av_abs;
+                    }
+                    None => {
+                        return 0.0;
+                    }
                 }
             }
-        } else {
-            panic!("Unsupported norm type.");
+            NormType::L2 => {
+                // L2 norm.
+                match report.attributed_value {
+                    Some((_, _, av)) => {
+                        let av_abs = av.abs();
+                        return (av_abs * av_abs).sqrt();
+                    }
+                    None => {
+                        return 0.0;
+                    }
+                }
+            }
         }
     }
 
@@ -143,7 +144,7 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
         return self.attributable_value;
     }
 
-    fn get_noise_scale(&self) -> f64 {
-        return self.noise_scale;
+    fn get_noise_scale(&self) -> NoiseScale {
+        NoiseScale::Laplace(self.laplace_noise_scale)
     }
 }

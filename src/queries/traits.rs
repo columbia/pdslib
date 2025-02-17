@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 
 use crate::events::traits::{EpochEvents, EpochId};
-use crate::mechanisms::NormType;
+use crate::mechanisms::{NoiseScale, NormType};
 
 /// Trait for report types returned by a device (in plaintext). Must implement a
 /// default variant for null reports, so devices with errors or no budget
@@ -51,7 +51,7 @@ pub trait EpochReportRequest: ReportRequest {
     fn get_global_sensitivity(&self) -> f64;
 
     /// Retrieves the scale of the noise that will be added by the aggregator.
-    fn get_noise_scale(&self) -> f64;
+    fn get_noise_scale(&self) -> NoiseScale;
 }
 
 /// Type for passive privacy loss accounting. Uniform over all epochs for now.

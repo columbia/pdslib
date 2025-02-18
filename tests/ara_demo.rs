@@ -2,7 +2,7 @@ use pdslib::budget::hashmap_filter_storage::HashMapFilterStorage;
 use pdslib::budget::pure_dp_filter::{PureDPBudget, PureDPBudgetFilter};
 use pdslib::events::ara_event::AraEvent;
 use pdslib::events::hashmap_event_storage::HashMapEventStorage;
-use pdslib::pds::implem::PrivateDataServiceImpl;
+use pdslib::pds::epoch_pds::EpochPrivateDataServiceImpl;
 use pdslib::pds::traits::PrivateDataService;
 use pdslib::queries::ara_histogram::{
     AraHistogramRequest, AraRelevantEventSelector,
@@ -16,7 +16,7 @@ fn main() {
     let filters: HashMapFilterStorage<usize, PureDPBudgetFilter, PureDPBudget> =
         HashMapFilterStorage::new();
 
-    let mut pds = PrivateDataServiceImpl {
+    let mut pds = EpochPrivateDataServiceImpl {
         filter_storage: filters,
         event_storage: events,
         epoch_capacity: PureDPBudget::Epsilon(3.0),

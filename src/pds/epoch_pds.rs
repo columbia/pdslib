@@ -15,7 +15,7 @@ use crate::queries::traits::{
 /// storage and event storage interfaces. We might want other implementations
 /// eventually, but at first this implementation should cover most use cases,
 /// as we can swap the types of events, filters and queries.
-pub struct PrivateDataServiceImpl<
+pub struct EpochPrivateDataServiceImpl<
     FS: FilterStorage,
     ES: EventStorage,
     Q: EpochReportRequest,
@@ -43,7 +43,7 @@ pub enum PDSImplError {
 }
 
 impl<EI, E, EE, RES, FS, ES, Q> PrivateDataService
-    for PrivateDataServiceImpl<FS, ES, Q>
+    for EpochPrivateDataServiceImpl<FS, ES, Q>
 where
     EI: EpochId,
     E: Event<EpochId = EI>,
@@ -162,9 +162,8 @@ where
     }
 }
 
-/// Utility method for individual privacy loss computation.
 /// TODO: generalize to other types of budget.
-impl<EI, E, EE, FS, ES, Q> PrivateDataServiceImpl<FS, ES, Q>
+impl<EI, E, EE, FS, ES, Q> EpochPrivateDataServiceImpl<FS, ES, Q>
 where
     E: Event<EpochId = EI>,
     EE: EpochEvents,
@@ -172,16 +171,16 @@ where
     ES: EventStorage<Event = E, EpochEvents = EE>,
     Q: EpochReportRequest<EpochId = EI, EpochEvents = EE>,
 {
+    /// Utility method for individual privacy loss computation.
     fn compute_individual_privacy_loss(
         &self,
         request: &Q,
-        epoch_events: Option<&EE>,
+        epoch_relevant_events: Option<&EE>,
         computed_attribution: &<Q as ReportRequest>::Report,
         num_epochs: usize,
     ) -> PureDPBudget {
-        // Implement the logic to compute individual privacy loss
-        // Case 1: Empty epoch_event.
-        match epoch_events {
+        // Case 1: Epoch with no relevant events or out of the attribution window
+        match epoch_relevant_events {
             None => {
                 return PureDPBudget::Epsilon(0.0);
             }
@@ -194,15 +193,14 @@ where
 
         let individual_sensitivity: f64;
         if num_epochs == 1 {
-            // Case 2: Exactly one event in epoch_events, then individual
-            // sensitivity is the one attribution value.
+            // Case 2: One epoch.
             individual_sensitivity = request
                 .get_single_epoch_individual_sensitivity(
                     computed_attribution,
                     NormType::L1,
                 );
         } else {
-            // Case 3: Multiple events in epoch_events.
+            // Case 3: Multiple epochs.
             individual_sensitivity = request.get_global_sensitivity();
         }
 
@@ -235,7 +233,7 @@ mod tests {
         > = HashMapFilterStorage::new();
         let events = HashMapEventStorage::new();
 
-        let mut pds = PrivateDataServiceImpl {
+        let mut pds = EpochPrivateDataServiceImpl {
             filter_storage: filters,
             event_storage: events,
             epoch_capacity: PureDPBudget::Epsilon(3.0),

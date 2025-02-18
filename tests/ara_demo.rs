@@ -58,5 +58,5 @@ fn main() {
     assert!(report1.bin_values.contains_key(&0x559));
     assert_eq!(report1.bin_values.get(&0x559), Some(&32768.0));
 
-    // TODO: add more tests when we have multiple events
+    // TODO(https://github.com/columbia/pdslib/issues/8): add more tests when we have multiple events
 }

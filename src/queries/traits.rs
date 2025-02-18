@@ -9,7 +9,7 @@ use crate::mechanisms::NormType;
 /// left are still sending something (and are thus indistinguishable from other
 /// devices once reports are encrypted).  
 ///
-/// TODO: marker trait for now, might add aggregation methods later.
+/// TODO(https://github.com/columbia/pdslib/issues/20): marker trait for now, might add aggregation methods later.
 pub trait Report: Debug + Default {}
 
 /// Trait for a generic query.

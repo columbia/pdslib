@@ -2,7 +2,7 @@ pub use crate::budget::traits::{Budget, Filter, FilterError};
 
 /// A simple floating-point budget for pure differential privacy.
 ///
-/// TODO: use OpenDP accountant (https://github.com/columbia/pdslib/issues/14)
+/// TODO(https://github.com/columbia/pdslib/issues/14): use OpenDP accountant
 #[derive(Debug, Clone)]
 pub struct PureDPBudget {
     pub epsilon: f64,

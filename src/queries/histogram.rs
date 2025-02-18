@@ -29,7 +29,7 @@ impl<BK> Default for HistogramReport<BK> {
 
 impl<BK: BucketKey> Report for HistogramReport<BK> {}
 
-/// Trait for generic histogram requests. Any type satisfying this interface
+/// [Experimental] Trait for generic histogram requests. Any type satisfying this interface
 /// will be callable as a valid ReportRequest with the right accounting.
 /// Following the formalism from https://arxiv.org/pdf/2405.16719, Thm 18.
 /// Can be instantiated by ARA-style queries in particular.
@@ -59,7 +59,7 @@ pub trait HistogramRequest: Debug {
     /// Returns the histogram bucket key (bin) for a given event.
     fn get_bucket_key(&self, event: &Self::Event) -> Self::BucketKey;
 
-    /// Attribuets a value to each event in `all_epoch_events`, which will be
+    /// Attributes a value to each event in `all_epoch_events`, which will be
     /// obtained by retrieving *relevant* events from the event storage.
     /// Events can point to the all_epoch_events, hence the lifetime.
     fn get_values<'a>(
@@ -81,7 +81,9 @@ impl<H: HistogramRequest> EpochReportRequest for H {
     type ReportGlobalSensitivity = f64;
     type RelevantEventSelector = H::RelevantEventSelector; // Use the full request as the selector.
 
-    /// Re-expose some methods (TODO: any cleaner inheritance?)
+    /// Re-expose some methods
+    ///
+    /// TODO(https://github.com/columbia/pdslib/issues/19): any cleaner inheritance?
     fn get_epoch_ids(&self) -> Vec<H::EpochId> {
         self.get_epochs_ids()
     }
@@ -104,7 +106,10 @@ impl<H: HistogramRequest> EpochReportRequest for H {
         let mut total_value: f64 = 0.0;
         let event_values = self.get_values(all_epoch_events);
 
-        // TODO: the order matters, use an ordered map?
+        // The order matters, since events that are attributed last might be dropped by
+        // the contribution cap.
+        //
+        // TODO(https://github.com/columbia/pdslib/issues/19):  Use an ordered map for all_epoch_events?
         for (event, value) in event_values {
             total_value += value;
             if total_value > self.get_attributable_value() {
@@ -119,7 +124,7 @@ impl<H: HistogramRequest> EpochReportRequest for H {
     }
 
     /// Computes individual sensitivity in the single epoch case.
-    /// TODO: double check this
+    /// TODO(P1): double check this
     fn get_single_epoch_individual_sensitivity(
         &self,
         report: &Self::Report,
@@ -138,7 +143,7 @@ impl<H: HistogramRequest> EpochReportRequest for H {
     /// Computes the global sensitivity, useful for the multi-epoch case.
     /// See https://arxiv.org/pdf/2405.16719, Thm. 18
     fn get_global_sensitivity(&self) -> f64 {
-        // TODO: if we have only one bin then we can remove the factor 2
+        // TODO(P1): if we have only one bin then we can remove the factor 2
         2.0 * self.get_attributable_value()
     }
 }

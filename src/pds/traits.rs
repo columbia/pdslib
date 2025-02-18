@@ -27,8 +27,8 @@ pub trait PrivateDataService {
     /// [Experimental] Accounts for passive privacy loss. Can fail if the implementation has
     /// an error, but failure must not leak the state of the filters.
     ///
-    /// TODO: what are the semantics of passive loss queries that go over the filter
-    /// capacity? See https://github.com/columbia/pdslib/issues/16.
+    /// TODO(https://github.com/columbia/pdslib/issues/16): what are the semantics of passive loss queries that go over the filter
+    /// capacity?
     fn account_for_passive_privacy_loss(
         &mut self,
         request: Self::PassivePrivacyLossRequest,

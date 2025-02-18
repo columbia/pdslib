@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use thiserror::Error;
 
 use crate::budget::pure_dp_filter::PureDPBudget;
@@ -9,7 +10,6 @@ use crate::pds::traits::PrivateDataService;
 use crate::queries::traits::{
     EpochReportRequest, PassivePrivacyLossRequest, ReportRequest,
 };
-use std::collections::HashMap;
 
 /// Epoch-based private data service implementation, using generic filter
 /// storage and event storage interfaces. We might want other implementations
@@ -154,8 +154,8 @@ where
             self.filter_storage
                 .try_consume(&epoch_id, &request.privacy_budget)?;
 
-            // TODO: semantics are still unclear, for now we ignore the request if
-            // it would exhaust the filter. See https://github.com/columbia/pdslib/issues/16.
+            // TODO(https://github.com/columbia/pdslib/issues/16): semantics are still unclear, for now we ignore the request if
+            // it would exhaust the filter.
         }
         Ok(())
     }

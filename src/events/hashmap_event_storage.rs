@@ -50,12 +50,13 @@ where
         Ok(())
     }
 
-    fn get_epoch_events(
+    fn get_relevant_epoch_events(
         &self,
         epoch_id: &E::EpochId,
         selector: &RES,
     ) -> Option<VecEpochEvents<E>> {
         // Return relevant events for a given epoch_id
+        // TODO: instead of returning an empty Vec, return None?
         self.epochs.get(&epoch_id).map(|events| {
             events
                 .iter()

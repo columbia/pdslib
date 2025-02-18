@@ -31,9 +31,8 @@ impl RelevantEventSelector for SimpleRelevantEventSelector {
 #[derive(Debug, Clone, Default)]
 pub struct SimpleLastTouchHistogramReport {
     // Value attributed to one bin or None if no attribution
-    pub attributed_value: Option<(
-        usize, // Epoch ID
-        usize, // Event key
+    pub bin_value: Option<(
+        usize, // Bucket key (which is just event_key for now)
         f64,   // Attributed value
     )>,
 }
@@ -64,47 +63,31 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
 
     fn compute_report(
         &self,
-        all_epoch_events: &HashMap<usize, Self::EpochEvents>,
+        all_relevant_events: &HashMap<usize, Self::EpochEvents>,
     ) -> Self::Report {
-        // We browse epochs in the order given by `get_epoch_ids, most recent
+        // Browse epochs in the order given by `get_epoch_ids, most recent
         // epoch first. Within each epoch, we assume that events are
         // stored in the order that they occured
         for epoch_id in self.get_epoch_ids() {
-            // For now, we assume that all the events are relevant, so we just
-            // need to check the most recent one. TODO: eventually
-            // add the notion of "relevant events" to the `SimpleEvent` struct,
-            // and browse all the events from `epoch_events` instead of the last
-            // one.
-            if let Some(epoch_events) = all_epoch_events.get(&epoch_id) {
+            if let Some(epoch_events) = all_relevant_events.get(&epoch_id) {
                 if let Some(last_impression) = epoch_events.last() {
-                    if last_impression.epoch_number > self.epoch_end
-                        || last_impression.epoch_number < self.epoch_start
-                    {
-                        continue;
-                    }
-
-                    // TODO: allow ReportRequest to give a custom impression_key
-                    // -> bucket_key mapping. Also potentially depending on the
-                    // conversion key. Check how ARA implements it with the
-                    // source/trigger keypiece.
+                    // `last_impression` is the most recent relevant impression
+                    // from the most recent non-empty epoch.
                     let event_key = last_impression.event_key;
                     let attributed_value = self.attributable_value;
 
+                    // Just use event_key as the bucket key.
+                    // See `ara_histogram` for a more general impression_key ->
+                    // bucket_key mapping.
                     return SimpleLastTouchHistogramReport {
-                        attributed_value: Some((
-                            epoch_id,
-                            event_key,
-                            attributed_value,
-                        )),
+                        bin_value: Some((event_key, attributed_value)),
                     };
                 }
             }
         }
 
         // No impressions were found so we return a report with a None bucket.
-        SimpleLastTouchHistogramReport {
-            attributed_value: None,
-        }
+        SimpleLastTouchHistogramReport { bin_value: None }
     }
 
     fn get_single_epoch_individual_sensitivity(
@@ -112,31 +95,14 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
         report: &Self::Report,
         norm_type: NormType,
     ) -> f64 {
+        // Report has at most one non-zero bin, so L1 and L2 norms are the same.
+        let attributed_value = match report.bin_value {
+            Some((_, av)) => av,
+            None => 0.0,
+        };
         match norm_type {
-            NormType::L1 => {
-                // L1 norm.
-                match report.attributed_value {
-                    Some((_, _, av)) => {
-                        let av_abs = av.abs();
-                        return av_abs;
-                    }
-                    None => {
-                        return 0.0;
-                    }
-                }
-            }
-            NormType::L2 => {
-                // L2 norm.
-                match report.attributed_value {
-                    Some((_, _, av)) => {
-                        let av_abs = av.abs();
-                        return (av_abs * av_abs).sqrt();
-                    }
-                    None => {
-                        return 0.0;
-                    }
-                }
-            }
+            NormType::L1 => attributed_value.abs(),
+            NormType::L2 => attributed_value.abs(),
         }
     }
 

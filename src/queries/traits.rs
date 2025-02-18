@@ -1,5 +1,3 @@
-// TODO: traits for attribution fn maybe?
-
 use std::collections::HashMap;
 use std::fmt::Debug;
 
@@ -9,8 +7,9 @@ use crate::mechanisms::{NoiseScale, NormType};
 /// Trait for report types returned by a device (in plaintext). Must implement a
 /// default variant for null reports, so devices with errors or no budget
 /// left are still sending something (and are thus indistinguishable from other
-/// devices once reports are encrypted).  TODO: marker trait for now, might add
-/// aggregation methods later.
+/// devices once reports are encrypted).  
+///
+/// TODO(https://github.com/columbia/pdslib/issues/20): marker trait for now, might add aggregation methods later.
 pub trait Report: Debug + Default {}
 
 /// Trait for a generic query.
@@ -26,7 +25,8 @@ pub trait EpochReportRequest: ReportRequest {
     type PrivacyBudget;
     type ReportGlobalSensitivity;
 
-    /// Returns the list of epoch IDs, in the order the attribution should run.
+    /// Returns the list of requested epoch IDs, in the order the attribution
+    /// should run.
     fn get_epoch_ids(&self) -> Vec<Self::EpochId>;
 
     /// Returns the selector for relevant events for the query. The selector
@@ -36,7 +36,7 @@ pub trait EpochReportRequest: ReportRequest {
     /// Computes the report for the given request and epoch events.
     fn compute_report(
         &self,
-        all_epoch_events: &HashMap<Self::EpochId, Self::EpochEvents>,
+        all_relevant_events: &HashMap<Self::EpochId, Self::EpochEvents>,
     ) -> Self::Report;
 
     /// Computes the individual sensitivity for the query when the report is

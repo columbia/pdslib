@@ -1,13 +1,15 @@
 pub use crate::budget::traits::{Budget, Filter, FilterError};
 
-/// Pure DP budget, with support for infinite budget. Infinite budget can be
-/// used for noiseless testing queries and to deactivate filters by setting
-/// their capacity to `PureDPBudget::Infinite`. We use a simple f64 for epsilon
-/// and ignore floating point arithmetic issues. TODO: Use an external
-/// accounting library like OpenDP (even though it seems to also use f64)
-///         or move to a positive rational type or fixed point.
-///         We could also generalize to RDP/zCDP.
-///         See: https://github.com/columbia/pdslib/issues/14
+/// A simple floating-point budget for pure differential privacy, with support
+/// for infinite budget
+///
+/// Infinite budget can be used for noiseless testing queries and to deactivate
+/// filters by setting their capacity to `PureDPBudget::Infinite`. We use a
+/// simple f64 for epsilon and ignore floating point arithmetic issues.
+///
+/// TODO(https://github.com/columbia/pdslib/issues/14): use OpenDP accountant (even though it seems
+///     to also use f64) or move to a positive rational type or fixed point.
+///     We could also generalize to RDP/zCDP.
 #[derive(Debug, Clone, PartialEq)]
 pub enum PureDPBudget {
     /// Infinite budget, for filters with no set capacity, or requests that
@@ -20,6 +22,7 @@ pub enum PureDPBudget {
 
 impl Budget for PureDPBudget {}
 
+/// A filter for pure differential privacy.
 #[derive(Debug)]
 pub struct PureDPBudgetFilter {
     pub remaining_budget: PureDPBudget,

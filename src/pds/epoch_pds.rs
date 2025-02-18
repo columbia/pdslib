@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use thiserror::Error;
 
 use crate::budget::pure_dp_filter::PureDPBudget;
@@ -9,13 +10,12 @@ use crate::pds::traits::PrivateDataService;
 use crate::queries::traits::{
     EpochReportRequest, PassivePrivacyLossRequest, ReportRequest,
 };
-use std::collections::HashMap;
 
 /// Epoch-based private data service implementation, using generic filter
 /// storage and event storage interfaces. We might want other implementations
 /// eventually, but at first this implementation should cover most use cases,
 /// as we can swap the types of events, filters and queries.
-pub struct PrivateDataServiceImpl<
+pub struct EpochPrivateDataServiceImpl<
     FS: FilterStorage,
     ES: EventStorage,
     Q: EpochReportRequest,
@@ -42,13 +42,16 @@ pub enum PDSImplError {
     FilterConsumptionError(#[from] FilterStorageError),
 }
 
+/// Implements the generic PDS interface for the epoch-based PDS.
+///
+/// TODO(https://github.com/columbia/pdslib/issues/21): support more than PureDP
 impl<EI, E, EE, RES, FS, ES, Q> PrivateDataService
-    for PrivateDataServiceImpl<FS, ES, Q>
+    for EpochPrivateDataServiceImpl<FS, ES, Q>
 where
     EI: EpochId,
     E: Event<EpochId = EI>,
     EE: EpochEvents,
-    FS: FilterStorage<FilterId = EI, Budget = PureDPBudget>, /* NOTE: we'll want to support other budgets eventually */
+    FS: FilterStorage<FilterId = EI, Budget = PureDPBudget>,
     RES: RelevantEventSelector<Event = E>,
     ES: EventStorage<Event = E, EpochEvents = EE, RelevantEventSelector = RES>,
     Q: EpochReportRequest<
@@ -74,30 +77,30 @@ where
         println!("Computing report for request {:?}", request);
         // Collect events from event storage. If an epoch has no relevant
         // events, don't add it to the mapping.
-        let mut map_of_events_set_over_epochs: HashMap<EI, EE> = HashMap::new();
+        let mut all_relevant_events: HashMap<EI, EE> = HashMap::new();
         let relevant_event_selector = request.get_relevant_event_selector();
         for epoch_id in request.get_epoch_ids() {
-            if let Some(epoch_events) = self
+            if let Some(epoch_relevant_events) = self
                 .event_storage
-                .get_epoch_events(&epoch_id, &relevant_event_selector)
+                .get_relevant_epoch_events(&epoch_id, &relevant_event_selector)
             {
-                map_of_events_set_over_epochs.insert(epoch_id, epoch_events);
+                all_relevant_events.insert(epoch_id, epoch_relevant_events);
             }
         }
-        let num_epochs: usize = map_of_events_set_over_epochs.len();
 
-        let unbiased_report =
-            request.compute_report(&map_of_events_set_over_epochs);
+        // Compute the raw report, useful for accounting.
+        let num_epochs: usize = all_relevant_events.len();
+        let unbiased_report = request.compute_report(&all_relevant_events);
 
+        // Browse epochs in the attribution window
         for epoch_id in request.get_epoch_ids() {
-            // Get the epoch events for the epoch_id in the report.
-            let set_of_events_for_relevant_epoch =
-                map_of_events_set_over_epochs.get(&epoch_id);
+            // Get relevant events for the current epoch `epoch_id`.
+            let epoch_relevant_events = all_relevant_events.get(&epoch_id);
 
-            // Compute the individual sensitivity for the relevant epoch.
+            // Compute individual sensitivity for current epoch.
             let individual_privacy_loss = self.compute_individual_privacy_loss(
                 &request,
-                set_of_events_for_relevant_epoch,
+                epoch_relevant_events,
                 &unbiased_report,
                 num_epochs,
             );
@@ -125,7 +128,7 @@ where
                     FilterError::OutOfBudget,
                 )) => {
                     // The budget is depleted, drop events.
-                    map_of_events_set_over_epochs.remove(&epoch_id);
+                    all_relevant_events.remove(&epoch_id);
                 }
                 _ => {
                     // Return default report if anything else goes wrong.
@@ -135,8 +138,7 @@ where
         }
 
         // Now that we've dropped OOB epochs, we can compute the final report.
-        let filtered_report =
-            request.compute_report(&map_of_events_set_over_epochs);
+        let filtered_report = request.compute_report(&all_relevant_events);
         filtered_report
     }
 
@@ -158,16 +160,15 @@ where
             self.filter_storage
                 .try_consume(&epoch_id, &request.privacy_budget)?;
 
-            // TODO: unlike regular filters, deduct all the way to 0? This is a
-            // problem actually.
+            // TODO(https://github.com/columbia/pdslib/issues/16): semantics are still unclear, for now we ignore the request if
+            // it would exhaust the filter.
         }
         Ok(())
     }
 }
 
-/// Utility method for individual privacy loss computation.
-/// TODO: generalize to other types of budget.
-impl<EI, E, EE, FS, ES, Q> PrivateDataServiceImpl<FS, ES, Q>
+/// Utility methods for the epoch-based PDS implementation.
+impl<EI, E, EE, FS, ES, Q> EpochPrivateDataServiceImpl<FS, ES, Q>
 where
     E: Event<EpochId = EI>,
     EE: EpochEvents,
@@ -175,16 +176,18 @@ where
     ES: EventStorage<Event = E, EpochEvents = EE>,
     Q: EpochReportRequest<EpochId = EI, EpochEvents = EE>,
 {
+    /// Pure DP individual privacy loss, following https://arxiv.org/pdf/2405.16719.
+    ///
+    /// TODO(https://github.com/columbia/pdslib/issues/21): generic budget.
     fn compute_individual_privacy_loss(
         &self,
         request: &Q,
-        epoch_events: Option<&EE>,
+        epoch_relevant_events: Option<&EE>,
         computed_attribution: &<Q as ReportRequest>::Report,
         num_epochs: usize,
     ) -> PureDPBudget {
-        // Implement the logic to compute individual privacy loss
-        // Case 1: Empty epoch_event.
-        match epoch_events {
+        // Case 1: Epoch with no relevant events
+        match epoch_relevant_events {
             None => {
                 return PureDPBudget::Epsilon(0.0);
             }
@@ -197,15 +200,14 @@ where
 
         let individual_sensitivity: f64;
         if num_epochs == 1 {
-            // Case 2: Exactly one event in epoch_events, then individual
-            // sensitivity is the one attribution value.
+            // Case 2: One epoch.
             individual_sensitivity = request
                 .get_single_epoch_individual_sensitivity(
                     computed_attribution,
                     NormType::L1,
                 );
         } else {
-            // Case 3: Multiple events in epoch_events.
+            // Case 3: Multiple epochs.
             individual_sensitivity = request.get_global_sensitivity();
         }
 
@@ -238,7 +240,7 @@ mod tests {
         > = HashMapFilterStorage::new();
         let events = HashMapEventStorage::new();
 
-        let mut pds = PrivateDataServiceImpl {
+        let mut pds = EpochPrivateDataServiceImpl {
             filter_storage: filters,
             event_storage: events,
             epoch_capacity: PureDPBudget::Epsilon(3.0),

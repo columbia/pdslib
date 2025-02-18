@@ -2,7 +2,7 @@ use pdslib::budget::hashmap_filter_storage::HashMapFilterStorage;
 use pdslib::budget::pure_dp_filter::{PureDPBudget, PureDPBudgetFilter};
 use pdslib::events::ara_event::AraEvent;
 use pdslib::events::hashmap_event_storage::HashMapEventStorage;
-use pdslib::pds::implem::PrivateDataServiceImpl;
+use pdslib::pds::epoch_pds::EpochPrivateDataServiceImpl;
 use pdslib::pds::traits::PrivateDataService;
 use pdslib::queries::ara_histogram::{
     AraHistogramRequest, AraRelevantEventSelector,
@@ -16,7 +16,7 @@ fn main() {
     let filters: HashMapFilterStorage<usize, PureDPBudgetFilter, PureDPBudget> =
         HashMapFilterStorage::new();
 
-    let mut pds = PrivateDataServiceImpl {
+    let mut pds = EpochPrivateDataServiceImpl {
         filter_storage: filters,
         event_storage: events,
         epoch_capacity: PureDPBudget::Epsilon(3.0),
@@ -58,5 +58,5 @@ fn main() {
     assert!(report1.bin_values.contains_key(&0x559));
     assert_eq!(report1.bin_values.get(&0x559), Some(&32768.0));
 
-    // TODO: add more tests when we have multiple events
+    // TODO(https://github.com/columbia/pdslib/issues/8): add more tests when we have multiple events
 }

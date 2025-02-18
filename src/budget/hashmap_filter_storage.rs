@@ -44,7 +44,6 @@ where
         self.filters.contains_key(filter_id)
     }
 
-    // TODO: PDS will be in charge of creating filters when missing?
     fn try_consume(
         &mut self,
         filter_id: &K,

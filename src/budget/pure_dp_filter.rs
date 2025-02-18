@@ -1,10 +1,11 @@
 pub use crate::budget::traits::{Budget, Filter, FilterError};
 
-/// A simple floating-point budget for pure differential privacy, with support for infinite budget
+/// A simple floating-point budget for pure differential privacy, with support
+/// for infinite budget
 ///
-/// Infinite budget can be used for noiseless testing queries and to deactivate filters by setting
-/// their capacity to `PureDPBudget::Infinite`. We use a simple f64 for epsilon
-/// and ignore floating point arithmetic issues.
+/// Infinite budget can be used for noiseless testing queries and to deactivate
+/// filters by setting their capacity to `PureDPBudget::Infinite`. We use a
+/// simple f64 for epsilon and ignore floating point arithmetic issues.
 ///
 /// TODO(https://github.com/columbia/pdslib/issues/14): use OpenDP accountant (even though it seems
 ///     to also use f64) or move to a positive rational type or fixed point.

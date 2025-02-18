@@ -179,7 +179,8 @@ where
         computed_attribution: &<Q as ReportRequest>::Report,
         num_epochs: usize,
     ) -> PureDPBudget {
-        // Case 1: Epoch with no relevant events or out of the attribution window
+        // Case 1: Epoch with no relevant events or out of the attribution
+        // window
         match epoch_relevant_events {
             None => {
                 return PureDPBudget::Epsilon(0.0);

@@ -81,19 +81,15 @@ mod tests {
             PureDPBudgetFilter,
             PureDPBudget,
         > = HashMapFilterStorage::new();
-        storage
-            .new_filter(1, PureDPBudget { epsilon: 1.0 })
-            .unwrap();
+        storage.new_filter(1, PureDPBudget::Epsilon(1.0)).unwrap();
+        assert!(storage.try_consume(&1, &PureDPBudget::Epsilon(0.5)).is_ok());
         assert!(storage
-            .try_consume(&1, &PureDPBudget { epsilon: 0.5 })
-            .is_ok());
-        assert!(storage
-            .try_consume(&1, &PureDPBudget { epsilon: 0.6 })
+            .try_consume(&1, &PureDPBudget::Epsilon(0.6))
             .is_err());
 
         // Filter 2 does not exist
         assert!(storage
-            .try_consume(&3, &PureDPBudget { epsilon: 0.2 })
+            .try_consume(&3, &PureDPBudget::Epsilon(0.2))
             .is_err());
     }
 }

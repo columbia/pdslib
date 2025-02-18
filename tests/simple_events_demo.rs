@@ -15,7 +15,7 @@ fn main() {
     let mut pds = PrivateDataServiceImpl {
         filter_storage: filters,
         event_storage: events,
-        epoch_capacity: PureDPBudget { epsilon: 3.0 },
+        epoch_capacity: PureDPBudget::Epsilon(3.0),
         _phantom: std::marker::PhantomData::<SimpleLastTouchHistogramRequest>,
     };
 
@@ -45,7 +45,7 @@ fn main() {
         epoch_start: 1,
         epoch_end: 1,
         attributable_value: 3.0,
-        noise_scale: 1.0,
+        laplace_noise_scale: 1.0,
         is_relevant_event: always_relevant_event,
     };
     let report = pds.compute_report(report_request);
@@ -62,7 +62,7 @@ fn main() {
         attributable_value: 0.1, /* Even 0.1 should be enough to go over the
                        * limit as the current budget left for
                        * epoch 1 is 0. */
-        noise_scale: 1.0,
+        laplace_noise_scale: 1.0,
         is_relevant_event: always_relevant_event,
     };
     let report2 = pds.compute_report(report_request2);
@@ -75,7 +75,7 @@ fn main() {
         epoch_start: 1,
         epoch_end: 2,
         attributable_value: 3.0,
-        noise_scale: 1.0,
+        laplace_noise_scale: 1.0,
         is_relevant_event: always_relevant_event,
     };
     let report2 = pds.compute_report(report_request2);
@@ -88,7 +88,7 @@ fn main() {
         epoch_start: 3, // Epoch 3 not created yet.
         epoch_end: 3,   // Epoch 3 not created yet.
         attributable_value: 0.0,
-        noise_scale: 1.0,
+        laplace_noise_scale: 1.0,
         is_relevant_event: always_relevant_event,
     };
     let report3_empty = pds.compute_report(report_request3_empty);
@@ -101,7 +101,7 @@ fn main() {
         epoch_start: 1,
         epoch_end: 3,
         attributable_value: 4.0,
-        noise_scale: 1.0,
+        laplace_noise_scale: 1.0,
         is_relevant_event: always_relevant_event,
     };
     let report3_over_budget = pds.compute_report(report_request3_over_budget);
@@ -113,7 +113,7 @@ fn main() {
         epoch_start: 1,
         epoch_end: 3,
         attributable_value: 3.0,
-        noise_scale: 1.0,
+        laplace_noise_scale: 1.0,
         is_relevant_event: always_relevant_event,
     };
     let report3 = pds.compute_report(report_request3);
@@ -125,7 +125,7 @@ fn main() {
         epoch_start: 1,
         epoch_end: 3,
         attributable_value: 3.0,
-        noise_scale: 1.0,
+        laplace_noise_scale: 1.0,
         is_relevant_event: |e: &SimpleEvent| e.event_key == 1,
     };
     let report4 = pds.compute_report(report_request4);

@@ -4,7 +4,7 @@ use crate::budget::pure_dp_filter::PureDPBudget;
 use crate::events::hashmap_event_storage::VecEpochEvents;
 use crate::events::simple_event::SimpleEvent;
 use crate::events::traits::RelevantEventSelector;
-use crate::mechanisms::NormType;
+use crate::mechanisms::{NoiseScale, NormType};
 use crate::queries::traits::{EpochReportRequest, Report, ReportRequest};
 
 #[derive(Debug)]
@@ -12,7 +12,7 @@ pub struct SimpleLastTouchHistogramRequest {
     pub epoch_start: usize,
     pub epoch_end: usize,
     pub attributable_value: f64,
-    pub noise_scale: f64,
+    pub laplace_noise_scale: f64,
     pub is_relevant_event: fn(&SimpleEvent) -> bool,
 }
 
@@ -110,7 +110,7 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
         return self.attributable_value;
     }
 
-    fn get_noise_scale(&self) -> f64 {
-        return self.noise_scale;
+    fn get_noise_scale(&self) -> NoiseScale {
+        NoiseScale::Laplace(self.laplace_noise_scale)
     }
 }

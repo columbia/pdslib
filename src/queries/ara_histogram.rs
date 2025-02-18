@@ -58,7 +58,7 @@ impl HistogramRequest for AraHistogramRequest {
         (self.start_epoch..=self.end_epoch).rev().collect()
     }
 
-    fn get_noise_scale(&self) -> f64 {
+    fn get_laplace_noise_scale(&self) -> f64 {
         self.noise_scale
     }
 

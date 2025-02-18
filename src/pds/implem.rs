@@ -73,30 +73,28 @@ where
         println!("Computing report for request {:?}", request);
         // Collect events from event storage. If an epoch has no relevant
         // events, don't add it to the mapping.
-        let mut map_of_events_set_over_epochs: HashMap<EI, EE> = HashMap::new();
+        let mut all_relevant_events: HashMap<EI, EE> = HashMap::new();
         let relevant_event_selector = request.get_relevant_event_selector();
         for epoch_id in request.get_epoch_ids() {
-            if let Some(epoch_events) = self
+            if let Some(epoch_relevant_events) = self
                 .event_storage
-                .get_epoch_events(&epoch_id, &relevant_event_selector)
+                .get_relevant_epoch_events(&epoch_id, &relevant_event_selector)
             {
-                map_of_events_set_over_epochs.insert(epoch_id, epoch_events);
+                all_relevant_events.insert(epoch_id, epoch_relevant_events);
             }
         }
-        let num_epochs: usize = map_of_events_set_over_epochs.len();
+        let num_epochs: usize = all_relevant_events.len();
 
-        let unbiased_report =
-            request.compute_report(&map_of_events_set_over_epochs);
+        let unbiased_report = request.compute_report(&all_relevant_events);
 
         for epoch_id in request.get_epoch_ids() {
             // Get the epoch events for the epoch_id in the report.
-            let set_of_events_for_relevant_epoch =
-                map_of_events_set_over_epochs.get(&epoch_id);
+            let epoch_relevant_events = all_relevant_events.get(&epoch_id);
 
             // Compute the individual sensitivity for the relevant epoch.
             let individual_privacy_loss = self.compute_individual_privacy_loss(
                 &request,
-                set_of_events_for_relevant_epoch,
+                epoch_relevant_events,
                 &unbiased_report,
                 num_epochs,
             );
@@ -124,7 +122,7 @@ where
                     FilterError::OutOfBudget,
                 )) => {
                     // The budget is depleted, drop events.
-                    map_of_events_set_over_epochs.remove(&epoch_id);
+                    all_relevant_events.remove(&epoch_id);
                 }
                 _ => {
                     // Return default report if anything else goes wrong.
@@ -134,8 +132,7 @@ where
         }
 
         // Now that we've dropped OOB epochs, we can compute the final report.
-        let filtered_report =
-            request.compute_report(&map_of_events_set_over_epochs);
+        let filtered_report = request.compute_report(&all_relevant_events);
         filtered_report
     }
 

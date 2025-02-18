@@ -7,8 +7,9 @@ use crate::mechanisms::NormType;
 /// Trait for report types returned by a device (in plaintext). Must implement a
 /// default variant for null reports, so devices with errors or no budget
 /// left are still sending something (and are thus indistinguishable from other
-/// devices once reports are encrypted).  TODO: marker trait for now, might add
-/// aggregation methods later.
+/// devices once reports are encrypted).  
+///
+/// TODO: marker trait for now, might add aggregation methods later.
 pub trait Report: Debug + Default {}
 
 /// Trait for a generic query.

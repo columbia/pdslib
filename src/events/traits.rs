@@ -10,7 +10,7 @@ impl EpochId for usize {}
 /// Event with an associated epoch.
 pub trait Event: Debug {
     type EpochId: EpochId;
-    // TODO: add identifier for the first-party who issued this event?
+    // TODO: add source/trigger information for Big Bird / Level 2 (see https://github.com/columbia/pdslib/issues/18)
 
     fn get_epoch_id(&self) -> Self::EpochId;
 }
@@ -20,13 +20,17 @@ pub trait EpochEvents: Debug {
     fn is_empty(&self) -> bool;
 }
 
-/// Selector that can tag relevant events one by one. Can carry some state.
-/// (but storage implementations don't have to use this method, they can
-/// also implement bulk retrieval)
-/// TODO: do we really need a separate trait? Could also pass the whole request.
+/// Selector that can tag relevant events one by one or in bulk.
+/// Can carry some immutable state.
+///
+/// TODO: do we really need a separate trait? We could also add `is_relevant_event` directly
+/// to the `ReportRequest` trait, and pass the whole request to the `EventStorage` when needed.
 pub trait RelevantEventSelector {
     type Event: Event;
 
+    /// Checks whether a single event is relevant. Storage implementations
+    /// don't have to use this method, they can also implement their own
+    /// bulk retrieval functionality on the type implementing this trait.
     fn is_relevant_event(&self, event: &Self::Event) -> bool;
 }
 
@@ -39,9 +43,8 @@ pub trait EventStorage {
     /// Stores a new event.
     fn add_event(&mut self, event: Self::Event) -> Result<(), ()>;
 
-    /// Retrieves all events for a given epoch.
-    /// TODO: allow to filter relevant events for a query?
-    fn get_epoch_events(
+    /// Retrieves all relevant events for a given epoch.
+    fn get_relevant_epoch_events(
         &self,
         epoch_id: &<Self::Event as Event>::EpochId,
         relevant_event_selector: &Self::RelevantEventSelector,

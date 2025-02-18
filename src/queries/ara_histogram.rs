@@ -11,8 +11,8 @@ use std::vec;
 #[derive(Debug, Clone)]
 pub struct AraRelevantEventSelector {
     pub filters: HashMap<String, Vec<String>>,
-    // source_key: String, // TODO: add this if we drop events without the
-    // right source key
+    // TODO(https://github.com/columbia/pdslib/issues/8): add this if we drop events without the right source key
+    // source_key: String,
 }
 
 /// Select events using ARA-style filters.
@@ -21,7 +21,7 @@ impl RelevantEventSelector for AraRelevantEventSelector {
     type Event = AraEvent;
 
     fn is_relevant_event(&self, _event: &AraEvent) -> bool {
-        // TODO: add filters to events too, and implement ARA filtering
+        // TODO(https://github.com/columbia/pdslib/issues/8): add filters to events too, and implement ARA filtering
         true
     }
 }
@@ -30,7 +30,8 @@ impl RelevantEventSelector for AraRelevantEventSelector {
 /// The request corresponds to a trigger event in ARA.
 /// For now, each event is mapped to a single bucket, unlike ARA which supports
 /// packed queries (which can be emulated by running multiple queries).
-/// TODO: what is "nonMatchingKeyIdsIgnored"?
+///
+/// TODO(https://github.com/columbia/pdslib/issues/8): what is "nonMatchingKeyIdsIgnored"?
 #[derive(Debug)]
 pub struct AraHistogramRequest {
     pub start_epoch: usize,
@@ -70,7 +71,8 @@ impl HistogramRequest for AraHistogramRequest {
     }
 
     fn get_bucket_key(&self, event: &AraEvent) -> Self::BucketKey {
-        // TODO: What does ARA do when the source key is not present?
+        // TODO(https://github.com/columbia/pdslib/issues/8):
+        // What does ARA do when the source key is not present?
         // For now I still attribute with 0 for the source keypiece, but
         // I could treat the event as irrelevant too.
         let source_keypiece = event
@@ -84,7 +86,9 @@ impl HistogramRequest for AraHistogramRequest {
 
     /// Returns the same value for each relevant event. Will be capped by
     /// `compute_report`. An alternative would be to pick one event, or
-    /// split the attribution cap uniformly. TODO: Double check with
+    /// split the attribution cap uniformly.
+    ///
+    /// TODO(https://github.com/columbia/pdslib/issues/8): Double check with
     /// Chromium logic.
     fn get_values<'a>(
         &self,

@@ -1,3 +1,4 @@
+///! [Experimental] ARA-style requests, that mirror https://github.com/WICG/attribution-reporting-api/blob/main/AGGREGATE.md
 use crate::events::traits::RelevantEventSelector;
 use crate::{
     events::ara_event::AraEvent, events::hashmap_event_storage::VecEpochEvents,

@@ -157,8 +157,8 @@ where
             self.filter_storage
                 .try_consume(&epoch_id, &request.privacy_budget)?;
 
-            // TODO: unlike regular filters, deduct all the way to 0? This is a
-            // problem actually.
+            // TODO: semantics are still unclear, for now we ignore the request if
+            // it would exhaust the filter. See https://github.com/columbia/pdslib/issues/16.
         }
         Ok(())
     }

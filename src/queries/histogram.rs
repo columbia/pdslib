@@ -124,7 +124,6 @@ impl<H: HistogramRequest> EpochReportRequest for H {
     }
 
     /// Computes individual sensitivity in the single epoch case.
-    /// TODO(P1): double check this
     fn get_single_epoch_individual_sensitivity(
         &self,
         report: &Self::Report,
@@ -143,7 +142,10 @@ impl<H: HistogramRequest> EpochReportRequest for H {
     /// Computes the global sensitivity, useful for the multi-epoch case.
     /// See https://arxiv.org/pdf/2405.16719, Thm. 18
     fn get_global_sensitivity(&self) -> f64 {
-        // TODO(P1): if we have only one bin then we can remove the factor 2
+        // NOTE: if we have only one possible bin (histogram in R instead or R^m),
+        // then we can remove the factor 2. But this constraint is not enforceable with
+        // HashMap<BucketKey, f64>, so for use-cases that have one bin we should use
+        // a custom type similar to `SimpleLastTouchHistogramReport` with Option<BucketKey, f64>.
         2.0 * self.get_attributable_value()
     }
 }

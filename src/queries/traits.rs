@@ -25,7 +25,8 @@ pub trait EpochReportRequest: ReportRequest {
     type PrivacyBudget;
     type ReportGlobalSensitivity;
 
-    /// Returns the list of epoch IDs, in the order the attribution should run.
+    /// Returns the list of requested epoch IDs, in the order the attribution
+    /// should run.
     fn get_epoch_ids(&self) -> Vec<Self::EpochId>;
 
     /// Returns the selector for relevant events for the query. The selector
@@ -35,7 +36,7 @@ pub trait EpochReportRequest: ReportRequest {
     /// Computes the report for the given request and epoch events.
     fn compute_report(
         &self,
-        all_epoch_events: &HashMap<Self::EpochId, Self::EpochEvents>,
+        all_relevant_events: &HashMap<Self::EpochId, Self::EpochEvents>,
     ) -> Self::Report;
 
     /// Computes the individual sensitivity for the query when the report is

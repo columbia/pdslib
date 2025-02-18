@@ -1,6 +1,7 @@
 use crate::events::traits::Event;
 
-/// A barebones event type for testing and demo purposes. See ara_event for a richer type.
+/// A barebones event type for testing and demo purposes. See ara_event for a
+/// richer type.
 #[derive(Debug, Clone)]
 pub struct SimpleEvent {
     pub id: usize,

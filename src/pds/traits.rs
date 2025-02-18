@@ -24,8 +24,9 @@ pub trait PrivateDataService {
         request: Self::Request,
     ) -> <Self::Request as ReportRequest>::Report;
 
-    /// [Experimental] Accounts for passive privacy loss. Can fail if the implementation has
-    /// an error, but failure must not leak the state of the filters.
+    /// [Experimental] Accounts for passive privacy loss. Can fail if the
+    /// implementation has an error, but failure must not leak the state of
+    /// the filters.
     ///
     /// TODO(https://github.com/columbia/pdslib/issues/16): what are the semantics of passive loss queries that go over the filter
     /// capacity?

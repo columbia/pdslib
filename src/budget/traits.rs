@@ -54,7 +54,8 @@ pub trait FilterStorage {
     fn is_initialized(&mut self, filter_id: &Self::FilterId) -> bool;
 
     /// Tries to consume a given budget from the filter with ID `filter_id`.
-    /// Returns an error if the filter does not exist, the caller can then decide to create a new filter.
+    /// Returns an error if the filter does not exist, the caller can then
+    /// decide to create a new filter.
     fn try_consume(
         &mut self,
         filter_id: &Self::FilterId,

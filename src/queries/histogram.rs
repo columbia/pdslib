@@ -29,9 +29,9 @@ impl<BK> Default for HistogramReport<BK> {
 
 impl<BK: BucketKey> Report for HistogramReport<BK> {}
 
-/// [Experimental] Trait for generic histogram requests. Any type satisfying this interface
-/// will be callable as a valid ReportRequest with the right accounting.
-/// Following the formalism from https://arxiv.org/pdf/2405.16719, Thm 18.
+/// [Experimental] Trait for generic histogram requests. Any type satisfying
+/// this interface will be callable as a valid ReportRequest with the right
+/// accounting. Following the formalism from https://arxiv.org/pdf/2405.16719, Thm 18.
 /// Can be instantiated by ARA-style queries in particular.
 pub trait HistogramRequest: Debug {
     type EpochId: EpochId;
@@ -106,8 +106,8 @@ impl<H: HistogramRequest> EpochReportRequest for H {
         let mut total_value: f64 = 0.0;
         let event_values = self.get_values(all_epoch_events);
 
-        // The order matters, since events that are attributed last might be dropped by
-        // the contribution cap.
+        // The order matters, since events that are attributed last might be
+        // dropped by the contribution cap.
         //
         // TODO(https://github.com/columbia/pdslib/issues/19):  Use an ordered map for all_epoch_events?
         for (event, value) in event_values {

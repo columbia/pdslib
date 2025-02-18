@@ -42,13 +42,16 @@ pub enum PDSImplError {
     FilterConsumptionError(#[from] FilterStorageError),
 }
 
+/// Implements the generic PDS interface for the epoch-based PDS.
+///
+/// TODO(https://github.com/columbia/pdslib/issues/21): support more than PureDP
 impl<EI, E, EE, RES, FS, ES, Q> PrivateDataService
     for EpochPrivateDataServiceImpl<FS, ES, Q>
 where
     EI: EpochId,
     E: Event<EpochId = EI>,
     EE: EpochEvents,
-    FS: FilterStorage<FilterId = EI, Budget = PureDPBudget>, /* NOTE: we'll want to support other budgets eventually */
+    FS: FilterStorage<FilterId = EI, Budget = PureDPBudget>,
     RES: RelevantEventSelector<Event = E>,
     ES: EventStorage<Event = E, EpochEvents = EE, RelevantEventSelector = RES>,
     Q: EpochReportRequest<
@@ -84,15 +87,17 @@ where
                 all_relevant_events.insert(epoch_id, epoch_relevant_events);
             }
         }
-        let num_epochs: usize = all_relevant_events.len();
 
+        // Compute the raw report, useful for accounting.
+        let num_epochs: usize = all_relevant_events.len();
         let unbiased_report = request.compute_report(&all_relevant_events);
 
+        // Browse epochs in the attribution window
         for epoch_id in request.get_epoch_ids() {
-            // Get the epoch events for the epoch_id in the report.
+            // Get relevant events for the current epoch `epoch_id`.
             let epoch_relevant_events = all_relevant_events.get(&epoch_id);
 
-            // Compute the individual sensitivity for the relevant epoch.
+            // Compute individual sensitivity for current epoch.
             let individual_privacy_loss = self.compute_individual_privacy_loss(
                 &request,
                 epoch_relevant_events,
@@ -162,7 +167,7 @@ where
     }
 }
 
-/// TODO: generalize to other types of budget.
+/// Utility methods for the epoch-based PDS implementation.
 impl<EI, E, EE, FS, ES, Q> EpochPrivateDataServiceImpl<FS, ES, Q>
 where
     E: Event<EpochId = EI>,
@@ -171,7 +176,9 @@ where
     ES: EventStorage<Event = E, EpochEvents = EE>,
     Q: EpochReportRequest<EpochId = EI, EpochEvents = EE>,
 {
-    /// Utility method for individual privacy loss computation.
+    /// Pure DP individual privacy loss, following https://arxiv.org/pdf/2405.16719.
+    ///
+    /// TODO(https://github.com/columbia/pdslib/issues/21): generic budget.
     fn compute_individual_privacy_loss(
         &self,
         request: &Q,
@@ -179,8 +186,7 @@ where
         computed_attribution: &<Q as ReportRequest>::Report,
         num_epochs: usize,
     ) -> PureDPBudget {
-        // Case 1: Epoch with no relevant events or out of the attribution
-        // window
+        // Case 1: Epoch with no relevant events
         match epoch_relevant_events {
             None => {
                 return PureDPBudget::Epsilon(0.0);

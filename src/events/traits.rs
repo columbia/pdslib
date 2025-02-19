@@ -1,5 +1,4 @@
-use std::fmt::Debug;
-use std::hash::Hash;
+use std::{fmt::Debug, hash::Hash};
 
 /// Marker trait with bounds for epoch identifiers.
 pub trait EpochId: Hash + std::cmp::Eq + Clone + Debug {}

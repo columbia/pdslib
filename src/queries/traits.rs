@@ -1,8 +1,9 @@
-use std::collections::HashMap;
-use std::fmt::Debug;
+use std::{collections::HashMap, fmt::Debug};
 
-use crate::events::traits::{EpochEvents, EpochId};
-use crate::mechanisms::{NoiseScale, NormType};
+use crate::{
+    events::traits::{EpochEvents, EpochId},
+    mechanisms::{NoiseScale, NormType},
+};
 
 /// Trait for report types returned by a device (in plaintext). Must implement a
 /// default variant for null reports, so devices with errors or no budget

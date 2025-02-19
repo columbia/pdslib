@@ -66,7 +66,7 @@ fn main() {
     };
 
     // Measure conversion.
-    let report = pds.compute_report(report_request);
+    let report = pds.compute_report(report_request).unwrap();
 
     // Look at the histogram stored in the report (unencrypted here).
     assert_eq!(report.bin_value, Some((event.event_key, 70.0)));

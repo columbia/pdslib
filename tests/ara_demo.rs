@@ -51,7 +51,7 @@ fn main() {
         }, // Not filtering yet.
     };
 
-    let report1 = pds.compute_report(request1);
+    let report1 = pds.compute_report(request1).unwrap();
     println!("Report1: {:?}", report1);
 
     // One event attributed to the binary OR of the source keypiece and trigger

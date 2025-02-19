@@ -1,5 +1,7 @@
 pub use crate::budget::traits::{Budget, Filter, FilterError};
 
+use super::hashmap_filter_storage::SimpleFilterError;
+
 /// A simple floating-point budget for pure differential privacy, with support
 /// for infinite budget
 ///
@@ -29,6 +31,8 @@ pub struct PureDPBudgetFilter {
 }
 
 impl Filter<PureDPBudget> for PureDPBudgetFilter {
+    type Error = SimpleFilterError;
+
     fn new(capacity: PureDPBudget) -> Self {
         Self {
             remaining_budget: capacity,
@@ -38,7 +42,7 @@ impl Filter<PureDPBudget> for PureDPBudgetFilter {
     fn check_and_consume(
         &mut self,
         budget: &PureDPBudget,
-    ) -> Result<(), FilterError> {
+    ) -> Result<(), SimpleFilterError> {
         println!("The budget that remains in this epoch is {:?}, and we need to consume this much budget {:?}", self.remaining_budget, budget);
 
         // Check that we have enough budget and if yes, deduct in place.
@@ -57,11 +61,11 @@ impl Filter<PureDPBudget> for PureDPBudgetFilter {
                         );
                         Ok(())
                     } else {
-                        Err(FilterError::OutOfBudget)
+                        Err(SimpleFilterError::OutOfBudget)
                     }
                 }
                 // Infinite requests on finite filters are always rejected
-                _ => Err(FilterError::OutOfBudget),
+                _ => Err(SimpleFilterError::OutOfBudget),
             },
         }
     }

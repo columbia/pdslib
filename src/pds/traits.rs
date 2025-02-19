@@ -1,4 +1,22 @@
-use crate::queries::traits::ReportRequest;
+use crate::{
+    budget::traits::FilterStorageError, events::traits::EventStorageError,
+    queries::traits::ReportRequest,
+};
+
+pub trait PDSError {
+    type FilterStorageError: FilterStorageError;
+    type EventStorageError: EventStorageError;
+
+    fn from_filter_storage_error(
+        error: <Self as PDSError>::FilterStorageError,
+    ) -> Self;
+    fn from_event_storage_error(
+        error: <Self as PDSError>::EventStorageError,
+    ) -> Self;
+
+    fn as_filter_storage_error(&self) -> Option<&Self::FilterStorageError>;
+    fn as_event_storage_error(&self) -> Option<&Self::EventStorageError>;
+}
 
 /// Trait for a generic private data service.
 pub trait PrivateDataService {
@@ -12,7 +30,7 @@ pub trait PrivateDataService {
     type PassivePrivacyLossRequest;
 
     /// Errors.
-    type Error;
+    type Error: PDSError;
 
     /// Registers a new event.
     fn register_event(&mut self, event: Self::Event)
@@ -22,7 +40,7 @@ pub trait PrivateDataService {
     fn compute_report(
         &mut self,
         request: Self::Request,
-    ) -> <Self::Request as ReportRequest>::Report;
+    ) -> Result<<Self::Request as ReportRequest>::Report, Self::Error>;
 
     /// [Experimental] Accounts for passive privacy loss. Can fail if the
     /// implementation has an error, but failure must not leak the state of

@@ -12,3 +12,4 @@ demo:
 
 format:
     cargo +nightly fmt
+    cargo clippy --tests  -- -D warnings

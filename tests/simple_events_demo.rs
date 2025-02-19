@@ -1,10 +1,14 @@
-use pdslib::budget::hashmap_filter_storage::HashMapFilterStorage;
-use pdslib::budget::pure_dp_filter::{PureDPBudget, PureDPBudgetFilter};
-use pdslib::events::hashmap_event_storage::HashMapEventStorage;
-use pdslib::events::simple_event::SimpleEvent;
-use pdslib::pds::epoch_pds::EpochPrivateDataServiceImpl;
-use pdslib::pds::traits::PrivateDataService;
-use pdslib::queries::simple_last_touch_histogram::SimpleLastTouchHistogramRequest;
+use pdslib::{
+    budget::{
+        hashmap_filter_storage::HashMapFilterStorage,
+        pure_dp_filter::{PureDPBudget, PureDPBudgetFilter},
+    },
+    events::{
+        hashmap_event_storage::HashMapEventStorage, simple_event::SimpleEvent,
+    },
+    pds::{epoch_pds::EpochPrivateDataServiceImpl, traits::PrivateDataService},
+    queries::simple_last_touch_histogram::SimpleLastTouchHistogramRequest,
+};
 
 #[test]
 fn main() {

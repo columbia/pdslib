@@ -1,11 +1,11 @@
-use crate::budget::pure_dp_filter::PureDPBudget;
-use crate::events::traits::RelevantEventSelector;
-use crate::events::traits::{EpochEvents, EpochId, Event};
-use crate::mechanisms::{NoiseScale, NormType};
-use crate::queries::traits::{EpochReportRequest, Report, ReportRequest};
-use std::collections::HashMap;
-use std::fmt::Debug;
-use std::hash::Hash;
+use std::{collections::HashMap, fmt::Debug, hash::Hash};
+
+use crate::{
+    budget::pure_dp_filter::PureDPBudget,
+    events::traits::{EpochEvents, EpochId, Event, RelevantEventSelector},
+    mechanisms::{NoiseScale, NormType},
+    queries::traits::{EpochReportRequest, Report, ReportRequest},
+};
 
 #[derive(Debug, Clone)]
 pub struct HistogramReport<BucketKey> {

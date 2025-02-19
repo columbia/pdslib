@@ -63,14 +63,16 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
 
     fn compute_report(
         &self,
-        all_relevant_events: &HashMap<usize, Self::EpochEvents>,
+        relevant_epochs_per_epoch: &HashMap<usize, Self::EpochEvents>,
     ) -> Self::Report {
         // Browse epochs in the order given by `get_epoch_ids, most recent
         // epoch first. Within each epoch, we assume that events are
         // stored in the order that they occured
         for epoch_id in self.get_epoch_ids() {
-            if let Some(epoch_events) = all_relevant_events.get(&epoch_id) {
-                if let Some(last_impression) = epoch_events.last() {
+            if let Some(relevant_events) =
+                relevant_epochs_per_epoch.get(&epoch_id)
+            {
+                if let Some(last_impression) = relevant_events.last() {
                     // `last_impression` is the most recent relevant impression
                     // from the most recent non-empty epoch.
                     let event_key = last_impression.event_key;

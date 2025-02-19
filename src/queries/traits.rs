@@ -36,7 +36,7 @@ pub trait EpochReportRequest: ReportRequest {
     /// Computes the report for the given request and epoch events.
     fn compute_report(
         &self,
-        all_relevant_events: &HashMap<Self::EpochId, Self::EpochEvents>,
+        relevant_events_per_epoch: &HashMap<Self::EpochId, Self::EpochEvents>,
     ) -> Self::Report;
 
     /// Computes the individual sensitivity for the query when the report is

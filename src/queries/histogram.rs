@@ -59,12 +59,15 @@ pub trait HistogramRequest: Debug {
     /// Returns the histogram bucket key (bin) for a given event.
     fn get_bucket_key(&self, event: &Self::Event) -> Self::BucketKey;
 
-    /// Attributes a value to each event in `all_epoch_events`, which will be
+    /// Attributes a value to each event in `relevant_events_per_epoch`, which will be
     /// obtained by retrieving *relevant* events from the event storage.
-    /// Events can point to the all_epoch_events, hence the lifetime.
+    /// Events can point to the relevant_events_per_epoch, hence the lifetime.
     fn get_values<'a>(
         &self,
-        all_epoch_events: &'a HashMap<Self::EpochId, Self::EpochEvents>,
+        relevant_events_per_epoch: &'a HashMap<
+            Self::EpochId,
+            Self::EpochEvents,
+        >,
     ) -> Vec<(&'a Self::Event, f64)>;
 }
 
@@ -100,16 +103,16 @@ impl<H: HistogramRequest> EpochReportRequest for H {
     /// events by bucket.
     fn compute_report(
         &self,
-        all_epoch_events: &HashMap<Self::EpochId, Self::EpochEvents>,
+        relevant_events_per_epoch: &HashMap<Self::EpochId, Self::EpochEvents>,
     ) -> Self::Report {
         let mut bin_values: HashMap<H::BucketKey, f64> = HashMap::new();
         let mut total_value: f64 = 0.0;
-        let event_values = self.get_values(all_epoch_events);
+        let event_values = self.get_values(relevant_events_per_epoch);
 
         // The order matters, since events that are attributed last might be
         // dropped by the contribution cap.
         //
-        // TODO(https://github.com/columbia/pdslib/issues/19):  Use an ordered map for all_epoch_events?
+        // TODO(https://github.com/columbia/pdslib/issues/19):  Use an ordered map for relevant_events_per_epoch?
         for (event, value) in event_values {
             total_value += value;
             if total_value > self.get_attributable_value() {

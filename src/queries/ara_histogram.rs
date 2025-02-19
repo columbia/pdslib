@@ -92,12 +92,15 @@ impl HistogramRequest for AraHistogramRequest {
     /// Chromium logic.
     fn get_values<'a>(
         &self,
-        all_epoch_events: &'a HashMap<Self::EpochId, Self::EpochEvents>,
+        relevant_events_per_epoch: &'a HashMap<
+            Self::EpochId,
+            Self::EpochEvents,
+        >,
     ) -> Vec<(&'a Self::Event, f64)> {
         let mut event_values = vec![];
 
-        for epoch_events in all_epoch_events.values() {
-            for event in epoch_events.iter() {
+        for relevant_events in relevant_events_per_epoch.values() {
+            for event in relevant_events.iter() {
                 event_values.push((event, self.per_event_attributable_value));
             }
         }

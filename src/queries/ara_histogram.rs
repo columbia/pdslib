@@ -82,8 +82,7 @@ impl HistogramRequest for AraHistogramRequest {
             .get(&self.source_key)
             .copied()
             .unwrap_or(0);
-        let bucket_key = source_keypiece | self.trigger_keypiece;
-        bucket_key
+        source_keypiece | self.trigger_keypiece
     }
 
     /// Returns the same value for each relevant event. Will be capped by

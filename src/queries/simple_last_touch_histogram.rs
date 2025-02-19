@@ -112,7 +112,7 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
     }
 
     fn get_report_global_sensitivity(&self) -> f64 {
-        return self.attributable_value;
+        self.attributable_value
     }
 
     fn get_noise_scale(&self) -> NoiseScale {

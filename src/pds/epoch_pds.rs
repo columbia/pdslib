@@ -51,6 +51,9 @@ pub enum PDSImplError {
 /// Implements the generic PDS interface for the epoch-based PDS.
 ///
 /// TODO(https://github.com/columbia/pdslib/issues/21): support more than PureDP
+/// TODO(https://github.com/columbia/pdslib/issues/18): handle multiple queriers
+/// instead of assuming that there is a single querier and using filter_id =
+/// epoch_id
 impl<EI, E, EE, RES, FS, ES, Q> PrivateDataService
     for EpochPrivateDataServiceImpl<FS, ES, Q>
 where
@@ -117,6 +120,7 @@ where
             );
 
             // Initialize filter if necessary.
+            // TODO(https://github.com/columbia/pdslib/issues/18): handle multiple queriers.
             if !self.filter_storage.is_initialized(&epoch_id)
                 && self
                     .filter_storage
@@ -130,7 +134,7 @@ where
             // OOB.
             match self
                 .filter_storage
-                .try_consume(&epoch_id, &individual_privacy_loss)
+                .check_and_consume(&epoch_id, &individual_privacy_loss)
             {
                 Ok(_) => {
                     // The budget is not depleted, keep events.
@@ -168,7 +172,7 @@ where
 
             // Try to consume budget from current epoch.
             self.filter_storage
-                .try_consume(&epoch_id, &request.privacy_budget)?;
+                .check_and_consume(&epoch_id, &request.privacy_budget)?;
 
             // TODO(https://github.com/columbia/pdslib/issues/16): semantics are still unclear, for now we ignore the request if
             // it would exhaust the filter.

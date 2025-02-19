@@ -9,6 +9,7 @@ use pdslib::queries::simple_last_touch_histogram::SimpleLastTouchHistogramReques
 #[test]
 fn main() {
     // This demo represents what happens on a single device.
+    // Scenario similar to https://arxiv.org/pdf/2405.16719, Section 3.3
 
     // Set up storage and Private Data Service.
     let events = HashMapEventStorage::new();
@@ -32,18 +33,34 @@ fn main() {
     // Save impression.
     pds.register_event(event.clone()).unwrap();
 
+    // Next, a conversion happens and the querier prepares request parameters.
+
+    // pdslib only needs the mechanism (noise distribution and scale), which
+    // can be computed from the global sensitivity and global epsilon if needed.
+    let query_global_sensitivity = 100.0;
+    let requested_epsilon = 1.0;
+    let laplace_noise_scale = query_global_sensitivity / requested_epsilon;
+
+    // Can depend on information available to the querier about this particular
+    // conversion.
+    let report_global_sensitivity = 70.0;
+
+    // Relevant event filter, e.g. only attribute to an ad for Nike if event_key
+    // is the advertiser ID + some campaign information.
+    let relevant_event_filter = |e: &SimpleEvent| e.event_key > 1;
+
     // Create a request to measure a conversion (report request).
     let report_request = SimpleLastTouchHistogramRequest {
         epoch_start: 1,
-        epoch_end: 1,
-        attributable_value: 3.0,
-        laplace_noise_scale: 1.0,
-        is_relevant_event: |e: &SimpleEvent| e.event_key > 1, // Filter events
+        epoch_end: 4,
+        attributable_value: report_global_sensitivity,
+        laplace_noise_scale: laplace_noise_scale,
+        is_relevant_event: relevant_event_filter,
     };
 
     // Measure conversion.
     let report = pds.compute_report(report_request);
 
     // Look at the histogram stored in the report (unencrypted here).
-    assert_eq!(report.bin_value, Some((event.event_key, 3.0)));
+    assert_eq!(report.bin_value, Some((event.event_key, 70.0)));
 }

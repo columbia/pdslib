@@ -1,6 +1,5 @@
 use std::fmt::Debug;
 
-use thiserror::Error;
 
 /// Trait for privacy budgets
 pub trait Budget: Clone {

@@ -4,8 +4,6 @@ use crate::events::traits::{
     EpochEvents, Event, EventStorage, RelevantEventSelector,
 };
 
-use super::traits::EventStorageError;
-
 pub type VecEpochEvents<E> = Vec<E>;
 
 impl<E: Event> EpochEvents for VecEpochEvents<E> {
@@ -13,11 +11,6 @@ impl<E: Event> EpochEvents for VecEpochEvents<E> {
         self.is_empty()
     }
 }
-
-#[derive(Debug)]
-pub enum SimpleEventStorageError {}
-
-impl EventStorageError for SimpleEventStorageError {}
 
 /// A simple in-memory event storage. Stores a mapping of epoch id to epoch
 /// events, where each epoch events is just a vec of events.
@@ -48,7 +41,7 @@ where
     type Event = E;
     type EpochEvents = VecEpochEvents<E>;
     type RelevantEventSelector = RES;
-    type Error = SimpleEventStorageError;
+    type Error = anyhow::Error;
 
     fn add_event(&mut self, event: E) -> Result<(), Self::Error> {
         let epoch_id = event.get_epoch_id();

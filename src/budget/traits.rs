@@ -1,54 +1,39 @@
-use std::fmt::Debug;
-
+use crate::pds::traits::PdsCustomError;
 
 /// Trait for privacy budgets
 pub trait Budget: Clone {
     // For now just a marker trait requiring Clone
 }
 
-/// Error returned when trying to consume from a filter.
-pub trait FilterError: Debug {
-    fn is_out_of_budget(&self) -> bool;
-}
-
 /// Trait for a privacy filter.
 pub trait Filter<T: Budget> {
-    type Error: FilterError;
+    type Error: PdsCustomError;
 
     /// Initializes a new filter with a given capacity.
-    fn new(capacity: T) -> Self;
+    fn new(capacity: T) -> Result<Self, Self::Error>
+    where
+        Self: Sized;
 
     /// Tries to consume a given budget from the filter.
     /// In the formalism from https://arxiv.org/abs/1605.08294, Ok(()) corresponds to CONTINUE, and Err(FilterError::OutOfBudget) corresponds to HALT.
-    fn check_and_consume(&mut self, budget: &T) -> Result<(), Self::Error>;
+    fn check_and_consume(&mut self, budget: &T) -> Result<FilterStatus, Self::Error>;
 
     /// [Experimental] Gets the remaining budget for this filter.
     /// WARNING: this method is for local visualization only.
     /// Its output should not be shared outside the device.
-    fn get_remaining_budget(&self) -> T;
+    fn get_remaining_budget(&self) -> Result<T, Self::Error>;
 }
 
-/// Error returned when trying to interact with a filter storage.
-pub trait FilterStorageError:
-    From<<Self as FilterStorageError>::FilterError> + Debug
-{
-    type FilterError: FilterError;
-
-    fn is_filter_error(&self) -> Option<&Self::FilterError>;
-    fn is_filter_does_not_exist(&self) -> bool;
-    fn is_cannot_initialize_filter(&self) -> bool;
-
-    /// Helper method
-    fn is_out_of_budget(&self) -> bool {
-        self.is_filter_error().is_some_and(|e| e.is_out_of_budget())
-    }
+pub enum FilterStatus {
+    Continue,
+    OutOfBudget,
 }
 
 /// Trait for an interface or object that maintains a collection of filters.
 pub trait FilterStorage {
     type FilterId;
     type Budget: Budget;
-    type Error: FilterStorageError;
+    type Error: PdsCustomError;
 
     /// Initializes a new filter with an associated filter ID and capacity.
     fn new_filter(
@@ -70,7 +55,7 @@ pub trait FilterStorage {
         &mut self,
         filter_id: &Self::FilterId,
         budget: &Self::Budget,
-    ) -> Result<(), Self::Error>;
+    ) -> Result<FilterStatus, Self::Error>;
 
     /// Gets the remaining budget for a filter.
     fn get_remaining_budget(

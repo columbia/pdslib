@@ -1,10 +1,8 @@
 use std::collections::HashMap;
 
-use thiserror::Error;
-
 use crate::budget::pure_dp_filter::PureDPBudget;
-use crate::budget::traits::{FilterStorage, FilterStorageError};
-use crate::events::traits::EventStorageError;
+use crate::budget::traits::FilterStatus;
+use crate::budget::traits::FilterStorage;
 use crate::events::traits::RelevantEventSelector;
 use crate::events::traits::{EpochEvents, EpochId, Event, EventStorage};
 use crate::mechanisms::{NoiseScale, NormType};
@@ -13,7 +11,9 @@ use crate::queries::traits::{
     EpochReportRequest, PassivePrivacyLossRequest, ReportRequest,
 };
 
-use super::traits::PDSError;
+use super::traits::PdsCustomError;
+
+impl PdsCustomError for anyhow::Error {}
 
 /// Epoch-based private data service implementation, using generic filter
 /// storage and event storage interfaces. We might want other implementations
@@ -37,48 +37,6 @@ pub struct EpochPrivateDataServiceImpl<
     pub _phantom: std::marker::PhantomData<Q>,
 }
 
-#[derive(Debug, Error)]
-pub enum PDSImplError<E: EventStorageError, F: FilterStorageError> {
-    #[error("Failed to register event.")]
-    EventRegistrationError(E),
-
-    #[error("Failed to consume privacy budget from filter: {0}")]
-    FilterConsumptionError(F),
-}
-
-impl<E: EventStorageError, F: FilterStorageError> PDSError
-    for PDSImplError<E, F>
-{
-    type EventStorageError = E;
-    type FilterStorageError = F;
-
-    fn from_event_storage_error(
-        error: <Self as PDSError>::EventStorageError,
-    ) -> Self {
-        PDSImplError::EventRegistrationError(error)
-    }
-
-    fn from_filter_storage_error(
-        error: <Self as PDSError>::FilterStorageError,
-    ) -> Self {
-        PDSImplError::FilterConsumptionError(error)
-    }
-
-    fn as_filter_storage_error(&self) -> Option<&Self::FilterStorageError> {
-        match self {
-            PDSImplError::FilterConsumptionError(e) => Some(e),
-            _ => None,
-        }
-    }
-
-    fn as_event_storage_error(&self) -> Option<&Self::EventStorageError> {
-        match self {
-            PDSImplError::EventRegistrationError(e) => Some(e),
-            _ => None,
-        }
-    }
-}
-
 /// Implements the generic PDS interface for the epoch-based PDS.
 ///
 /// TODO(https://github.com/columbia/pdslib/issues/21): support more than PureDP
@@ -91,9 +49,18 @@ where
     EI: EpochId,
     E: Event<EpochId = EI>,
     EE: EpochEvents,
-    FS: FilterStorage<FilterId = EI, Budget = PureDPBudget>,
+    FS: FilterStorage<
+        FilterId = EI,
+        Budget = PureDPBudget,
+        Error = anyhow::Error,
+    >,
     RES: RelevantEventSelector<Event = E>,
-    ES: EventStorage<Event = E, EpochEvents = EE, RelevantEventSelector = RES>,
+    ES: EventStorage<
+        Event = E,
+        EpochEvents = EE,
+        RelevantEventSelector = RES,
+        Error = anyhow::Error,
+    >,
     Q: EpochReportRequest<
         EpochId = EI,
         EpochEvents = EE,
@@ -104,15 +71,11 @@ where
     type Request = Q;
     type PassivePrivacyLossRequest =
         PassivePrivacyLossRequest<EI, PureDPBudget>;
-    type Error = PDSImplError<ES::Error, FS::Error>;
-    fn register_event(
-        &mut self,
-        event: E,
-    ) -> Result<(), PDSImplError<ES::Error, FS::Error>> {
+    type Error = anyhow::Error;
+
+    fn register_event(&mut self, event: E) -> Result<(), Self::Error> {
         println!("Registering event {:?}", event);
-        self.event_storage
-            .add_event(event)
-            .map_err(PDSImplError::from_event_storage_error)
+        self.event_storage.add_event(event)
     }
 
     /// This function follows `compute_attribution_report` from the Cookie
@@ -127,13 +90,15 @@ where
         let mut relevant_events_per_epoch: HashMap<EI, EE> = HashMap::new();
         let relevant_event_selector = request.get_relevant_event_selector();
         for epoch_id in request.get_epoch_ids() {
-            let epoch_relevant_events = self
-                .event_storage
-                .get_relevant_epoch_events(&epoch_id, &relevant_event_selector)
-                .map_err(PDSImplError::from_event_storage_error)?;
+            let epoch_relevant_events =
+                self.event_storage.get_relevant_epoch_events(
+                    &epoch_id,
+                    &relevant_event_selector,
+                )?;
 
             if let Some(epoch_relevant_events) = epoch_relevant_events {
-                relevant_events_per_epoch.insert(epoch_id, epoch_relevant_events);
+                relevant_events_per_epoch
+                    .insert(epoch_id, epoch_relevant_events);
             }
         }
 
@@ -165,10 +130,10 @@ where
                 .filter_storage
                 .check_and_consume(&epoch_id, &individual_privacy_loss)
             {
-                Ok(_) => {
+                Ok(FilterStatus::Continue) => {
                     // The budget is not depleted, keep events.
                 }
-                Err(e) if e.is_out_of_budget() => {
+                Ok(FilterStatus::OutOfBudget) => {
                     // The budget is depleted, drop events.
                     relevant_events_per_epoch.remove(&epoch_id);
                 }
@@ -180,7 +145,8 @@ where
         }
 
         // Now that we've dropped OOB epochs, we can compute the final report.
-        let filtered_report = request.compute_report(&relevant_events_per_epoch);
+        let filtered_report =
+            request.compute_report(&relevant_events_per_epoch);
         Ok(filtered_report)
     }
 
@@ -194,8 +160,7 @@ where
 
             // Try to consume budget from current epoch.
             self.filter_storage
-                .check_and_consume(&epoch_id, &request.privacy_budget)
-                .map_err(PDSImplError::from_filter_storage_error)?;
+                .check_and_consume(&epoch_id, &request.privacy_budget)?;
 
             // TODO(https://github.com/columbia/pdslib/issues/16): semantics are still unclear, for now we ignore the request if
             // it would exhaust the filter.
@@ -210,18 +175,17 @@ where
     EI: EpochId,
     E: Event<EpochId = EI>,
     EE: EpochEvents,
-    FS: FilterStorage<FilterId = EI>,
+    FS: FilterStorage<FilterId = EI, Error = anyhow::Error>,
     ES: EventStorage<Event = E, EpochEvents = EE>,
     Q: EpochReportRequest<EpochId = EI, EpochEvents = EE>,
 {
     fn initialize_filter_if_necessary(
         &mut self,
         epoch_id: &EI,
-    ) -> Result<(), PDSImplError<ES::Error, FS::Error>> {
+    ) -> Result<(), anyhow::Error> {
         let filter_initialized =
-            self.filter_storage
-                .is_initialized(epoch_id)
-                .map_err(PDSImplError::from_filter_storage_error)?;
+            self.filter_storage.is_initialized(epoch_id)?;
+
         if !filter_initialized {
             let create_filter_result = self
                 .filter_storage

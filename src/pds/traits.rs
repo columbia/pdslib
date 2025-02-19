@@ -1,22 +1,8 @@
-use crate::{
-    budget::traits::FilterStorageError, events::traits::EventStorageError,
-    queries::traits::ReportRequest,
-};
+use std::fmt::Debug;
 
-pub trait PDSError {
-    type FilterStorageError: FilterStorageError;
-    type EventStorageError: EventStorageError;
+use crate::queries::traits::ReportRequest;
 
-    fn from_filter_storage_error(
-        error: <Self as PDSError>::FilterStorageError,
-    ) -> Self;
-    fn from_event_storage_error(
-        error: <Self as PDSError>::EventStorageError,
-    ) -> Self;
-
-    fn as_filter_storage_error(&self) -> Option<&Self::FilterStorageError>;
-    fn as_event_storage_error(&self) -> Option<&Self::EventStorageError>;
-}
+pub trait PdsCustomError: Debug {}
 
 /// Trait for a generic private data service.
 pub trait PrivateDataService {
@@ -30,7 +16,7 @@ pub trait PrivateDataService {
     type PassivePrivacyLossRequest;
 
     /// Errors.
-    type Error: PDSError;
+    type Error: PdsCustomError;
 
     /// Registers a new event.
     fn register_event(&mut self, event: Self::Event)

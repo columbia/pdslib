@@ -1,8 +1,14 @@
 # Private Data Service Library
 
-`pdslib` is a standalone Rust library (crate) containing core individual DP interfaces. It is intended to be used as a building block for DP systems like Cookie Monster that use on-device budgeting.
+`pdslib` is a Rust library that implements on-device DP budgeting for privacy-preserving attribution measurement APIs such as [PPA](https://w3c.github.io/ppa/). It aims to remain more generic than Web advertising use cases, exposing a relatively abstract interface for: (1) storing events (such as impressions for PPA but also other things, such as locations someone has been at previously) and (2) requesting reports computed based on previously stored events (such as conversion attribution reports for PPA but also whether someone visited a particular location previously).
 
-Repository structure:
+## Two versions
+
+The first version of this library -- tagged `Level-1` -- implements the [Cookie Monster algorithm](https://arxiv.org/abs/2405.16719) for individual privacy loss accounting (Section 3.3 of the linked paper). File `XXX` implements the algorithm. A test case that shows how to use the library in the context of PPA Level 1 is XXX. This version of pdslib implements privacy loss accounting against a single privacy filter (a.k.a., `budget`), for example for a single advertiser, or querier. To support multiple privacy filters (such as one per querier, as dictated by the Cookie Monster paper and in PPA Level 1), one would instantiate multiple `pdslib`s. No support is provided in the `Level-1` version of the library for management of these different `pdslib` instances. 
+
+The next version of the library -- currently under development, to be tagged `Level-2` -- will implement our extensions to Cookie Monster to support and manage multiple privacy filters. These extensions, required in our opinion for a future PPA Level 2 API, will involve management of these filters to preserve both user privacy and isolation among queriers competing for privacy budget on user devices. A description of our preliminary design for `pdslib Level-2` is given in [these slides](https://docs.google.com/presentation/d/1VUg2k1ODpnHXPQ4e4qgrfdmCSLEdpPbxrgl4qsafAI8/edit?usp=sharing). We are in the process of writing an academic paper on this design.
+
+## Repository structure
 - `src` contains the following main components: `budget`, `events`, `mechanisms` (no dependencies), `queries` (depends on `budget`, `events`, `mechanisms`) and `pds` (depends on the rest).
 - `src/*/traits.rs` define interfaces. Other files in `src/*` implement these interfaces, with very simple in-memory datastructures for now. Other crates using `pdslib` in particular environments (e.g., Chromium or Android) can have implementations for the same traits using browser storage or SQLite databases.
 - `src/pds` is structured to work with  `budget`, `events`, `queries` only through interfaces. So we should be able to swap the implementation for event storage or replace the type of query, and still obtain a working implementation of the `PrivateDataService` interface.

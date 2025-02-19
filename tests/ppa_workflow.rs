@@ -41,6 +41,8 @@ fn main() {
 
     // pdslib only needs the mechanism (noise distribution and scale), which
     // can be computed from the global sensitivity and global epsilon if needed.
+    // TODO(https://github.com/columbia/pdslib/issues/23): potentially use two parameters
+    // instead of a single `laplace_noise_scale`.
     let query_global_sensitivity = 100.0;
     let requested_epsilon = 1.0;
     let laplace_noise_scale = query_global_sensitivity / requested_epsilon;
@@ -51,15 +53,15 @@ fn main() {
 
     // Relevant event filter, e.g. only attribute to an ad for Nike if event_key
     // is the advertiser ID + some campaign information.
-    let relevant_event_filter = |e: &SimpleEvent| e.event_key > 1;
+    let is_relevant_event = |e: &SimpleEvent| e.event_key > 1;
 
     // Create a request to measure a conversion (report request).
     let report_request = SimpleLastTouchHistogramRequest {
         epoch_start: 1,
         epoch_end: 4,
         attributable_value: report_global_sensitivity,
-        laplace_noise_scale: laplace_noise_scale,
-        is_relevant_event: relevant_event_filter,
+        laplace_noise_scale,
+        is_relevant_event,
     };
 
     // Measure conversion.

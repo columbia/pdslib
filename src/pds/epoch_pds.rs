@@ -130,8 +130,7 @@ where
                 return Default::default();
             }
 
-            // Step 3. Try to consume budget from current epoch, drop events if
-            // OOB.
+            // Step 3. Try to consume budget from current epoch, drop events if OOB.
             match self
                 .filter_storage
                 .check_and_consume(&epoch_id, &individual_privacy_loss)
@@ -236,6 +235,11 @@ where
         if noise_scale.abs() < f64::EPSILON {
             return PureDPBudget::Infinite;
         }
+
+        // In Cookie Monster, we have `query_global_sensitivity` / `requested_epsilon` instead
+        // of just `noise_scale`.
+        // TODO(https://github.com/columbia/pdslib/issues/23): potentially use two parameters
+        // instead of a single `noise_scale`.
         PureDPBudget::Epsilon(individual_sensitivity / noise_scale)
     }
 }

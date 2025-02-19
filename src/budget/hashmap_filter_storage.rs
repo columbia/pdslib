@@ -1,8 +1,8 @@
+use std::{collections::HashMap, marker::PhantomData};
+
 use crate::budget::traits::{
     Budget, Filter, FilterStorage, FilterStorageError,
 };
-use std::collections::HashMap;
-use std::marker::PhantomData;
 
 /// Simple implementation of FilterStorage using a HashMap.
 /// Works for any Filter that implements the Filter trait.

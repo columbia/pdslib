@@ -1,9 +1,8 @@
-use crate::events::traits::EventStorage;
-use crate::events::traits::RelevantEventSelector;
-use crate::events::traits::{EpochEvents, Event};
+use std::{collections::HashMap, marker::PhantomData};
 
-use std::collections::HashMap;
-use std::marker::PhantomData;
+use crate::events::traits::{
+    EpochEvents, Event, EventStorage, RelevantEventSelector,
+};
 
 pub type VecEpochEvents<E> = Vec<E>;
 

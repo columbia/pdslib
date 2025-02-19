@@ -1,13 +1,14 @@
-use pdslib::budget::hashmap_filter_storage::HashMapFilterStorage;
-use pdslib::budget::pure_dp_filter::{PureDPBudget, PureDPBudgetFilter};
-use pdslib::events::ara_event::AraEvent;
-use pdslib::events::hashmap_event_storage::HashMapEventStorage;
-use pdslib::pds::epoch_pds::EpochPrivateDataServiceImpl;
-use pdslib::pds::traits::PrivateDataService;
-use pdslib::queries::ara_histogram::{
-    AraHistogramRequest, AraRelevantEventSelector,
-};
 use std::collections::HashMap;
+
+use pdslib::{
+    budget::{
+        hashmap_filter_storage::HashMapFilterStorage,
+        pure_dp_filter::{PureDPBudget, PureDPBudgetFilter},
+    },
+    events::{ara_event::AraEvent, hashmap_event_storage::HashMapEventStorage},
+    pds::{epoch_pds::EpochPrivateDataServiceImpl, traits::PrivateDataService},
+    queries::ara_histogram::{AraHistogramRequest, AraRelevantEventSelector},
+};
 
 #[test]
 fn main() {

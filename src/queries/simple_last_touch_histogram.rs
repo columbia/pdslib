@@ -1,11 +1,14 @@
 use std::collections::HashMap;
 
-use crate::budget::pure_dp_filter::PureDPBudget;
-use crate::events::hashmap_event_storage::VecEpochEvents;
-use crate::events::simple_event::SimpleEvent;
-use crate::events::traits::RelevantEventSelector;
-use crate::mechanisms::{NoiseScale, NormType};
-use crate::queries::traits::{EpochReportRequest, Report, ReportRequest};
+use crate::{
+    budget::pure_dp_filter::PureDPBudget,
+    events::{
+        hashmap_event_storage::VecEpochEvents, simple_event::SimpleEvent,
+        traits::RelevantEventSelector,
+    },
+    mechanisms::{NoiseScale, NormType},
+    queries::traits::{EpochReportRequest, Report, ReportRequest},
+};
 
 #[derive(Debug)]
 pub struct SimpleLastTouchHistogramRequest {

@@ -1,14 +1,20 @@
 use std::collections::HashMap;
+
 use thiserror::Error;
 
-use crate::budget::pure_dp_filter::PureDPBudget;
-use crate::budget::traits::{FilterError, FilterStorage, FilterStorageError};
-use crate::events::traits::RelevantEventSelector;
-use crate::events::traits::{EpochEvents, EpochId, Event, EventStorage};
-use crate::mechanisms::{NoiseScale, NormType};
-use crate::pds::traits::PrivateDataService;
-use crate::queries::traits::{
-    EpochReportRequest, PassivePrivacyLossRequest, ReportRequest,
+use crate::{
+    budget::{
+        pure_dp_filter::PureDPBudget,
+        traits::{FilterError, FilterStorage, FilterStorageError},
+    },
+    events::traits::{
+        EpochEvents, EpochId, Event, EventStorage, RelevantEventSelector,
+    },
+    mechanisms::{NoiseScale, NormType},
+    pds::traits::PrivateDataService,
+    queries::traits::{
+        EpochReportRequest, PassivePrivacyLossRequest, ReportRequest,
+    },
 };
 
 /// Epoch-based private data service implementation, using generic filter
@@ -231,11 +237,17 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::budget::hashmap_filter_storage::HashMapFilterStorage;
-    use crate::budget::pure_dp_filter::{PureDPBudget, PureDPBudgetFilter};
-    use crate::events::hashmap_event_storage::HashMapEventStorage;
-    use crate::queries::simple_last_touch_histogram::SimpleLastTouchHistogramRequest;
-    use crate::queries::traits::PassivePrivacyLossRequest;
+    use crate::{
+        budget::{
+            hashmap_filter_storage::HashMapFilterStorage,
+            pure_dp_filter::{PureDPBudget, PureDPBudgetFilter},
+        },
+        events::hashmap_event_storage::HashMapEventStorage,
+        queries::{
+            simple_last_touch_histogram::SimpleLastTouchHistogramRequest,
+            traits::PassivePrivacyLossRequest,
+        },
+    };
 
     #[test]
     fn test_account_for_passive_privacy_loss() {

@@ -1,12 +1,11 @@
+use std::{collections::HashMap, vec};
+
 ///! [Experimental] ARA-style requests, that mirror https://github.com/WICG/attribution-reporting-api/blob/main/AGGREGATE.md
 use crate::events::traits::RelevantEventSelector;
 use crate::{
-    events::ara_event::AraEvent, events::hashmap_event_storage::VecEpochEvents,
+    events::{ara_event::AraEvent, hashmap_event_storage::VecEpochEvents},
     queries::histogram::HistogramRequest,
 };
-
-use std::collections::HashMap;
-use std::vec;
 
 #[derive(Debug, Clone)]
 pub struct AraRelevantEventSelector {

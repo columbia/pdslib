@@ -1,9 +1,12 @@
+//! [Experimental] ARA-style requests, that mirror https://github.com/WICG/attribution-reporting-api/blob/main/AGGREGATE.md
+
 use std::{collections::HashMap, vec};
 
-///! [Experimental] ARA-style requests, that mirror https://github.com/WICG/attribution-reporting-api/blob/main/AGGREGATE.md
-use crate::events::traits::RelevantEventSelector;
 use crate::{
-    events::{ara_event::AraEvent, hashmap_event_storage::VecEpochEvents},
+    events::{
+        ara_event::AraEvent, hashmap_event_storage::VecEpochEvents,
+        traits::RelevantEventSelector,
+    },
     queries::histogram::HistogramRequest,
 };
 

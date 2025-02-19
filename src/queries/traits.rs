@@ -49,7 +49,7 @@ pub trait EpochReportRequest: ReportRequest {
     ) -> f64;
 
     /// Computes the global sensitivity for the query.
-    fn get_global_sensitivity(&self) -> f64;
+    fn get_report_global_sensitivity(&self) -> f64;
 
     /// Retrieves the scale of the noise that will be added by the aggregator.
     fn get_noise_scale(&self) -> NoiseScale;

@@ -111,7 +111,7 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
         }
     }
 
-    fn get_global_sensitivity(&self) -> f64 {
+    fn get_report_global_sensitivity(&self) -> f64 {
         return self.attributable_value;
     }
 

@@ -15,7 +15,7 @@ impl<E: Event> EpochEvents for VecEpochEvents<E> {
 /// A simple in-memory event storage. Stores a mapping of epoch id to epoch
 /// events, where each epoch events is just a vec of events.
 /// Clones events when asked to retrieve events for an epoch.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct HashMapEventStorage<E: Event, RES: RelevantEventSelector<Event = E>>
 {
     epochs: HashMap<E::EpochId, VecEpochEvents<E>>,
@@ -56,7 +56,7 @@ where
     ) -> Option<VecEpochEvents<E>> {
         // Return relevant events for a given epoch_id
         // TODO: instead of returning an empty Vec, return None?
-        self.epochs.get(&epoch_id).map(|events| {
+        self.epochs.get(epoch_id).map(|events| {
             events
                 .iter()
                 .filter(|event| selector.is_relevant_event(event))

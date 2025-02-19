@@ -79,8 +79,8 @@ where
             .map_err(|_| PDSImplError::EventRegistrationError)
     }
 
-    /// This function follows `compute_attribution_report` from the Cookie Monster Algorithm
-    /// (https://arxiv.org/pdf/2405.16719, Code Listing 1)
+    /// This function follows `compute_attribution_report` from the Cookie
+    /// Monster Algorithm (https://arxiv.org/pdf/2405.16719, Code Listing 1)
     fn compute_report(&mut self, request: Q) -> <Q as ReportRequest>::Report {
         println!("Computing report for request {:?}", request);
         // Collect events from event storage. If an epoch has no relevant
@@ -126,7 +126,8 @@ where
                 return Default::default();
             }
 
-            // Step 3. Try to consume budget from current epoch, drop events if OOB.
+            // Step 3. Try to consume budget from current epoch, drop events if
+            // OOB.
             match self
                 .filter_storage
                 .try_consume(&epoch_id, &individual_privacy_loss)
@@ -185,8 +186,8 @@ where
     ES: EventStorage<Event = E, EpochEvents = EE>,
     Q: EpochReportRequest<EpochId = EI, EpochEvents = EE>,
 {
-    /// Pure DP individual privacy loss, following `compute_individual_privacy_loss`
-    /// from Code Listing 1 in Cookie Monster (https://arxiv.org/pdf/2405.16719).
+    /// Pure DP individual privacy loss, following
+    /// `compute_individual_privacy_loss` from Code Listing 1 in Cookie Monster (https://arxiv.org/pdf/2405.16719).
     ///
     /// TODO(https://github.com/columbia/pdslib/issues/21): generic budget.
     fn compute_individual_privacy_loss(
@@ -218,15 +219,16 @@ where
             }
             _ => {
                 // Case 3: Multiple epochs.
-                request.get_global_sensitivity()
+                request.get_report_global_sensitivity()
             }
         };
 
         let NoiseScale::Laplace(noise_scale) = request.get_noise_scale();
 
-        // Treat near-zero noise scales as non-private, i.e. requesting infinite budget,
-        // which can only go through if filters are also set to infinite capacity, e.g. for debugging.
-        // The machine precision `f64::EPSILON` is not related to privacy.
+        // Treat near-zero noise scales as non-private, i.e. requesting infinite
+        // budget, which can only go through if filters are also set to
+        // infinite capacity, e.g. for debugging. The machine precision
+        // `f64::EPSILON` is not related to privacy.
         if noise_scale.abs() < f64::EPSILON {
             return PureDPBudget::Infinite;
         }

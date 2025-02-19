@@ -59,9 +59,10 @@ pub trait HistogramRequest: Debug {
     /// Returns the histogram bucket key (bin) for a given event.
     fn get_bucket_key(&self, event: &Self::Event) -> Self::BucketKey;
 
-    /// Attributes a value to each event in `relevant_events_per_epoch`, which will be
-    /// obtained by retrieving *relevant* events from the event storage.
-    /// Events can point to the relevant_events_per_epoch, hence the lifetime.
+    /// Attributes a value to each event in `relevant_events_per_epoch`, which
+    /// will be obtained by retrieving *relevant* events from the event
+    /// storage. Events can point to the relevant_events_per_epoch, hence
+    /// the lifetime.
     fn get_values<'a>(
         &self,
         relevant_events_per_epoch: &'a HashMap<
@@ -144,7 +145,7 @@ impl<H: HistogramRequest> EpochReportRequest for H {
 
     /// Computes the global sensitivity, useful for the multi-epoch case.
     /// See https://arxiv.org/pdf/2405.16719, Thm. 18
-    fn get_global_sensitivity(&self) -> f64 {
+    fn get_report_global_sensitivity(&self) -> f64 {
         // NOTE: if we have only one possible bin (histogram in R instead or
         // R^m), then we can remove the factor 2. But this constraint is
         // not enforceable with HashMap<BucketKey, f64>, so for

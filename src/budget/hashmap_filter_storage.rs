@@ -6,7 +6,7 @@ use crate::budget::traits::{
 
 /// Simple implementation of FilterStorage using a HashMap.
 /// Works for any Filter that implements the Filter trait.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct HashMapFilterStorage<K, F, Budget> {
     filters: HashMap<K, F>,
     _marker: PhantomData<Budget>,

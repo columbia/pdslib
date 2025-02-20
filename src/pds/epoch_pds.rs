@@ -146,19 +146,24 @@ where
     fn account_for_passive_privacy_loss(
         &mut self,
         request: Self::PassivePrivacyLossRequest,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<FilterStatus, Self::Error> {
         // For each epoch, try to consume the privacy budget.
         for epoch_id in request.epoch_ids {
             self.initialize_filter_if_necessary(&epoch_id)?;
 
             // Try to consume budget from current epoch.
-            self.filter_storage
+            let filter_status = self
+                .filter_storage
                 .check_and_consume(&epoch_id, &request.privacy_budget)?;
+
+            if filter_status == FilterStatus::OutOfBudget {
+                return Ok(FilterStatus::OutOfBudget);
+            }
 
             // TODO(https://github.com/columbia/pdslib/issues/16): semantics are still unclear, for now we ignore the request if
             // it would exhaust the filter.
         }
-        Ok(())
+        Ok(FilterStatus::Continue)
     }
 }
 
@@ -284,16 +289,16 @@ mod tests {
             epoch_ids: vec![1, 2, 3],
             privacy_budget: PureDPBudget::Epsilon(1.0),
         };
-        let result = pds.account_for_passive_privacy_loss(request);
-        assert!(result.is_ok());
+        let result = pds.account_for_passive_privacy_loss(request).unwrap();
+        assert_eq!(result, FilterStatus::Continue);
 
         // Second request with same budget should succeed (2.0 total)
         let request = PassivePrivacyLossRequest {
             epoch_ids: vec![1, 2, 3],
             privacy_budget: PureDPBudget::Epsilon(1.0),
         };
-        let result = pds.account_for_passive_privacy_loss(request);
-        assert!(result.is_ok());
+        let result = pds.account_for_passive_privacy_loss(request).unwrap();
+        assert_eq!(result, FilterStatus::Continue);
 
         // Verify remaining budgets
         for epoch_id in 1..=3 {
@@ -310,16 +315,16 @@ mod tests {
             epoch_ids: vec![2, 3],
             privacy_budget: PureDPBudget::Epsilon(2.0),
         };
-        let result = pds.account_for_passive_privacy_loss(request);
-        assert!(result.is_err());
+        let result = pds.account_for_passive_privacy_loss(request).unwrap();
+        assert_eq!(result, FilterStatus::OutOfBudget);
 
         // Consume from just one epoch.
         let request = PassivePrivacyLossRequest {
             epoch_ids: vec![3],
             privacy_budget: PureDPBudget::Epsilon(1.0),
         };
-        let result = pds.account_for_passive_privacy_loss(request);
-        assert!(result.is_ok());
+        let result = pds.account_for_passive_privacy_loss(request).unwrap();
+        assert_eq!(result, FilterStatus::Continue);
 
         // Verify remaining budgets
         for epoch_id in 1..=2 {

@@ -87,12 +87,18 @@ mod tests {
             PureDPBudget,
         > = HashMapFilterStorage::new();
         storage.new_filter(1, PureDPBudget::Epsilon(1.0)).unwrap();
-        assert!(storage
-            .check_and_consume(&1, &PureDPBudget::Epsilon(0.5))
-            .is_ok());
-        assert!(storage
-            .check_and_consume(&1, &PureDPBudget::Epsilon(0.6))
-            .is_err());
+        assert_eq!(
+            storage
+                .check_and_consume(&1, &PureDPBudget::Epsilon(0.5))
+                .unwrap(),
+            FilterStatus::Continue
+        );
+        assert_eq!(
+            storage
+                .check_and_consume(&1, &PureDPBudget::Epsilon(0.6))
+                .unwrap(),
+            FilterStatus::OutOfBudget
+        );
 
         // Filter 2 does not exist
         assert!(storage

@@ -22,6 +22,7 @@ pub trait Filter<T: Budget> {
     fn get_remaining_budget(&self) -> Result<T, Self::Error>;
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilterStatus {
     Continue,
     OutOfBudget,

@@ -86,11 +86,13 @@ mod tests {
     fn test_pure_dp_budget_filter() {
         let mut filter =
             PureDPBudgetFilter::new(PureDPBudget::Epsilon(1.0)).unwrap();
-        assert!(filter
-            .check_and_consume(&PureDPBudget::Epsilon(0.5))
-            .is_ok());
-        assert!(filter
-            .check_and_consume(&PureDPBudget::Epsilon(0.6))
-            .is_err());
+        assert_eq!(
+            filter.check_and_consume(&PureDPBudget::Epsilon(0.5)).unwrap(),
+            FilterStatus::Continue
+        );
+        assert_eq!(
+            filter.check_and_consume(&PureDPBudget::Epsilon(0.6)).unwrap(),
+            FilterStatus::OutOfBudget
+        );
     }
 }

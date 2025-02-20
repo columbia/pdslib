@@ -1,5 +1,3 @@
-use crate::pds::traits::PdsCustomError;
-
 /// Trait for privacy budgets
 pub trait Budget: Clone {
     // For now just a marker trait requiring Clone
@@ -7,7 +5,7 @@ pub trait Budget: Clone {
 
 /// Trait for a privacy filter.
 pub trait Filter<T: Budget> {
-    type Error: PdsCustomError;
+    type Error;
 
     /// Initializes a new filter with a given capacity.
     fn new(capacity: T) -> Result<Self, Self::Error>
@@ -33,7 +31,7 @@ pub enum FilterStatus {
 pub trait FilterStorage {
     type FilterId;
     type Budget: Budget;
-    type Error: PdsCustomError;
+    type Error;
 
     /// Initializes a new filter with an associated filter ID and capacity.
     fn new_filter(

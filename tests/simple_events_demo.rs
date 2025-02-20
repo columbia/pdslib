@@ -21,6 +21,7 @@ fn main() {
         event_storage: events,
         epoch_capacity: PureDPBudget::Epsilon(3.0),
         _phantom: std::marker::PhantomData::<SimpleLastTouchHistogramRequest>,
+        _phantom_error: std::marker::PhantomData::<anyhow::Error>,
     };
 
     let event = SimpleEvent {

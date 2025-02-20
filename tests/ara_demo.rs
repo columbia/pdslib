@@ -22,6 +22,7 @@ fn main() {
         event_storage: events,
         epoch_capacity: PureDPBudget::Epsilon(3.0),
         _phantom: std::marker::PhantomData::<AraHistogramRequest>,
+        _phantom_error: std::marker::PhantomData::<anyhow::Error>,
     };
 
     // Test similar to https://github.com/WICG/attribution-reporting-api/blob/main/AGGREGATE.md#attribution-trigger-registration

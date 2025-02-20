@@ -1,7 +1,5 @@
 use std::{fmt::Debug, hash::Hash};
 
-use crate::pds::traits::PdsCustomError;
-
 /// Marker trait with bounds for epoch identifiers.
 pub trait EpochId: Hash + std::cmp::Eq + Clone + Debug {}
 
@@ -41,7 +39,7 @@ pub trait EventStorage {
     type Event: Event;
     type EpochEvents: EpochEvents;
     type RelevantEventSelector: RelevantEventSelector<Event = Self::Event>;
-    type Error: PdsCustomError;
+    type Error;
 
     /// Stores a new event.
     fn add_event(&mut self, event: Self::Event) -> Result<(), Self::Error>;

@@ -2,8 +2,6 @@ use std::fmt::Debug;
 
 use crate::queries::traits::ReportRequest;
 
-pub trait PdsCustomError: Debug {}
-
 /// Trait for a generic private data service.
 pub trait PrivateDataService {
     /// The type of events that the service can register.
@@ -16,7 +14,7 @@ pub trait PrivateDataService {
     type PassivePrivacyLossRequest;
 
     /// Errors.
-    type Error: PdsCustomError;
+    type Error;
 
     /// Registers a new event.
     fn register_event(&mut self, event: Self::Event)

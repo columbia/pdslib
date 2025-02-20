@@ -11,10 +11,6 @@ use crate::queries::traits::{
     EpochReportRequest, PassivePrivacyLossRequest, ReportRequest,
 };
 
-use super::traits::PdsCustomError;
-
-impl PdsCustomError for anyhow::Error {}
-
 /// Epoch-based private data service implementation, using generic filter
 /// storage and event storage interfaces. We might want other implementations
 /// eventually, but at first this implementation should cover most use cases,
@@ -23,6 +19,7 @@ pub struct EpochPrivateDataServiceImpl<
     FS: FilterStorage,
     ES: EventStorage,
     Q: EpochReportRequest,
+    ERR: From<FS::Error> + From<ES::Error>,
 > {
     /// Filter storage interface.
     pub filter_storage: FS,
@@ -35,6 +32,9 @@ pub struct EpochPrivateDataServiceImpl<
 
     /// Type of accepted queries.
     pub _phantom: std::marker::PhantomData<Q>,
+
+    /// Type of errors.
+    pub _phantom_error: std::marker::PhantomData<ERR>,
 }
 
 /// Implements the generic PDS interface for the epoch-based PDS.
@@ -43,39 +43,32 @@ pub struct EpochPrivateDataServiceImpl<
 /// TODO(https://github.com/columbia/pdslib/issues/18): handle multiple queriers
 /// instead of assuming that there is a single querier and using filter_id =
 /// epoch_id
-impl<EI, E, EE, RES, FS, ES, Q> PrivateDataService
-    for EpochPrivateDataServiceImpl<FS, ES, Q>
+impl<EI, E, EE, RES, FS, ES, Q, ERR> PrivateDataService
+    for EpochPrivateDataServiceImpl<FS, ES, Q, ERR>
 where
     EI: EpochId,
     E: Event<EpochId = EI>,
     EE: EpochEvents,
-    FS: FilterStorage<
-        FilterId = EI,
-        Budget = PureDPBudget,
-        Error = anyhow::Error,
-    >,
+    FS: FilterStorage<FilterId = EI, Budget = PureDPBudget>,
     RES: RelevantEventSelector<Event = E>,
-    ES: EventStorage<
-        Event = E,
-        EpochEvents = EE,
-        RelevantEventSelector = RES,
-        Error = anyhow::Error,
-    >,
+    ES: EventStorage<Event = E, EpochEvents = EE, RelevantEventSelector = RES>,
     Q: EpochReportRequest<
         EpochId = EI,
         EpochEvents = EE,
         RelevantEventSelector = RES,
     >,
+    ERR: From<FS::Error> + From<ES::Error>,
 {
     type Event = E;
     type Request = Q;
     type PassivePrivacyLossRequest =
         PassivePrivacyLossRequest<EI, PureDPBudget>;
-    type Error = anyhow::Error;
+    type Error = ERR;
 
     fn register_event(&mut self, event: E) -> Result<(), Self::Error> {
         println!("Registering event {:?}", event);
-        self.event_storage.add_event(event)
+        self.event_storage.add_event(event)?;
+        Ok(())
     }
 
     /// This function follows `compute_attribution_report` from the Cookie
@@ -170,19 +163,20 @@ where
 }
 
 /// Utility methods for the epoch-based PDS implementation.
-impl<EI, E, EE, FS, ES, Q> EpochPrivateDataServiceImpl<FS, ES, Q>
+impl<EI, E, EE, FS, ES, Q, ERR> EpochPrivateDataServiceImpl<FS, ES, Q, ERR>
 where
     EI: EpochId,
     E: Event<EpochId = EI>,
     EE: EpochEvents,
-    FS: FilterStorage<FilterId = EI, Error = anyhow::Error>,
+    FS: FilterStorage<FilterId = EI>,
     ES: EventStorage<Event = E, EpochEvents = EE>,
     Q: EpochReportRequest<EpochId = EI, EpochEvents = EE>,
+    ERR: From<FS::Error> + From<ES::Error>,
 {
     fn initialize_filter_if_necessary(
         &mut self,
         epoch_id: &EI,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<(), ERR> {
         let filter_initialized =
             self.filter_storage.is_initialized(epoch_id)?;
 
@@ -282,6 +276,7 @@ mod tests {
             event_storage: events,
             epoch_capacity: PureDPBudget::Epsilon(3.0),
             _phantom: std::marker::PhantomData::<SimpleLastTouchHistogramRequest>,
+            _phantom_error: std::marker::PhantomData::<anyhow::Error>,
         };
 
         // First request should succeed

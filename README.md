@@ -1,6 +1,6 @@
 # Private Data Service Library
 
-`pdslib` is a Rust library that implements on-device DP budgeting for privacy-preserving attribution measurement APIs such as [PPA](https://w3c.github.io/ppa/). It aims to remain more generic than Web advertising use cases, exposing a relatively abstract interface for: (1) storing events (such as impressions for PPA but also other things, such as locations someone has been at previously) and (2) requesting reports computed based on previously stored events (such as conversion attribution reports for PPA but also whether someone visited a particular location previously).
+`pdslib` is a Rust library that implements on-device DP budgeting for privacy-preserving attribution measurement APIs such as [PPA](https://w3c.github.io/ppa/). It aims to remain more generic than Web advertising use cases, exposing a relatively abstract interface for: (1) storing events (such as impressions for PPA but also other personal-data-events like locations the user has visited previously) and (2) requesting reports computed based on previously stored events (such as conversion attribution reports for PPA but also whether the user visited a particular location previously).
 
 ## Two versions
 

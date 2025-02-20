@@ -26,6 +26,7 @@ fn main() {
         event_storage: events,
         epoch_capacity: PureDPBudget::Epsilon(3.0),
         _phantom: std::marker::PhantomData::<SimpleLastTouchHistogramRequest>,
+        _phantom_error: std::marker::PhantomData::<anyhow::Error>,
     };
 
     // Create an impression (event, with very basic metadata).
@@ -66,7 +67,7 @@ fn main() {
     };
 
     // Measure conversion.
-    let report = pds.compute_report(report_request);
+    let report = pds.compute_report(report_request).unwrap();
 
     // Look at the histogram stored in the report (unencrypted here).
     assert_eq!(report.bin_value, Some((event.event_key, 70.0)));

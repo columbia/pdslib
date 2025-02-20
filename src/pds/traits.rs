@@ -1,4 +1,6 @@
-use crate::queries::traits::ReportRequest;
+use std::fmt::Debug;
+
+use crate::{budget::traits::FilterStatus, queries::traits::ReportRequest};
 
 /// Trait for a generic private data service.
 pub trait PrivateDataService {
@@ -22,7 +24,7 @@ pub trait PrivateDataService {
     fn compute_report(
         &mut self,
         request: Self::Request,
-    ) -> <Self::Request as ReportRequest>::Report;
+    ) -> Result<<Self::Request as ReportRequest>::Report, Self::Error>;
 
     /// [Experimental] Accounts for passive privacy loss. Can fail if the
     /// implementation has an error, but failure must not leak the state of
@@ -33,5 +35,5 @@ pub trait PrivateDataService {
     fn account_for_passive_privacy_loss(
         &mut self,
         request: Self::PassivePrivacyLossRequest,
-    ) -> Result<(), Self::Error>;
+    ) -> Result<FilterStatus, Self::Error>;
 }

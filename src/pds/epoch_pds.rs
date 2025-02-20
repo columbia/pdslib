@@ -1,20 +1,14 @@
 use std::collections::HashMap;
 
-use thiserror::Error;
-
-use crate::{
-    budget::{
-        pure_dp_filter::PureDPBudget,
-        traits::{FilterError, FilterStorage, FilterStorageError},
-    },
-    events::traits::{
-        EpochEvents, EpochId, Event, EventStorage, RelevantEventSelector,
-    },
-    mechanisms::{NoiseScale, NormType},
-    pds::traits::PrivateDataService,
-    queries::traits::{
-        EpochReportRequest, PassivePrivacyLossRequest, ReportRequest,
-    },
+use crate::budget::pure_dp_filter::PureDPBudget;
+use crate::budget::traits::FilterStatus;
+use crate::budget::traits::FilterStorage;
+use crate::events::traits::RelevantEventSelector;
+use crate::events::traits::{EpochEvents, EpochId, Event, EventStorage};
+use crate::mechanisms::{NoiseScale, NormType};
+use crate::pds::traits::PrivateDataService;
+use crate::queries::traits::{
+    EpochReportRequest, PassivePrivacyLossRequest, ReportRequest,
 };
 
 /// Epoch-based private data service implementation, using generic filter
@@ -25,6 +19,7 @@ pub struct EpochPrivateDataServiceImpl<
     FS: FilterStorage,
     ES: EventStorage,
     Q: EpochReportRequest,
+    ERR: From<FS::Error> + From<ES::Error>,
 > {
     /// Filter storage interface.
     pub filter_storage: FS,
@@ -37,15 +32,9 @@ pub struct EpochPrivateDataServiceImpl<
 
     /// Type of accepted queries.
     pub _phantom: std::marker::PhantomData<Q>,
-}
 
-#[derive(Debug, Error)]
-pub enum PDSImplError {
-    #[error("Failed to register event.")]
-    EventRegistrationError,
-
-    #[error("Failed to consume privacy budget from filter: {0}")]
-    FilterConsumptionError(#[from] FilterStorageError),
+    /// Type of errors.
+    pub _phantom_error: std::marker::PhantomData<ERR>,
 }
 
 /// Implements the generic PDS interface for the epoch-based PDS.
@@ -54,8 +43,8 @@ pub enum PDSImplError {
 /// TODO(https://github.com/columbia/pdslib/issues/18): handle multiple queriers
 /// instead of assuming that there is a single querier and using filter_id =
 /// epoch_id
-impl<EI, E, EE, RES, FS, ES, Q> PrivateDataService
-    for EpochPrivateDataServiceImpl<FS, ES, Q>
+impl<EI, E, EE, RES, FS, ES, Q, ERR> PrivateDataService
+    for EpochPrivateDataServiceImpl<FS, ES, Q, ERR>
 where
     EI: EpochId,
     E: Event<EpochId = EI>,
@@ -68,33 +57,39 @@ where
         EpochEvents = EE,
         RelevantEventSelector = RES,
     >,
+    ERR: From<FS::Error> + From<ES::Error>,
 {
     type Event = E;
     type Request = Q;
     type PassivePrivacyLossRequest =
         PassivePrivacyLossRequest<EI, PureDPBudget>;
-    type Error = PDSImplError;
+    type Error = ERR;
 
-    fn register_event(&mut self, event: E) -> Result<(), PDSImplError> {
+    fn register_event(&mut self, event: E) -> Result<(), Self::Error> {
         println!("Registering event {:?}", event);
-        self.event_storage
-            .add_event(event)
-            .map_err(|_| PDSImplError::EventRegistrationError)
+        self.event_storage.add_event(event)?;
+        Ok(())
     }
 
     /// This function follows `compute_attribution_report` from the Cookie
     /// Monster Algorithm (https://arxiv.org/pdf/2405.16719, Code Listing 1)
-    fn compute_report(&mut self, request: Q) -> <Q as ReportRequest>::Report {
+    fn compute_report(
+        &mut self,
+        request: Q,
+    ) -> Result<<Q as ReportRequest>::Report, Self::Error> {
         println!("Computing report for request {:?}", request);
         // Collect events from event storage. If an epoch has no relevant
         // events, don't add it to the mapping.
         let mut relevant_events_per_epoch: HashMap<EI, EE> = HashMap::new();
         let relevant_event_selector = request.get_relevant_event_selector();
         for epoch_id in request.get_epoch_ids() {
-            if let Some(epoch_relevant_events) = self
-                .event_storage
-                .get_relevant_epoch_events(&epoch_id, &relevant_event_selector)
-            {
+            let epoch_relevant_events =
+                self.event_storage.get_relevant_epoch_events(
+                    &epoch_id,
+                    &relevant_event_selector,
+                )?;
+
+            if let Some(epoch_relevant_events) = epoch_relevant_events {
                 relevant_events_per_epoch
                     .insert(epoch_id, epoch_relevant_events);
             }
@@ -121,74 +116,87 @@ where
 
             // Initialize filter if necessary.
             // TODO(https://github.com/columbia/pdslib/issues/18): handle multiple queriers.
-            if !self.filter_storage.is_initialized(&epoch_id)
-                && self
-                    .filter_storage
-                    .new_filter(epoch_id.clone(), self.epoch_capacity.clone())
-                    .is_err()
-            {
-                return Default::default();
-            }
+            self.initialize_filter_if_necessary(&epoch_id)?;
 
             // Step 3. Try to consume budget from current epoch, drop events if OOB.
             match self
                 .filter_storage
                 .check_and_consume(&epoch_id, &individual_privacy_loss)
             {
-                Ok(_) => {
+                Ok(FilterStatus::Continue) => {
                     // The budget is not depleted, keep events.
                 }
-                Err(FilterStorageError::FilterError(
-                    FilterError::OutOfBudget,
-                )) => {
+                Ok(FilterStatus::OutOfBudget) => {
                     // The budget is depleted, drop events.
                     relevant_events_per_epoch.remove(&epoch_id);
                 }
                 _ => {
                     // Return default report if anything else goes wrong.
-                    return Default::default();
+                    return Ok(Default::default());
                 }
             }
         }
 
         // Now that we've dropped OOB epochs, we can compute the final report.
-        request.compute_report(&relevant_events_per_epoch)
+        let filtered_report =
+            request.compute_report(&relevant_events_per_epoch);
+        Ok(filtered_report)
     }
 
     fn account_for_passive_privacy_loss(
         &mut self,
         request: Self::PassivePrivacyLossRequest,
-    ) -> Result<(), PDSImplError> {
+    ) -> Result<FilterStatus, Self::Error> {
         // For each epoch, try to consume the privacy budget.
         for epoch_id in request.epoch_ids {
-            // Initialize filter if necessary.
-            if !self.filter_storage.is_initialized(&epoch_id) {
-                self.filter_storage.new_filter(
-                    epoch_id.clone(),
-                    self.epoch_capacity.clone(),
-                )?;
-            }
+            self.initialize_filter_if_necessary(&epoch_id)?;
 
             // Try to consume budget from current epoch.
-            self.filter_storage
+            let filter_status = self
+                .filter_storage
                 .check_and_consume(&epoch_id, &request.privacy_budget)?;
+
+            if filter_status == FilterStatus::OutOfBudget {
+                return Ok(FilterStatus::OutOfBudget);
+            }
 
             // TODO(https://github.com/columbia/pdslib/issues/16): semantics are still unclear, for now we ignore the request if
             // it would exhaust the filter.
         }
-        Ok(())
+        Ok(FilterStatus::Continue)
     }
 }
 
 /// Utility methods for the epoch-based PDS implementation.
-impl<EI, E, EE, FS, ES, Q> EpochPrivateDataServiceImpl<FS, ES, Q>
+impl<EI, E, EE, FS, ES, Q, ERR> EpochPrivateDataServiceImpl<FS, ES, Q, ERR>
 where
+    EI: EpochId,
     E: Event<EpochId = EI>,
     EE: EpochEvents,
-    FS: FilterStorage,
+    FS: FilterStorage<FilterId = EI>,
     ES: EventStorage<Event = E, EpochEvents = EE>,
     Q: EpochReportRequest<EpochId = EI, EpochEvents = EE>,
+    ERR: From<FS::Error> + From<ES::Error>,
 {
+    fn initialize_filter_if_necessary(
+        &mut self,
+        epoch_id: &EI,
+    ) -> Result<(), ERR> {
+        let filter_initialized =
+            self.filter_storage.is_initialized(epoch_id)?;
+
+        if !filter_initialized {
+            let create_filter_result = self
+                .filter_storage
+                .new_filter(epoch_id.clone(), self.epoch_capacity.clone());
+
+            if create_filter_result.is_err() {
+                return Ok(());
+            }
+        }
+        Ok(())
+    }
+
     /// Pure DP individual privacy loss, following
     /// `compute_individual_privacy_loss` from Code Listing 1 in Cookie Monster (https://arxiv.org/pdf/2405.16719).
     ///
@@ -273,6 +281,7 @@ mod tests {
             event_storage: events,
             epoch_capacity: PureDPBudget::Epsilon(3.0),
             _phantom: std::marker::PhantomData::<SimpleLastTouchHistogramRequest>,
+            _phantom_error: std::marker::PhantomData::<anyhow::Error>,
         };
 
         // First request should succeed
@@ -280,16 +289,16 @@ mod tests {
             epoch_ids: vec![1, 2, 3],
             privacy_budget: PureDPBudget::Epsilon(1.0),
         };
-        let result = pds.account_for_passive_privacy_loss(request);
-        assert!(result.is_ok());
+        let result = pds.account_for_passive_privacy_loss(request).unwrap();
+        assert_eq!(result, FilterStatus::Continue);
 
         // Second request with same budget should succeed (2.0 total)
         let request = PassivePrivacyLossRequest {
             epoch_ids: vec![1, 2, 3],
             privacy_budget: PureDPBudget::Epsilon(1.0),
         };
-        let result = pds.account_for_passive_privacy_loss(request);
-        assert!(result.is_ok());
+        let result = pds.account_for_passive_privacy_loss(request).unwrap();
+        assert_eq!(result, FilterStatus::Continue);
 
         // Verify remaining budgets
         for epoch_id in 1..=3 {
@@ -306,16 +315,16 @@ mod tests {
             epoch_ids: vec![2, 3],
             privacy_budget: PureDPBudget::Epsilon(2.0),
         };
-        let result = pds.account_for_passive_privacy_loss(request);
-        assert!(result.is_err());
+        let result = pds.account_for_passive_privacy_loss(request).unwrap();
+        assert_eq!(result, FilterStatus::OutOfBudget);
 
         // Consume from just one epoch.
         let request = PassivePrivacyLossRequest {
             epoch_ids: vec![3],
             privacy_budget: PureDPBudget::Epsilon(1.0),
         };
-        let result = pds.account_for_passive_privacy_loss(request);
-        assert!(result.is_ok());
+        let result = pds.account_for_passive_privacy_loss(request).unwrap();
+        assert_eq!(result, FilterStatus::Continue);
 
         // Verify remaining budgets
         for epoch_id in 1..=2 {

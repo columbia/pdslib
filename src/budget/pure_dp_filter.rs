@@ -1,4 +1,6 @@
-pub use crate::budget::traits::{Budget, Filter, FilterError};
+pub use crate::budget::traits::{Budget, Filter};
+
+use super::traits::FilterStatus;
 
 /// A simple floating-point budget for pure differential privacy, with support
 /// for infinite budget
@@ -29,45 +31,50 @@ pub struct PureDPBudgetFilter {
 }
 
 impl Filter<PureDPBudget> for PureDPBudgetFilter {
-    fn new(capacity: PureDPBudget) -> Self {
-        Self {
+    type Error = anyhow::Error;
+
+    fn new(capacity: PureDPBudget) -> Result<Self, Self::Error> {
+        let this = Self {
             remaining_budget: capacity,
-        }
+        };
+        Ok(this)
     }
 
     fn check_and_consume(
         &mut self,
         budget: &PureDPBudget,
-    ) -> Result<(), FilterError> {
+    ) -> Result<FilterStatus, Self::Error> {
         println!("The budget that remains in this epoch is {:?}, and we need to consume this much budget {:?}", self.remaining_budget, budget);
 
         // Check that we have enough budget and if yes, deduct in place.
         // We check `Infinite` manually instead of implementing `PartialOrd` and
         // `SubAssign` because we just need this in filters, not to
         // compare or subtract arbitrary budgets.
-        match self.remaining_budget {
+        let status = match self.remaining_budget {
             // Infinite filters accept all requests, even if they are infinite
             // too.
-            PureDPBudget::Infinite => Ok(()),
+            PureDPBudget::Infinite => FilterStatus::Continue,
             PureDPBudget::Epsilon(remaining_epsilon) => match budget {
                 PureDPBudget::Epsilon(requested_epsilon) => {
                     if *requested_epsilon <= remaining_epsilon {
                         self.remaining_budget = PureDPBudget::Epsilon(
                             remaining_epsilon - *requested_epsilon,
                         );
-                        Ok(())
+                        FilterStatus::Continue
                     } else {
-                        Err(FilterError::OutOfBudget)
+                        FilterStatus::OutOfBudget
                     }
                 }
                 // Infinite requests on finite filters are always rejected
-                _ => Err(FilterError::OutOfBudget),
+                _ => FilterStatus::OutOfBudget,
             },
-        }
+        };
+
+        Ok(status)
     }
 
-    fn get_remaining_budget(&self) -> PureDPBudget {
-        self.remaining_budget.clone()
+    fn get_remaining_budget(&self) -> Result<PureDPBudget, anyhow::Error> {
+        Ok(self.remaining_budget.clone())
     }
 }
 
@@ -77,12 +84,15 @@ mod tests {
 
     #[test]
     fn test_pure_dp_budget_filter() {
-        let mut filter = PureDPBudgetFilter::new(PureDPBudget::Epsilon(1.0));
-        assert!(filter
-            .check_and_consume(&PureDPBudget::Epsilon(0.5))
-            .is_ok());
-        assert!(filter
-            .check_and_consume(&PureDPBudget::Epsilon(0.6))
-            .is_err());
+        let mut filter =
+            PureDPBudgetFilter::new(PureDPBudget::Epsilon(1.0)).unwrap();
+        assert_eq!(
+            filter.check_and_consume(&PureDPBudget::Epsilon(0.5)).unwrap(),
+            FilterStatus::Continue
+        );
+        assert_eq!(
+            filter.check_and_consume(&PureDPBudget::Epsilon(0.6)).unwrap(),
+            FilterStatus::OutOfBudget
+        );
     }
 }

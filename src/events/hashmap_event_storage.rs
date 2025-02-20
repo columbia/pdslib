@@ -41,8 +41,9 @@ where
     type Event = E;
     type EpochEvents = VecEpochEvents<E>;
     type RelevantEventSelector = RES;
+    type Error = anyhow::Error;
 
-    fn add_event(&mut self, event: E) -> Result<(), ()> {
+    fn add_event(&mut self, event: E) -> Result<(), Self::Error> {
         let epoch_id = event.get_epoch_id();
         let epoch = self.epochs.entry(epoch_id).or_default();
         epoch.push(event);
@@ -53,15 +54,16 @@ where
         &self,
         epoch_id: &E::EpochId,
         selector: &RES,
-    ) -> Option<VecEpochEvents<E>> {
+    ) -> Result<Option<VecEpochEvents<E>>, Self::Error> {
         // Return relevant events for a given epoch_id
         // TODO: instead of returning an empty Vec, return None?
-        self.epochs.get(epoch_id).map(|events| {
+        let events = self.epochs.get(epoch_id).map(|events| {
             events
                 .iter()
                 .filter(|event| selector.is_relevant_event(event))
                 .cloned()
                 .collect()
-        })
+        });
+        Ok(events)
     }
 }

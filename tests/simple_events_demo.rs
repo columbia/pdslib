@@ -21,6 +21,7 @@ fn main() {
         event_storage: events,
         epoch_capacity: PureDPBudget::Epsilon(3.0),
         _phantom: std::marker::PhantomData::<SimpleLastTouchHistogramRequest>,
+        _phantom_error: std::marker::PhantomData::<anyhow::Error>,
     };
 
     let event = SimpleEvent {
@@ -52,7 +53,7 @@ fn main() {
         laplace_noise_scale: 1.0,
         is_relevant_event: always_relevant_event,
     };
-    let report = pds.compute_report(report_request);
+    let report = pds.compute_report(report_request).unwrap();
     let bucket = Some((event.event_key, 3.0));
     assert_eq!(report.bin_value, bucket);
 
@@ -69,7 +70,7 @@ fn main() {
         laplace_noise_scale: 1.0,
         is_relevant_event: always_relevant_event,
     };
-    let report2 = pds.compute_report(report_request2);
+    let report2 = pds.compute_report(report_request2).unwrap();
     // Allocated budget for epoch 1 is 3.0, but 3.0 has already been consumed in
     // the last request, so the budget is depleted. Now, the null report should
     // be returned for this additional query.
@@ -82,7 +83,7 @@ fn main() {
         laplace_noise_scale: 1.0,
         is_relevant_event: always_relevant_event,
     };
-    let report2 = pds.compute_report(report_request2);
+    let report2 = pds.compute_report(report_request2).unwrap();
     let bucket2 = Some((event2.event_key, 3.0));
     assert_eq!(report2.bin_value, bucket2);
 
@@ -95,7 +96,7 @@ fn main() {
         laplace_noise_scale: 1.0,
         is_relevant_event: always_relevant_event,
     };
-    let report3_empty = pds.compute_report(report_request3_empty);
+    let report3_empty = pds.compute_report(report_request3_empty).unwrap();
     assert_eq!(report3_empty.bin_value, None);
 
     // Test restricting attributable_value
@@ -108,7 +109,7 @@ fn main() {
         laplace_noise_scale: 1.0,
         is_relevant_event: always_relevant_event,
     };
-    let report3_over_budget = pds.compute_report(report_request3_over_budget);
+    let report3_over_budget = pds.compute_report(report_request3_over_budget).unwrap();
     assert_eq!(report3_over_budget.bin_value, None);
 
     // This tests the case where we meet the first event in epoch 3, below the
@@ -120,7 +121,7 @@ fn main() {
         laplace_noise_scale: 1.0,
         is_relevant_event: always_relevant_event,
     };
-    let report3 = pds.compute_report(report_request3);
+    let report3 = pds.compute_report(report_request3).unwrap();
     let bucket3 = Some((event3.event_key, 3.0));
     assert_eq!(report3.bin_value, bucket3);
 
@@ -132,7 +133,7 @@ fn main() {
         laplace_noise_scale: 1.0,
         is_relevant_event: |e: &SimpleEvent| e.event_key == 1,
     };
-    let report4 = pds.compute_report(report_request4);
+    let report4 = pds.compute_report(report_request4).unwrap();
     let bucket4: Option<(usize, f64)> = None;
     assert_eq!(report4.bin_value, bucket4);
 }

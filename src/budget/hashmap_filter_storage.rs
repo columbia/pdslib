@@ -1,8 +1,10 @@
 use std::{collections::HashMap, marker::PhantomData};
 
-use crate::budget::traits::{
-    Budget, Filter, FilterStorage, FilterStorageError,
-};
+use anyhow::Context;
+
+use crate::budget::traits::{Budget, Filter, FilterStorage};
+
+use super::traits::FilterStatus;
 
 /// Simple implementation of FilterStorage using a HashMap.
 /// Works for any Filter that implements the Filter trait.
@@ -24,48 +26,51 @@ impl<K, F, Budget> HashMapFilterStorage<K, F, Budget> {
 impl<K, F, B> FilterStorage for HashMapFilterStorage<K, F, B>
 where
     B: Budget,
-    F: Filter<B>,
+    F: Filter<B, Error = anyhow::Error>,
     K: Eq + std::hash::Hash,
 {
     type FilterId = K;
     type Budget = B;
+    type Error = anyhow::Error;
 
     fn new_filter(
         &mut self,
         filter_id: K,
         capacity: B,
-    ) -> Result<(), FilterStorageError> {
-        let filter = F::new(capacity);
+    ) -> Result<(), Self::Error> {
+        let filter = F::new(capacity)?;
         self.filters.insert(filter_id, filter);
         Ok(())
     }
 
-    fn is_initialized(&mut self, filter_id: &Self::FilterId) -> bool {
-        self.filters.contains_key(filter_id)
+    fn is_initialized(
+        &mut self,
+        filter_id: &Self::FilterId,
+    ) -> Result<bool, Self::Error> {
+        Ok(self.filters.contains_key(filter_id))
     }
 
     fn check_and_consume(
         &mut self,
         filter_id: &K,
         budget: &B,
-    ) -> Result<(), FilterStorageError> {
+    ) -> Result<FilterStatus, Self::Error> {
         let filter = self
             .filters
             .get_mut(filter_id)
-            .ok_or(FilterStorageError::FilterDoesNotExist)?;
-        filter.check_and_consume(budget)?;
-        Ok(())
+            .context("Filter for epoch not initialized")?;
+        filter.check_and_consume(budget)
     }
 
     fn get_remaining_budget(
         &self,
         filter_id: &Self::FilterId,
-    ) -> Result<Self::Budget, FilterStorageError> {
+    ) -> Result<Self::Budget, Self::Error> {
         let filter = self
             .filters
             .get(filter_id)
-            .ok_or(FilterStorageError::FilterDoesNotExist)?;
-        Ok(filter.get_remaining_budget())
+            .context("Filter does not exist")?;
+        filter.get_remaining_budget()
     }
 }
 
@@ -82,12 +87,18 @@ mod tests {
             PureDPBudget,
         > = HashMapFilterStorage::new();
         storage.new_filter(1, PureDPBudget::Epsilon(1.0)).unwrap();
-        assert!(storage
-            .check_and_consume(&1, &PureDPBudget::Epsilon(0.5))
-            .is_ok());
-        assert!(storage
-            .check_and_consume(&1, &PureDPBudget::Epsilon(0.6))
-            .is_err());
+        assert_eq!(
+            storage
+                .check_and_consume(&1, &PureDPBudget::Epsilon(0.5))
+                .unwrap(),
+            FilterStatus::Continue
+        );
+        assert_eq!(
+            storage
+                .check_and_consume(&1, &PureDPBudget::Epsilon(0.6))
+                .unwrap(),
+            FilterStatus::OutOfBudget
+        );
 
         // Filter 2 does not exist
         assert!(storage

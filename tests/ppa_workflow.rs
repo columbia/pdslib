@@ -12,7 +12,8 @@ use pdslib::{
 
 #[test]
 fn main() {
-    // This demo represents what happens on a single device.
+    // This demo represents what happens on a single device and
+    // for managing the budget of a single querier
     // Scenario similar to https://arxiv.org/pdf/2405.16719, Section 3.3
 
     // Set up storage and Private Data Service.

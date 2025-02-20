@@ -1,9 +1,12 @@
+//! [Experimental] ARA-style requests, that mirror https://github.com/WICG/attribution-reporting-api/blob/main/AGGREGATE.md
+
 use std::{collections::HashMap, vec};
 
-///! [Experimental] ARA-style requests, that mirror https://github.com/WICG/attribution-reporting-api/blob/main/AGGREGATE.md
-use crate::events::traits::RelevantEventSelector;
 use crate::{
-    events::{ara_event::AraEvent, hashmap_event_storage::VecEpochEvents},
+    events::{
+        ara_event::AraEvent, hashmap_event_storage::VecEpochEvents,
+        traits::RelevantEventSelector,
+    },
     queries::histogram::HistogramRequest,
 };
 
@@ -79,8 +82,7 @@ impl HistogramRequest for AraHistogramRequest {
             .get(&self.source_key)
             .copied()
             .unwrap_or(0);
-        let bucket_key = source_keypiece | self.trigger_keypiece;
-        bucket_key
+        source_keypiece | self.trigger_keypiece
     }
 
     /// Returns the same value for each relevant event. Will be capped by
@@ -91,12 +93,15 @@ impl HistogramRequest for AraHistogramRequest {
     /// Chromium logic.
     fn get_values<'a>(
         &self,
-        all_epoch_events: &'a HashMap<Self::EpochId, Self::EpochEvents>,
+        relevant_events_per_epoch: &'a HashMap<
+            Self::EpochId,
+            Self::EpochEvents,
+        >,
     ) -> Vec<(&'a Self::Event, f64)> {
         let mut event_values = vec![];
 
-        for epoch_events in all_epoch_events.values() {
-            for event in epoch_events.iter() {
+        for relevant_events in relevant_events_per_epoch.values() {
+            for event in relevant_events.iter() {
                 event_values.push((event, self.per_event_attributable_value));
             }
         }

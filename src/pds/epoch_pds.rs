@@ -51,6 +51,9 @@ pub enum PDSImplError {
 /// Implements the generic PDS interface for the epoch-based PDS.
 ///
 /// TODO(https://github.com/columbia/pdslib/issues/21): support more than PureDP
+/// TODO(https://github.com/columbia/pdslib/issues/18): handle multiple queriers
+/// instead of assuming that there is a single querier and using filter_id =
+/// epoch_id
 impl<EI, E, EE, RES, FS, ES, Q> PrivateDataService
     for EpochPrivateDataServiceImpl<FS, ES, Q>
 where
@@ -79,31 +82,36 @@ where
             .map_err(|_| PDSImplError::EventRegistrationError)
     }
 
+    /// This function follows `compute_attribution_report` from the Cookie
+    /// Monster Algorithm (https://arxiv.org/pdf/2405.16719, Code Listing 1)
     fn compute_report(&mut self, request: Q) -> <Q as ReportRequest>::Report {
         println!("Computing report for request {:?}", request);
         // Collect events from event storage. If an epoch has no relevant
         // events, don't add it to the mapping.
-        let mut all_relevant_events: HashMap<EI, EE> = HashMap::new();
+        let mut relevant_events_per_epoch: HashMap<EI, EE> = HashMap::new();
         let relevant_event_selector = request.get_relevant_event_selector();
         for epoch_id in request.get_epoch_ids() {
             if let Some(epoch_relevant_events) = self
                 .event_storage
                 .get_relevant_epoch_events(&epoch_id, &relevant_event_selector)
             {
-                all_relevant_events.insert(epoch_id, epoch_relevant_events);
+                relevant_events_per_epoch
+                    .insert(epoch_id, epoch_relevant_events);
             }
         }
 
-        // Compute the raw report, useful for accounting.
-        let num_epochs: usize = all_relevant_events.len();
-        let unbiased_report = request.compute_report(&all_relevant_events);
+        // Compute the raw report, useful for debugging and accounting.
+        let num_epochs: usize = relevant_events_per_epoch.len();
+        let unbiased_report =
+            request.compute_report(&relevant_events_per_epoch);
 
         // Browse epochs in the attribution window
         for epoch_id in request.get_epoch_ids() {
-            // Get relevant events for the current epoch `epoch_id`.
-            let epoch_relevant_events = all_relevant_events.get(&epoch_id);
+            // Step 1. Get relevant events for the current epoch `epoch_id`.
+            let epoch_relevant_events =
+                relevant_events_per_epoch.get(&epoch_id);
 
-            // Compute individual sensitivity for current epoch.
+            // Step 2. Compute individual loss for current epoch.
             let individual_privacy_loss = self.compute_individual_privacy_loss(
                 &request,
                 epoch_relevant_events,
@@ -112,20 +120,20 @@ where
             );
 
             // Initialize filter if necessary.
-            if !self.filter_storage.is_initialized(&epoch_id) {
-                if self
+            // TODO(https://github.com/columbia/pdslib/issues/18): handle multiple queriers.
+            if !self.filter_storage.is_initialized(&epoch_id)
+                && self
                     .filter_storage
                     .new_filter(epoch_id.clone(), self.epoch_capacity.clone())
                     .is_err()
-                {
-                    return Default::default();
-                }
+            {
+                return Default::default();
             }
 
-            // Try to consume budget from current epoch, drop events if OOB.
+            // Step 3. Try to consume budget from current epoch, drop events if OOB.
             match self
                 .filter_storage
-                .try_consume(&epoch_id, &individual_privacy_loss)
+                .check_and_consume(&epoch_id, &individual_privacy_loss)
             {
                 Ok(_) => {
                     // The budget is not depleted, keep events.
@@ -134,7 +142,7 @@ where
                     FilterError::OutOfBudget,
                 )) => {
                     // The budget is depleted, drop events.
-                    all_relevant_events.remove(&epoch_id);
+                    relevant_events_per_epoch.remove(&epoch_id);
                 }
                 _ => {
                     // Return default report if anything else goes wrong.
@@ -144,7 +152,7 @@ where
         }
 
         // Now that we've dropped OOB epochs, we can compute the final report.
-        request.compute_report(&all_relevant_events)
+        request.compute_report(&relevant_events_per_epoch)
     }
 
     fn account_for_passive_privacy_loss(
@@ -163,7 +171,7 @@ where
 
             // Try to consume budget from current epoch.
             self.filter_storage
-                .try_consume(&epoch_id, &request.privacy_budget)?;
+                .check_and_consume(&epoch_id, &request.privacy_budget)?;
 
             // TODO(https://github.com/columbia/pdslib/issues/16): semantics are still unclear, for now we ignore the request if
             // it would exhaust the filter.
@@ -181,7 +189,8 @@ where
     ES: EventStorage<Event = E, EpochEvents = EE>,
     Q: EpochReportRequest<EpochId = EI, EpochEvents = EE>,
 {
-    /// Pure DP individual privacy loss, following https://arxiv.org/pdf/2405.16719.
+    /// Pure DP individual privacy loss, following
+    /// `compute_individual_privacy_loss` from Code Listing 1 in Cookie Monster (https://arxiv.org/pdf/2405.16719).
     ///
     /// TODO(https://github.com/columbia/pdslib/issues/21): generic budget.
     fn compute_individual_privacy_loss(
@@ -203,27 +212,35 @@ where
             }
         }
 
-        let individual_sensitivity: f64;
-        if num_epochs == 1 {
-            // Case 2: One epoch.
-            individual_sensitivity = request
-                .get_single_epoch_individual_sensitivity(
+        let individual_sensitivity = match num_epochs {
+            1 => {
+                // Case 2: One epoch.
+                request.get_single_epoch_individual_sensitivity(
                     computed_attribution,
                     NormType::L1,
-                );
-        } else {
-            // Case 3: Multiple epochs.
-            individual_sensitivity = request.get_global_sensitivity();
-        }
-
-        let noise_scale = match request.get_noise_scale() {
-            NoiseScale::Laplace(scale) => scale,
+                )
+            }
+            _ => {
+                // Case 3: Multiple epochs.
+                request.get_report_global_sensitivity()
+            }
         };
 
+        let NoiseScale::Laplace(noise_scale) = request.get_noise_scale();
+
+        // Treat near-zero noise scales as non-private, i.e. requesting infinite
+        // budget, which can only go through if filters are also set to
+        // infinite capacity, e.g. for debugging. The machine precision
+        // `f64::EPSILON` is not related to privacy.
         if noise_scale.abs() < f64::EPSILON {
             return PureDPBudget::Infinite;
         }
-        return PureDPBudget::Epsilon(individual_sensitivity / noise_scale);
+
+        // In Cookie Monster, we have `query_global_sensitivity` / `requested_epsilon` instead
+        // of just `noise_scale`.
+        // TODO(https://github.com/columbia/pdslib/issues/23): potentially use two parameters
+        // instead of a single `noise_scale`.
+        PureDPBudget::Epsilon(individual_sensitivity / noise_scale)
     }
 }
 

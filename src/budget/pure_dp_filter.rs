@@ -35,7 +35,7 @@ impl Filter<PureDPBudget> for PureDPBudgetFilter {
         }
     }
 
-    fn try_consume(
+    fn check_and_consume(
         &mut self,
         budget: &PureDPBudget,
     ) -> Result<(), FilterError> {
@@ -78,7 +78,11 @@ mod tests {
     #[test]
     fn test_pure_dp_budget_filter() {
         let mut filter = PureDPBudgetFilter::new(PureDPBudget::Epsilon(1.0));
-        assert!(filter.try_consume(&PureDPBudget::Epsilon(0.5)).is_ok());
-        assert!(filter.try_consume(&PureDPBudget::Epsilon(0.6)).is_err());
+        assert!(filter
+            .check_and_consume(&PureDPBudget::Epsilon(0.5))
+            .is_ok());
+        assert!(filter
+            .check_and_consume(&PureDPBudget::Epsilon(0.6))
+            .is_err());
     }
 }

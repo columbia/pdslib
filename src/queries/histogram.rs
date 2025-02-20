@@ -59,12 +59,16 @@ pub trait HistogramRequest: Debug {
     /// Returns the histogram bucket key (bin) for a given event.
     fn get_bucket_key(&self, event: &Self::Event) -> Self::BucketKey;
 
-    /// Attributes a value to each event in `all_epoch_events`, which will be
-    /// obtained by retrieving *relevant* events from the event storage.
-    /// Events can point to the all_epoch_events, hence the lifetime.
+    /// Attributes a value to each event in `relevant_events_per_epoch`, which
+    /// will be obtained by retrieving *relevant* events from the event
+    /// storage. Events can point to the relevant_events_per_epoch, hence
+    /// the lifetime.
     fn get_values<'a>(
         &self,
-        all_epoch_events: &'a HashMap<Self::EpochId, Self::EpochEvents>,
+        relevant_events_per_epoch: &'a HashMap<
+            Self::EpochId,
+            Self::EpochEvents,
+        >,
     ) -> Vec<(&'a Self::Event, f64)>;
 }
 
@@ -100,16 +104,16 @@ impl<H: HistogramRequest> EpochReportRequest for H {
     /// events by bucket.
     fn compute_report(
         &self,
-        all_epoch_events: &HashMap<Self::EpochId, Self::EpochEvents>,
+        relevant_events_per_epoch: &HashMap<Self::EpochId, Self::EpochEvents>,
     ) -> Self::Report {
         let mut bin_values: HashMap<H::BucketKey, f64> = HashMap::new();
         let mut total_value: f64 = 0.0;
-        let event_values = self.get_values(all_epoch_events);
+        let event_values = self.get_values(relevant_events_per_epoch);
 
         // The order matters, since events that are attributed last might be
         // dropped by the contribution cap.
         //
-        // TODO(https://github.com/columbia/pdslib/issues/19):  Use an ordered map for all_epoch_events?
+        // TODO(https://github.com/columbia/pdslib/issues/19):  Use an ordered map for relevant_events_per_epoch?
         for (event, value) in event_values {
             total_value += value;
             if total_value > self.get_attributable_value() {
@@ -141,7 +145,7 @@ impl<H: HistogramRequest> EpochReportRequest for H {
 
     /// Computes the global sensitivity, useful for the multi-epoch case.
     /// See https://arxiv.org/pdf/2405.16719, Thm. 18
-    fn get_global_sensitivity(&self) -> f64 {
+    fn get_report_global_sensitivity(&self) -> f64 {
         // NOTE: if we have only one possible bin (histogram in R instead or
         // R^m), then we can remove the factor 2. But this constraint is
         // not enforceable with HashMap<BucketKey, f64>, so for

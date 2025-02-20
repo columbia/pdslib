@@ -6,7 +6,7 @@ use crate::budget::traits::{
 
 /// Simple implementation of FilterStorage using a HashMap.
 /// Works for any Filter that implements the Filter trait.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct HashMapFilterStorage<K, F, Budget> {
     filters: HashMap<K, F>,
     _marker: PhantomData<Budget>,
@@ -44,7 +44,7 @@ where
         self.filters.contains_key(filter_id)
     }
 
-    fn try_consume(
+    fn check_and_consume(
         &mut self,
         filter_id: &K,
         budget: &B,
@@ -53,7 +53,7 @@ where
             .filters
             .get_mut(filter_id)
             .ok_or(FilterStorageError::FilterDoesNotExist)?;
-        filter.try_consume(budget)?;
+        filter.check_and_consume(budget)?;
         Ok(())
     }
 
@@ -82,14 +82,16 @@ mod tests {
             PureDPBudget,
         > = HashMapFilterStorage::new();
         storage.new_filter(1, PureDPBudget::Epsilon(1.0)).unwrap();
-        assert!(storage.try_consume(&1, &PureDPBudget::Epsilon(0.5)).is_ok());
         assert!(storage
-            .try_consume(&1, &PureDPBudget::Epsilon(0.6))
+            .check_and_consume(&1, &PureDPBudget::Epsilon(0.5))
+            .is_ok());
+        assert!(storage
+            .check_and_consume(&1, &PureDPBudget::Epsilon(0.6))
             .is_err());
 
         // Filter 2 does not exist
         assert!(storage
-            .try_consume(&3, &PureDPBudget::Epsilon(0.2))
+            .check_and_consume(&3, &PureDPBudget::Epsilon(0.2))
             .is_err());
     }
 }

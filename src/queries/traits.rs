@@ -37,7 +37,7 @@ pub trait EpochReportRequest: ReportRequest {
     /// Computes the report for the given request and epoch events.
     fn compute_report(
         &self,
-        all_relevant_events: &HashMap<Self::EpochId, Self::EpochEvents>,
+        relevant_events_per_epoch: &HashMap<Self::EpochId, Self::EpochEvents>,
     ) -> Self::Report;
 
     /// Computes the individual sensitivity for the query when the report is
@@ -49,7 +49,7 @@ pub trait EpochReportRequest: ReportRequest {
     ) -> f64;
 
     /// Computes the global sensitivity for the query.
-    fn get_global_sensitivity(&self) -> f64;
+    fn get_report_global_sensitivity(&self) -> f64;
 
     /// Retrieves the scale of the noise that will be added by the aggregator.
     fn get_noise_scale(&self) -> NoiseScale;

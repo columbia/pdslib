@@ -1,21 +1,26 @@
 use std::collections::HashMap;
 
-use crate::budget::pure_dp_filter::PureDPBudget;
-use crate::budget::traits::FilterStatus;
-use crate::budget::traits::FilterStorage;
-use crate::events::traits::RelevantEventSelector;
-use crate::events::traits::{EpochEvents, EpochId, Event, EventStorage};
-use crate::mechanisms::{NoiseScale, NormType};
-use crate::pds::traits::PrivateDataService;
-use crate::queries::traits::{
-    EpochReportRequest, PassivePrivacyLossRequest, ReportRequest,
+use crate::{
+    budget::{
+        pure_dp_filter::PureDPBudget,
+        traits::{FilterStatus, FilterStorage},
+    },
+    events::traits::{
+        EpochEvents, EpochId, Event, EventStorage, RelevantEventSelector,
+    },
+    mechanisms::{NoiseScale, NormType},
+    queries::traits::{
+        EpochReportRequest, PassivePrivacyLossRequest, ReportRequest,
+    },
 };
 
-/// Epoch-based private data service implementation, using generic filter
-/// storage and event storage interfaces. We might want other implementations
-/// eventually, but at first this implementation should cover most use cases,
-/// as we can swap the types of events, filters and queries.
-pub struct EpochPrivateDataServiceImpl<
+/// Epoch-based private data service, using generic filter
+/// storage and event storage interfaces.
+///
+/// TODO(https://github.com/columbia/pdslib/issues/18): handle multiple queriers
+/// instead of assuming that there is a single querier and using filter_id =
+/// epoch_id
+pub struct EpochPrivateDataService<
     FS: FilterStorage,
     ES: EventStorage,
     Q: EpochReportRequest,
@@ -31,20 +36,17 @@ pub struct EpochPrivateDataServiceImpl<
     pub epoch_capacity: FS::Budget,
 
     /// Type of accepted queries.
-    pub _phantom: std::marker::PhantomData<Q>,
+    pub _phantom_request: std::marker::PhantomData<Q>,
 
     /// Type of errors.
     pub _phantom_error: std::marker::PhantomData<ERR>,
 }
 
-/// Implements the generic PDS interface for the epoch-based PDS.
+/// API for the epoch-based PDS.
 ///
 /// TODO(https://github.com/columbia/pdslib/issues/21): support more than PureDP
-/// TODO(https://github.com/columbia/pdslib/issues/18): handle multiple queriers
-/// instead of assuming that there is a single querier and using filter_id =
-/// epoch_id
-impl<EI, E, EE, RES, FS, ES, Q, ERR> PrivateDataService
-    for EpochPrivateDataServiceImpl<FS, ES, Q, ERR>
+/// TODO(https://github.com/columbia/pdslib/issues/22): simplify trait bounds?
+impl<EI, E, EE, RES, FS, ES, Q, ERR> EpochPrivateDataService<FS, ES, Q, ERR>
 where
     EI: EpochId,
     E: Event<EpochId = EI>,
@@ -59,25 +61,22 @@ where
     >,
     ERR: From<FS::Error> + From<ES::Error>,
 {
-    type Event = E;
-    type Request = Q;
-    type PassivePrivacyLossRequest =
-        PassivePrivacyLossRequest<EI, PureDPBudget>;
-    type Error = ERR;
-
-    fn register_event(&mut self, event: E) -> Result<(), Self::Error> {
+    /// Registers a new event.
+    pub fn register_event(&mut self, event: E) -> Result<(), ERR> {
         println!("Registering event {:?}", event);
         self.event_storage.add_event(event)?;
         Ok(())
     }
 
+    /// Computes a report for the given report request.
     /// This function follows `compute_attribution_report` from the Cookie
     /// Monster Algorithm (https://arxiv.org/pdf/2405.16719, Code Listing 1)
-    fn compute_report(
+    pub fn compute_report(
         &mut self,
         request: Q,
-    ) -> Result<<Q as ReportRequest>::Report, Self::Error> {
+    ) -> Result<<Q as ReportRequest>::Report, ERR> {
         println!("Computing report for request {:?}", request);
+
         // Collect events from event storage. If an epoch has no relevant
         // events, don't add it to the mapping.
         let mut relevant_events_per_epoch: HashMap<EI, EE> = HashMap::new();
@@ -118,7 +117,8 @@ where
             // TODO(https://github.com/columbia/pdslib/issues/18): handle multiple queriers.
             self.initialize_filter_if_necessary(&epoch_id)?;
 
-            // Step 3. Try to consume budget from current epoch, drop events if OOB.
+            // Step 3. Try to consume budget from current epoch, drop events if
+            // OOB.
             match self
                 .filter_storage
                 .check_and_consume(&epoch_id, &individual_privacy_loss)
@@ -143,10 +143,16 @@ where
         Ok(filtered_report)
     }
 
-    fn account_for_passive_privacy_loss(
+    /// [Experimental] Accounts for passive privacy loss. Can fail if the
+    /// implementation has an error, but failure must not leak the state of
+    /// the filters.
+    ///
+    /// TODO(https://github.com/columbia/pdslib/issues/16): what are the semantics of passive loss queries that go over the filter
+    /// capacity?
+    pub fn account_for_passive_privacy_loss(
         &mut self,
-        request: Self::PassivePrivacyLossRequest,
-    ) -> Result<FilterStatus, Self::Error> {
+        request: PassivePrivacyLossRequest<EI, PureDPBudget>,
+    ) -> Result<FilterStatus, ERR> {
         // For each epoch, try to consume the privacy budget.
         for epoch_id in request.epoch_ids {
             self.initialize_filter_if_necessary(&epoch_id)?;
@@ -165,19 +171,7 @@ where
         }
         Ok(FilterStatus::Continue)
     }
-}
 
-/// Utility methods for the epoch-based PDS implementation.
-impl<EI, E, EE, FS, ES, Q, ERR> EpochPrivateDataServiceImpl<FS, ES, Q, ERR>
-where
-    EI: EpochId,
-    E: Event<EpochId = EI>,
-    EE: EpochEvents,
-    FS: FilterStorage<FilterId = EI>,
-    ES: EventStorage<Event = E, EpochEvents = EE>,
-    Q: EpochReportRequest<EpochId = EI, EpochEvents = EE>,
-    ERR: From<FS::Error> + From<ES::Error>,
-{
     fn initialize_filter_if_necessary(
         &mut self,
         epoch_id: &EI,
@@ -244,8 +238,8 @@ where
             return PureDPBudget::Infinite;
         }
 
-        // In Cookie Monster, we have `query_global_sensitivity` / `requested_epsilon` instead
-        // of just `noise_scale`.
+        // In Cookie Monster, we have `query_global_sensitivity` /
+        // `requested_epsilon` instead of just `noise_scale`.
         // TODO(https://github.com/columbia/pdslib/issues/23): potentially use two parameters
         // instead of a single `noise_scale`.
         PureDPBudget::Epsilon(individual_sensitivity / noise_scale)
@@ -276,11 +270,13 @@ mod tests {
         > = HashMapFilterStorage::new();
         let events = HashMapEventStorage::new();
 
-        let mut pds = EpochPrivateDataServiceImpl {
+        let mut pds = EpochPrivateDataService {
             filter_storage: filters,
             event_storage: events,
             epoch_capacity: PureDPBudget::Epsilon(3.0),
-            _phantom: std::marker::PhantomData::<SimpleLastTouchHistogramRequest>,
+            _phantom_request: std::marker::PhantomData::<
+                SimpleLastTouchHistogramRequest,
+            >,
             _phantom_error: std::marker::PhantomData::<anyhow::Error>,
         };
 

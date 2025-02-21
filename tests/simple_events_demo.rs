@@ -6,7 +6,7 @@ use pdslib::{
     events::{
         hashmap_event_storage::HashMapEventStorage, simple_event::SimpleEvent,
     },
-    pds::{epoch_pds::EpochPrivateDataServiceImpl, traits::PrivateDataService},
+    pds::epoch_pds::EpochPrivateDataService,
     queries::simple_last_touch_histogram::SimpleLastTouchHistogramRequest,
 };
 
@@ -16,11 +16,13 @@ fn main() {
     let filters: HashMapFilterStorage<usize, PureDPBudgetFilter, PureDPBudget> =
         HashMapFilterStorage::new();
 
-    let mut pds = EpochPrivateDataServiceImpl {
+    let mut pds = EpochPrivateDataService {
         filter_storage: filters,
         event_storage: events,
         epoch_capacity: PureDPBudget::Epsilon(3.0),
-        _phantom: std::marker::PhantomData::<SimpleLastTouchHistogramRequest>,
+        _phantom_request: std::marker::PhantomData::<
+            SimpleLastTouchHistogramRequest,
+        >,
         _phantom_error: std::marker::PhantomData::<anyhow::Error>,
     };
 
@@ -58,7 +60,6 @@ fn main() {
     assert_eq!(report.bin_value, bucket);
 
     // Test having multiple events in one epoch
-    println!("");
     pds.register_event(event2.clone()).unwrap();
 
     let report_request2 = SimpleLastTouchHistogramRequest {
@@ -88,7 +89,6 @@ fn main() {
     assert_eq!(report2.bin_value, bucket2);
 
     // Test request for epoch empty yet.
-    println!("");
     let report_request3_empty = SimpleLastTouchHistogramRequest {
         epoch_start: 3, // Epoch 3 not created yet.
         epoch_end: 3,   // Epoch 3 not created yet.
@@ -100,7 +100,6 @@ fn main() {
     assert_eq!(report3_empty.bin_value, None);
 
     // Test restricting attributable_value
-    println!("");
     pds.register_event(event4.clone()).unwrap();
     let report_request3_over_budget = SimpleLastTouchHistogramRequest {
         epoch_start: 1,
@@ -109,7 +108,8 @@ fn main() {
         laplace_noise_scale: 1.0,
         is_relevant_event: always_relevant_event,
     };
-    let report3_over_budget = pds.compute_report(report_request3_over_budget).unwrap();
+    let report3_over_budget =
+        pds.compute_report(report_request3_over_budget).unwrap();
     assert_eq!(report3_over_budget.bin_value, None);
 
     // This tests the case where we meet the first event in epoch 3, below the

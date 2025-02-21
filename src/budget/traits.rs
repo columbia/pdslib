@@ -14,7 +14,10 @@ pub trait Filter<T: Budget> {
 
     /// Tries to consume a given budget from the filter.
     /// In the formalism from https://arxiv.org/abs/1605.08294, Ok(()) corresponds to CONTINUE, and Err(FilterError::OutOfBudget) corresponds to HALT.
-    fn check_and_consume(&mut self, budget: &T) -> Result<FilterStatus, Self::Error>;
+    fn check_and_consume(
+        &mut self,
+        budget: &T,
+    ) -> Result<FilterStatus, Self::Error>;
 
     /// [Experimental] Gets the remaining budget for this filter.
     /// WARNING: this method is for local visualization only.

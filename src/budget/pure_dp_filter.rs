@@ -1,5 +1,4 @@
-use super::traits::FilterStatus;
-pub use crate::budget::traits::{Budget, Filter};
+use crate::budget::traits::{Budget, Filter, FilterStatus};
 
 /// A simple floating-point budget for pure differential privacy, with support
 /// for infinite budget

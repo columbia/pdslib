@@ -6,7 +6,7 @@ use pdslib::{
     events::{
         hashmap_event_storage::HashMapEventStorage, simple_event::SimpleEvent,
     },
-    pds::{epoch_pds::EpochPrivateDataServiceImpl, traits::PrivateDataService},
+    pds::epoch_pds::EpochPrivateDataService,
     queries::simple_last_touch_histogram::SimpleLastTouchHistogramRequest,
 };
 
@@ -21,11 +21,13 @@ fn main() {
     let filters: HashMapFilterStorage<usize, PureDPBudgetFilter, PureDPBudget> =
         HashMapFilterStorage::new();
 
-    let mut pds = EpochPrivateDataServiceImpl {
+    let mut pds = EpochPrivateDataService {
         filter_storage: filters,
         event_storage: events,
         epoch_capacity: PureDPBudget::Epsilon(3.0),
-        _phantom: std::marker::PhantomData::<SimpleLastTouchHistogramRequest>,
+        _phantom_request: std::marker::PhantomData::<
+            SimpleLastTouchHistogramRequest,
+        >,
         _phantom_error: std::marker::PhantomData::<anyhow::Error>,
     };
 

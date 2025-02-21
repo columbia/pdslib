@@ -1,6 +1,4 @@
-pub use crate::budget::traits::{Budget, Filter};
-
-use super::traits::FilterStatus;
+use crate::budget::traits::{Budget, Filter, FilterStatus};
 
 /// A simple floating-point budget for pure differential privacy, with support
 /// for infinite budget
@@ -87,11 +85,15 @@ mod tests {
         let mut filter =
             PureDPBudgetFilter::new(PureDPBudget::Epsilon(1.0)).unwrap();
         assert_eq!(
-            filter.check_and_consume(&PureDPBudget::Epsilon(0.5)).unwrap(),
+            filter
+                .check_and_consume(&PureDPBudget::Epsilon(0.5))
+                .unwrap(),
             FilterStatus::Continue
         );
         assert_eq!(
-            filter.check_and_consume(&PureDPBudget::Epsilon(0.6)).unwrap(),
+            filter
+                .check_and_consume(&PureDPBudget::Epsilon(0.6))
+                .unwrap(),
             FilterStatus::OutOfBudget
         );
     }

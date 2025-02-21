@@ -24,5 +24,5 @@ jobs:
       run: |
         cargo test --package pdslib --test ara_demo -- --nocapture
         cargo test --package pdslib --test simple_events_demo -- --nocapture
-    # - name: Run clippy
-    #   run: cargo clippy --tests -- -D warnings
+    - name: Run clippy
+      run: cargo clippy --tests -- -D warnings

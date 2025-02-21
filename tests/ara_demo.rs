@@ -6,7 +6,7 @@ use pdslib::{
         pure_dp_filter::{PureDPBudget, PureDPBudgetFilter},
     },
     events::{ara_event::AraEvent, hashmap_event_storage::HashMapEventStorage},
-    pds::{epoch_pds::EpochPrivateDataServiceImpl, traits::PrivateDataService},
+    pds::epoch_pds::EpochPrivateDataService,
     queries::ara_histogram::{AraHistogramRequest, AraRelevantEventSelector},
 };
 
@@ -17,11 +17,11 @@ fn main() {
     let filters: HashMapFilterStorage<usize, PureDPBudgetFilter, PureDPBudget> =
         HashMapFilterStorage::new();
 
-    let mut pds = EpochPrivateDataServiceImpl {
+    let mut pds = EpochPrivateDataService {
         filter_storage: filters,
         event_storage: events,
         epoch_capacity: PureDPBudget::Epsilon(3.0),
-        _phantom: std::marker::PhantomData::<AraHistogramRequest>,
+        _phantom_request: std::marker::PhantomData::<AraHistogramRequest>,
         _phantom_error: std::marker::PhantomData::<anyhow::Error>,
     };
 

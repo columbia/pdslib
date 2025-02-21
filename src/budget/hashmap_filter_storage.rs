@@ -2,9 +2,7 @@ use std::{collections::HashMap, marker::PhantomData};
 
 use anyhow::Context;
 
-use crate::budget::traits::{Budget, Filter, FilterStorage};
-
-use super::traits::FilterStatus;
+use crate::budget::traits::{Budget, Filter, FilterStatus, FilterStorage};
 
 /// Simple implementation of FilterStorage using a HashMap.
 /// Works for any Filter that implements the Filter trait.

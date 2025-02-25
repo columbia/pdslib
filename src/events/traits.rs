@@ -1,5 +1,7 @@
 use std::{fmt::Debug, hash::Hash};
 
+use http::Uri;
+
 /// Marker trait with bounds for epoch identifiers.
 pub trait EpochId: Hash + std::cmp::Eq + Clone + Debug {}
 
@@ -12,6 +14,16 @@ pub trait Event: Debug {
     // TODO(https://github.com/columbia/pdslib/issues/18): add source/trigger information for Big Bird / Level 2.
 
     fn get_epoch_id(&self) -> Self::EpochId;
+
+    /// The URI of the entity that registered this event.
+    fn source_uri(&self) -> Uri;
+
+    /// The URI of entities that can trigger the computation of a report
+    /// that includes this event.
+    fn trigger_uris(&self) -> Vec<Uri>;
+
+    /// The URI of entities that can receive reports that include this event.
+    fn querier_uris(&self) -> Vec<Uri>;
 }
 
 /// Collection of events for a given epoch.

@@ -1,4 +1,3 @@
-use http::Uri;
 
 use crate::events::traits::Event;
 

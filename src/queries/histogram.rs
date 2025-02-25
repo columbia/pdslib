@@ -1,6 +1,5 @@
 use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
-use http::Uri;
 
 use crate::{
     budget::pure_dp_filter::PureDPBudget,

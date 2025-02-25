@@ -8,6 +8,18 @@ pub trait EpochId: Hash + std::cmp::Eq + Clone + Debug {}
 /// Default EpochId
 impl EpochId for usize {}
 
+#[derive(Debug, Clone)]
+pub struct EventUris {
+    /// URI of the entity that registered this event.
+    pub source_uri: Uri,
+
+    /// URI of entities that can trigger the computation of a report
+    pub trigger_uris: Vec<Uri>,
+
+    /// URI of entities that can receive reports that include this event.
+    pub querier_uris: Vec<Uri>,
+}
+
 /// Event with an associated epoch.
 pub trait Event: Debug {
     type EpochId: EpochId;
@@ -15,15 +27,7 @@ pub trait Event: Debug {
 
     fn get_epoch_id(&self) -> Self::EpochId;
 
-    /// The URI of the entity that registered this event.
-    fn source_uri(&self) -> Uri;
-
-    /// The URI of entities that can trigger the computation of a report
-    /// that includes this event.
-    fn trigger_uris(&self) -> Vec<Uri>;
-
-    /// The URI of entities that can receive reports that include this event.
-    fn querier_uris(&self) -> Vec<Uri>;
+    fn event_uris(&self) -> EventUris;
 }
 
 /// Collection of events for a given epoch.

@@ -1,4 +1,3 @@
-
 use crate::events::traits::Event;
 
 use super::traits::EventUris;
@@ -36,7 +35,7 @@ mod tests {
             epoch_number: 1,
             event_key: 3,
             uris: EventUris {
-                source_uri: Uri::from_static("https://example.com"),
+                source_uri: http::Uri::from_static("https://example.com"),
                 trigger_uris: vec![],
                 querier_uris: vec![],
             },

@@ -1,9 +1,24 @@
 use std::{collections::HashMap, fmt::Debug};
 
+use http::Uri;
+
 use crate::{
     events::traits::{EpochEvents, EpochId},
     mechanisms::{NoiseScale, NormType},
 };
+
+#[derive(Debug, Clone)]
+pub struct ReportUris {
+    pub trigger_uri: Uri,
+    pub source_uris: Vec<Uri>,
+    pub querier_uris: Vec<Uri>,
+}
+
+impl Default for ReportUris {
+    fn default() -> Self {
+        unimplemented!("What should a default report URIs be?")
+    }
+}
 
 /// Trait for report types returned by a device (in plaintext). Must implement a
 /// default variant for null reports, so devices with errors or no budget
@@ -16,6 +31,8 @@ pub trait Report: Debug + Default {}
 /// Trait for a generic query.
 pub trait ReportRequest: Debug {
     type Report: Report;
+
+    fn report_uris(&self) -> ReportUris;
 }
 
 /// Trait for an epoch-based query.

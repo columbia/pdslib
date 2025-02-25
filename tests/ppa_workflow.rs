@@ -4,10 +4,10 @@ use pdslib::{
         pure_dp_filter::{PureDPBudget, PureDPBudgetFilter},
     },
     events::{
-        hashmap_event_storage::HashMapEventStorage, simple_event::SimpleEvent,
+        hashmap_event_storage::HashMapEventStorage, simple_event::SimpleEvent, traits::EventUris,
     },
     pds::epoch_pds::EpochPrivateDataService,
-    queries::simple_last_touch_histogram::SimpleLastTouchHistogramRequest,
+    queries::{simple_last_touch_histogram::SimpleLastTouchHistogramRequest, traits::ReportUris},
 };
 
 #[test]
@@ -31,11 +31,23 @@ fn main() {
         _phantom_error: std::marker::PhantomData::<anyhow::Error>,
     };
 
+    let sample_event_uris = EventUris {
+        source_uri: "https://example.com".parse().unwrap(),
+        trigger_uris: vec![],
+        querier_uris: vec![],
+    };
+    let sample_report_uris = ReportUris {
+        trigger_uri: "https://example.com".parse().unwrap(),
+        source_uris: vec![],
+        querier_uris: vec![],
+    };
+
     // Create an impression (event, with very basic metadata).
     let event = SimpleEvent {
         id: 1,
         epoch_number: 1,
         event_key: 3,
+        uris: sample_event_uris.clone(),
     };
 
     // Save impression.
@@ -66,6 +78,7 @@ fn main() {
         attributable_value: report_global_sensitivity,
         laplace_noise_scale,
         is_relevant_event,
+        report_uris: sample_report_uris.clone(),
     };
 
     // Measure conversion.

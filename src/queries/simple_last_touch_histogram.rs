@@ -10,6 +10,8 @@ use crate::{
     queries::traits::{EpochReportRequest, Report, ReportRequest},
 };
 
+use super::traits::ReportUris;
+
 #[derive(Debug)]
 pub struct SimpleLastTouchHistogramRequest {
     pub epoch_start: usize,
@@ -17,6 +19,7 @@ pub struct SimpleLastTouchHistogramRequest {
     pub attributable_value: f64,
     pub laplace_noise_scale: f64,
     pub is_relevant_event: fn(&SimpleEvent) -> bool,
+    pub report_uris: ReportUris,
 }
 
 pub struct SimpleRelevantEventSelector {
@@ -44,6 +47,10 @@ impl Report for SimpleLastTouchHistogramReport {}
 
 impl ReportRequest for SimpleLastTouchHistogramRequest {
     type Report = SimpleLastTouchHistogramReport;
+
+    fn report_uris(&self) -> ReportUris {
+        self.report_uris.clone()
+    }
 }
 
 impl EpochReportRequest for SimpleLastTouchHistogramRequest {

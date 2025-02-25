@@ -11,6 +11,8 @@ crate-type = ["cdylib", "lib"]
 [dependencies]
 thiserror = "2.0.3"
 anyhow = "1.0.93"
+http = "1.2.0"
+
 
 [profile.release]
 debug = true

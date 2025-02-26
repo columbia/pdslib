@@ -74,13 +74,14 @@ pub trait HistogramRequest: Debug {
         >,
     ) -> Vec<(&'a Self::Event, f64)>;
 
-    fn report_uris(&self) -> ReportUris;
+    fn report_uris(&self) -> ReportUris<String>;
 }
 
 impl<H: HistogramRequest> ReportRequest for H {
     type Report = HistogramReport<<H as HistogramRequest>::BucketKey>;
+    type Uri = String;
 
-    fn report_uris(&self) -> ReportUris {
+    fn report_uris(&self) -> ReportUris<String> {
         self.report_uris()
     }
 }

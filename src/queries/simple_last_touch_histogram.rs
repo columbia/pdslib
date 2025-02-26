@@ -19,7 +19,7 @@ pub struct SimpleLastTouchHistogramRequest {
     pub attributable_value: f64,
     pub laplace_noise_scale: f64,
     pub is_relevant_event: fn(&SimpleEvent) -> bool,
-    pub report_uris: ReportUris,
+    pub report_uris: ReportUris<String>,
 }
 
 pub struct SimpleRelevantEventSelector {
@@ -47,8 +47,9 @@ impl Report for SimpleLastTouchHistogramReport {}
 
 impl ReportRequest for SimpleLastTouchHistogramRequest {
     type Report = SimpleLastTouchHistogramReport;
+    type Uri = String;
 
-    fn report_uris(&self) -> ReportUris {
+    fn report_uris(&self) -> ReportUris<String> {
         self.report_uris.clone()
     }
 }

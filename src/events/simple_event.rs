@@ -1,6 +1,8 @@
 use crate::events::traits::Event;
 
-use super::traits::EventUris;
+use super::traits::{EventUris, Uri};
+
+impl Uri for String {}
 
 /// A barebones event type for testing and demo purposes. See ara_event for a
 /// richer type.
@@ -9,17 +11,18 @@ pub struct SimpleEvent {
     pub id: usize,
     pub epoch_number: usize,
     pub event_key: usize,
-    pub uris: EventUris,
+    pub uris: EventUris<String>,
 }
 
 impl Event for SimpleEvent {
     type EpochId = usize;
+    type Uri = String;
 
     fn get_epoch_id(&self) -> Self::EpochId {
         self.epoch_number
     }
 
-    fn event_uris(&self) -> EventUris {
+    fn event_uris(&self) -> EventUris<String> {
         self.uris.clone()
     }
 }
@@ -35,7 +38,7 @@ mod tests {
             epoch_number: 1,
             event_key: 3,
             uris: EventUris {
-                source_uri: http::Uri::from_static("https://example.com"),
+                source_uri: "https://example.com".to_string(),
                 trigger_uris: vec![],
                 querier_uris: vec![],
             },

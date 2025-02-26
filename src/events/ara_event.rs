@@ -14,17 +14,18 @@ pub struct AraEvent {
     pub id: usize,
     pub epoch_number: usize,
     pub aggregatable_sources: HashMap<String, usize>,
-    pub uris: EventUris,
+    pub uris: EventUris<String>,
 }
 
 impl Event for AraEvent {
     type EpochId = usize;
+    type Uri = String;
 
     fn get_epoch_id(&self) -> Self::EpochId {
         self.epoch_number
     }
 
-    fn event_uris(&self) -> EventUris {
+    fn event_uris(&self) -> EventUris<String> {
         self.uris.clone()
     }
 }

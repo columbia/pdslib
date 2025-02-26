@@ -48,7 +48,7 @@ pub struct AraHistogramRequest {
     pub source_key: String,
     pub trigger_keypiece: usize,
     pub filters: AraRelevantEventSelector,
-    pub uris: ReportUris,
+    pub uris: ReportUris<String>,
 }
 
 /// See https://github.com/WICG/attribution-reporting-api/blob/main/AGGREGATE.md#attribution-trigger-registration.
@@ -111,7 +111,7 @@ impl HistogramRequest for AraHistogramRequest {
         event_values
     }
 
-    fn report_uris(&self) -> ReportUris {
+    fn report_uris(&self) -> ReportUris<String> {
         self.uris.clone()
     }
 }

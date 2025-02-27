@@ -1,6 +1,5 @@
 use std::{fmt::Debug, hash::Hash};
 
-
 /// Marker trait with bounds for epoch identifiers.
 pub trait EpochId: Hash + std::cmp::Eq + Clone + Debug {}
 
@@ -19,6 +18,20 @@ pub struct EventUris<U: Uri> {
 
     /// URI of entities that can receive reports that include this event.
     pub querier_uris: Vec<U>,
+}
+
+#[cfg(test)]
+impl EventUris<String> {
+    pub fn mock() -> Self {
+        Self {
+            source_uri: "blog.com".to_string(),
+            trigger_uris: vec!["shoes.com".to_string()],
+            querier_uris: vec![
+                "shoes.com".to_string(),
+                "adtech.com".to_string(),
+            ],
+        }
+    }
 }
 
 /// Event with an associated epoch.

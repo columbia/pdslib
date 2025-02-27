@@ -36,9 +36,12 @@ mod tests {
             epoch_number: 1,
             event_key: 3,
             uris: EventUris {
-                source_uri: "https://example.com".to_string(),
-                trigger_uris: vec![],
-                querier_uris: vec![],
+                source_uri: "blog.com".to_string(),
+                trigger_uris: vec!["shoes.com".to_string()],
+                querier_uris: vec![
+                    "shoes.com".to_string(),
+                    "adtech.com".to_string(),
+                ],
             },
         };
         assert_eq!(event.id, 1);

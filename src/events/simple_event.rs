@@ -16,7 +16,7 @@ impl Event for SimpleEvent {
     type EpochId = usize;
     type Uri = String;
 
-    fn get_epoch_id(&self) -> Self::EpochId {
+    fn epoch_id(&self) -> Self::EpochId {
         self.epoch_number
     }
 

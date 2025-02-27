@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-
 use crate::events::traits::{Event, EventUris};
 
 /// Source event for ARA-style callers such as Chromium.
@@ -19,7 +18,7 @@ impl Event for AraEvent {
     type EpochId = usize;
     type Uri = String;
 
-    fn get_epoch_id(&self) -> Self::EpochId {
+    fn epoch_id(&self) -> Self::EpochId {
         self.epoch_number
     }
 

@@ -27,7 +27,7 @@ pub trait Event: Debug {
     type Uri: Uri;
     // TODO(https://github.com/columbia/pdslib/issues/18): add source/trigger information for Big Bird / Level 2.
 
-    fn get_epoch_id(&self) -> Self::EpochId;
+    fn epoch_id(&self) -> Self::EpochId;
 
     fn event_uris(&self) -> EventUris<Self::Uri>;
 }

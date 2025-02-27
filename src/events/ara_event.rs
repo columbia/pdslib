@@ -1,9 +1,7 @@
 use std::collections::HashMap;
 
 
-use crate::events::traits::Event;
-
-use super::traits::EventUris;
+use crate::events::traits::{Event, EventUris};
 
 /// Source event for ARA-style callers such as Chromium.
 /// Mimics the fields from https://source.chromium.org/chromium/chromium/src/+/main:content/browser/attribution_reporting/attribution_reporting.proto.

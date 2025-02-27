@@ -7,10 +7,8 @@ use crate::{
         ara_event::AraEvent, hashmap_event_storage::VecEpochEvents,
         traits::RelevantEventSelector,
     },
-    queries::histogram::HistogramRequest,
+    queries::{histogram::HistogramRequest, traits::ReportUris},
 };
-
-use super::traits::ReportUris;
 
 #[derive(Debug, Clone)]
 pub struct AraRelevantEventSelector {

@@ -1,6 +1,4 @@
-use crate::events::traits::Event;
-
-use super::traits::{EventUris, Uri};
+use crate::events::traits::{Event, EventUris, Uri};
 
 impl Uri for String {}
 

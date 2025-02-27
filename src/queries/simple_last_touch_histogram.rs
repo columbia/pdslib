@@ -7,10 +7,8 @@ use crate::{
         traits::RelevantEventSelector,
     },
     mechanisms::{NoiseScale, NormType},
-    queries::traits::{EpochReportRequest, Report, ReportRequest},
+    queries::traits::{EpochReportRequest, Report, ReportRequest, ReportUris},
 };
-
-use super::traits::ReportUris;
 
 #[derive(Debug)]
 pub struct SimpleLastTouchHistogramRequest {

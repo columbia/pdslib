@@ -7,7 +7,7 @@ use pdslib::{
         hashmap_event_storage::HashMapEventStorage, simple_event::SimpleEvent, traits::EventUris,
     },
     pds::epoch_pds::EpochPrivateDataService,
-    queries::{simple_last_touch_histogram::SimpleLastTouchHistogramRequest, traits::ReportUris},
+    queries::{simple_last_touch_histogram::SimpleLastTouchHistogramRequest, traits::ReportRequestUris},
 };
 
 #[test]
@@ -36,7 +36,7 @@ fn main() {
         trigger_uris: vec![],
         querier_uris: vec![],
     };
-    let sample_report_uris = ReportUris {
+    let sample_report_uris = ReportRequestUris {
         trigger_uri: "https://example.com".parse().unwrap(),
         source_uris: vec![],
         querier_uris: vec![],

@@ -6,9 +6,14 @@ use crate::{
 };
 
 #[derive(Debug, Clone)]
-pub struct ReportUris<U: Uri> {
+pub struct ReportRequestUris<U: Uri> {
+    /// URI that triggered the report
     pub trigger_uri: U,
+
+    /// Source URIs that can be used to compute the report
     pub source_uris: Vec<U>,
+
+    /// Queriers that will receive a report
     pub querier_uris: Vec<U>,
 }
 
@@ -25,7 +30,7 @@ pub trait ReportRequest: Debug {
     type Report: Report;
     type Uri: Uri;
 
-    fn report_uris(&self) -> ReportUris<Self::Uri>;
+    fn report_uris(&self) -> ReportRequestUris<Self::Uri>;
 }
 
 /// Trait for an epoch-based query.

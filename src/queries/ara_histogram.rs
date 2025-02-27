@@ -7,7 +7,7 @@ use crate::{
         ara_event::AraEvent, hashmap_event_storage::VecEpochEvents,
         traits::RelevantEventSelector,
     },
-    queries::{histogram::HistogramRequest, traits::ReportUris},
+    queries::{histogram::HistogramRequest, traits::ReportRequestUris},
 };
 
 #[derive(Debug, Clone)]
@@ -46,7 +46,7 @@ pub struct AraHistogramRequest {
     pub source_key: String,
     pub trigger_keypiece: usize,
     pub filters: AraRelevantEventSelector,
-    pub uris: ReportUris<String>,
+    pub uris: ReportRequestUris<String>,
 }
 
 /// See https://github.com/WICG/attribution-reporting-api/blob/main/AGGREGATE.md#attribution-trigger-registration.
@@ -109,7 +109,7 @@ impl HistogramRequest for AraHistogramRequest {
         event_values
     }
 
-    fn report_uris(&self) -> ReportUris<String> {
+    fn report_uris(&self) -> ReportRequestUris<String> {
         self.uris.clone()
     }
 }

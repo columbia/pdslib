@@ -10,7 +10,7 @@ use pdslib::{
     pds::epoch_pds::EpochPrivateDataService,
     queries::{
         simple_last_touch_histogram::SimpleLastTouchHistogramRequest,
-        traits::ReportUris,
+        traits::ReportRequestUris,
     },
 };
 
@@ -35,7 +35,7 @@ fn main() {
         trigger_uris: vec![],
         querier_uris: vec![],
     };
-    let sample_report_uris = ReportUris {
+    let sample_report_uris = ReportRequestUris {
         trigger_uri: "https://example.com".parse().unwrap(),
         source_uris: vec![],
         querier_uris: vec![],

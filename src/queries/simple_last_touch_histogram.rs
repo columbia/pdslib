@@ -7,7 +7,9 @@ use crate::{
         traits::RelevantEventSelector,
     },
     mechanisms::{NoiseScale, NormType},
-    queries::traits::{EpochReportRequest, Report, ReportRequest},
+    queries::traits::{
+        EpochReportRequest, Report, ReportRequest, ReportRequestUris,
+    },
 };
 
 #[derive(Debug)]
@@ -17,6 +19,7 @@ pub struct SimpleLastTouchHistogramRequest {
     pub attributable_value: f64,
     pub laplace_noise_scale: f64,
     pub is_relevant_event: fn(&SimpleEvent) -> bool,
+    pub report_uris: ReportRequestUris<String>,
 }
 
 pub struct SimpleRelevantEventSelector {
@@ -44,6 +47,11 @@ impl Report for SimpleLastTouchHistogramReport {}
 
 impl ReportRequest for SimpleLastTouchHistogramRequest {
     type Report = SimpleLastTouchHistogramReport;
+    type Uri = String;
+
+    fn report_uris(&self) -> ReportRequestUris<String> {
+        self.report_uris.clone()
+    }
 }
 
 impl EpochReportRequest for SimpleLastTouchHistogramRequest {

@@ -5,9 +5,13 @@ use pdslib::{
     },
     events::{
         hashmap_event_storage::HashMapEventStorage, simple_event::SimpleEvent,
+        traits::EventUris,
     },
     pds::epoch_pds::EpochPrivateDataService,
-    queries::simple_last_touch_histogram::SimpleLastTouchHistogramRequest,
+    queries::{
+        simple_last_touch_histogram::SimpleLastTouchHistogramRequest,
+        traits::ReportRequestUris,
+    },
 };
 
 #[test]
@@ -31,11 +35,23 @@ fn main() {
         _phantom_error: std::marker::PhantomData::<anyhow::Error>,
     };
 
+    let sample_event_uris = EventUris {
+        source_uri: "blog.com".to_string(),
+        trigger_uris: vec!["shoes.com".to_string()],
+        querier_uris: vec!["shoes.com".to_string(), "adtech.com".to_string()],
+    };
+    let sample_report_uris = ReportRequestUris {
+        trigger_uri: "shoes.com".to_string(),
+        source_uris: vec!["blog.com".to_string()],
+        querier_uris: vec!["adtech.com".to_string()],
+    };
+
     // Create an impression (event, with very basic metadata).
     let event = SimpleEvent {
         id: 1,
         epoch_number: 1,
         event_key: 3,
+        uris: sample_event_uris.clone(),
     };
 
     // Save impression.
@@ -66,6 +82,7 @@ fn main() {
         attributable_value: report_global_sensitivity,
         laplace_noise_scale,
         is_relevant_event,
+        report_uris: sample_report_uris.clone(),
     };
 
     // Measure conversion.

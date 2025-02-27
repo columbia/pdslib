@@ -5,9 +5,15 @@ use pdslib::{
         hashmap_filter_storage::HashMapFilterStorage,
         pure_dp_filter::{PureDPBudget, PureDPBudgetFilter},
     },
-    events::{ara_event::AraEvent, hashmap_event_storage::HashMapEventStorage},
+    events::{
+        ara_event::AraEvent, hashmap_event_storage::HashMapEventStorage,
+        traits::EventUris,
+    },
     pds::epoch_pds::EpochPrivateDataService,
-    queries::ara_histogram::{AraHistogramRequest, AraRelevantEventSelector},
+    queries::{
+        ara_histogram::{AraHistogramRequest, AraRelevantEventSelector},
+        traits::ReportRequestUris,
+    },
 };
 
 #[test]
@@ -25,6 +31,17 @@ fn main() {
         _phantom_error: std::marker::PhantomData::<anyhow::Error>,
     };
 
+    let sample_event_uris = EventUris {
+        source_uri: "blog.com".to_string(),
+        trigger_uris: vec!["shoes.com".to_string()],
+        querier_uris: vec!["shoes.com".to_string(), "adtech.com".to_string()],
+    };
+    let sample_report_uris = ReportRequestUris {
+        trigger_uri: "shoes.com".to_string(),
+        source_uris: vec!["blog.com".to_string()],
+        querier_uris: vec!["adtech.com".to_string()],
+    };
+
     // Test similar to https://github.com/WICG/attribution-reporting-api/blob/main/AGGREGATE.md#attribution-trigger-registration
     let mut sources1 = HashMap::new();
     sources1.insert("campaignCounts".to_string(), 0x159);
@@ -34,6 +51,7 @@ fn main() {
         id: 1,
         epoch_number: 1,
         aggregatable_sources: sources1,
+        uris: sample_event_uris.clone(),
     };
 
     pds.register_event(event1.clone()).unwrap();
@@ -50,6 +68,7 @@ fn main() {
         filters: AraRelevantEventSelector {
             filters: HashMap::new(),
         }, // Not filtering yet.
+        uris: sample_report_uris.clone(),
     };
 
     let report1 = pds.compute_report(request1).unwrap();

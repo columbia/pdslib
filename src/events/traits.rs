@@ -6,12 +6,43 @@ pub trait EpochId: Hash + std::cmp::Eq + Clone + Debug {}
 /// Default EpochId
 impl EpochId for usize {}
 
+pub trait Uri {}
+
+#[derive(Debug, Clone)]
+pub struct EventUris<U: Uri> {
+    /// URI of the entity that registered this event.
+    pub source_uri: U,
+
+    /// URI of entities that can trigger the computation of a report
+    pub trigger_uris: Vec<U>,
+
+    /// URI of entities that can receive reports that include this event.
+    pub querier_uris: Vec<U>,
+}
+
+#[cfg(test)]
+impl EventUris<String> {
+    pub fn mock() -> Self {
+        Self {
+            source_uri: "blog.com".to_string(),
+            trigger_uris: vec!["shoes.com".to_string()],
+            querier_uris: vec![
+                "shoes.com".to_string(),
+                "adtech.com".to_string(),
+            ],
+        }
+    }
+}
+
 /// Event with an associated epoch.
 pub trait Event: Debug {
     type EpochId: EpochId;
+    type Uri: Uri;
     // TODO(https://github.com/columbia/pdslib/issues/18): add source/trigger information for Big Bird / Level 2.
 
-    fn get_epoch_id(&self) -> Self::EpochId;
+    fn epoch_id(&self) -> Self::EpochId;
+
+    fn event_uris(&self) -> EventUris<Self::Uri>;
 }
 
 /// Collection of events for a given epoch.

@@ -44,7 +44,7 @@ where
     type Error = anyhow::Error;
 
     fn add_event(&mut self, event: E) -> Result<(), Self::Error> {
-        let epoch_id = event.get_epoch_id();
+        let epoch_id = event.epoch_id();
         let epoch = self.epochs.entry(epoch_id).or_default();
         epoch.push(event);
         Ok(())

@@ -1,4 +1,4 @@
-use log::{info};
+use log::info;
 
 use crate::budget::traits::{Budget, Filter, FilterStatus};
 

@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use log::{info};
+use log::info;
 
 use pdslib::{
     budget::{

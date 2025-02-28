@@ -51,7 +51,7 @@ pub trait HistogramRequest: Debug {
 
     /// Returns the maximum attributable value, i.e. the maximum L1 norm of an
     /// attributed histogram.
-    fn get_attributable_value(&self) -> f64;
+    fn get_report_global_sensitivity(&self) -> f64;
 
     /// Returns a selector object, that can be passed to the event storage to
     /// retrieve relevant events. The selector can also output a boolean
@@ -125,7 +125,7 @@ impl<H: HistogramRequest> EpochReportRequest for H {
         // TODO(https://github.com/columbia/pdslib/issues/19):  Use an ordered map for relevant_events_per_epoch?
         for (event, value) in event_values {
             total_value += value;
-            if total_value > self.get_attributable_value() {
+            if total_value > self.get_report_global_sensitivity() {
                 // Return partial attribution to stay within the cap.
                 return HistogramReport { bin_values };
             }
@@ -161,6 +161,6 @@ impl<H: HistogramRequest> EpochReportRequest for H {
         // use-cases that have one bin we should use a custom type
         // similar to `SimpleLastTouchHistogramReport` with Option<BucketKey,
         // f64>.
-        2.0 * self.get_attributable_value()
+        2.0 * self.get_report_global_sensitivity()
     }
 }

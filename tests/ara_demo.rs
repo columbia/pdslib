@@ -60,8 +60,8 @@ fn main() {
     let request1 = AraHistogramRequest {
         start_epoch: 1,
         end_epoch: 2,
-        per_event_attributable_value: 32768.0,
-        attributable_value: 65536.0,
+        per_event_report_global_sensitivity: 32768.0,
+        report_global_sensitivity: 65536.0,
         noise_scale: 65536.0,
         source_key: "campaignCounts".to_string(),
         trigger_keypiece: 0x400,

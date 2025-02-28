@@ -79,7 +79,7 @@ fn main() {
     let report_request = SimpleLastTouchHistogramRequest {
         epoch_start: 1,
         epoch_end: 4,
-        attributable_value: report_global_sensitivity,
+        report_global_sensitivity,
         laplace_noise_scale,
         is_relevant_event,
         report_uris: sample_report_uris.clone(),

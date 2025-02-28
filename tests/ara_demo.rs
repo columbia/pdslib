@@ -57,7 +57,7 @@ fn main() {
     pds.register_event(event1.clone()).unwrap();
 
     // Test basic attribution
-    let request1_construction = AraHistogramRequest::new(
+    let request1 = AraHistogramRequest::new(
         1,
         2,
         32768.0,
@@ -70,25 +70,18 @@ fn main() {
             filters: HashMap::new(),
         }, // Not filtering yet.
         sample_report_uris.clone(),
-    );
+    ).unwrap();
 
-    match request1_construction {
-        Ok(request1) => {
-            let report1 = pds.compute_report(request1).unwrap();
-            println!("Report1: {:?}", report1);
+    let report1 = pds.compute_report(request1).unwrap();
+    println!("Report1: {:?}", report1);
 
-            // One event attributed to the binary OR of the source keypiece and trigger
-            // keypiece = 0x159 | 0x400
-            assert!(report1.bin_values.contains_key(&0x559));
-            assert_eq!(report1.bin_values.get(&0x559), Some(&32768.0));
-        },
-        Err(e) => {
-            println!("Failed to create AraHistogramRequest: {}", e);
-        },
-    };
+    // One event attributed to the binary OR of the source keypiece and trigger
+    // keypiece = 0x159 | 0x400
+    assert!(report1.bin_values.contains_key(&0x559));
+    assert_eq!(report1.bin_values.get(&0x559), Some(&32768.0));
 
     // Test error case when requested_epsilon is 0.
-    let request1_construction = AraHistogramRequest::new(
+    let request1 = AraHistogramRequest::new(
         1,
         2,
         32768.0,
@@ -101,22 +94,15 @@ fn main() {
             filters: HashMap::new(),
         }, // Not filtering yet.
         sample_report_uris.clone(),
-    );
+    ).unwrap();
 
-    match request1_construction {
-        Ok(request1) => {
-            let report1 = pds.compute_report(request1).unwrap();
-            println!("Report1: {:?}", report1);
+    let report1 = pds.compute_report(request1).unwrap();
+    println!("Report1: {:?}", report1);
 
-            // One event attributed to the binary OR of the source keypiece and trigger
-            // keypiece = 0x159 | 0x400
-            assert!(report1.bin_values.contains_key(&0x559));
-            assert_eq!(report1.bin_values.get(&0x559), Some(&32768.0));
-        },
-        Err(e) => {
-            println!("Failed to create AraHistogramRequest: {}", e);
-        },
-    };
+    // One event attributed to the binary OR of the source keypiece and trigger
+    // keypiece = 0x159 | 0x400
+    assert!(report1.bin_values.contains_key(&0x559));
+    assert_eq!(report1.bin_values.get(&0x559), Some(&32768.0));
 
     // TODO(https://github.com/columbia/pdslib/issues/8): add more tests when we have multiple events
 }

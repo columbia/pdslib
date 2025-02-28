@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use log::{info};
 
 use pdslib::{
     budget::{
@@ -14,10 +15,12 @@ use pdslib::{
         ara_histogram::{AraHistogramRequest, AraRelevantEventSelector},
         traits::ReportRequestUris,
     },
+    util::log_util,
 };
 
 #[test]
 fn main() {
+    log_util::init();
     let events =
         HashMapEventStorage::<AraEvent, AraRelevantEventSelector>::new();
     let filters: HashMapFilterStorage<usize, PureDPBudgetFilter, PureDPBudget> =
@@ -72,7 +75,7 @@ fn main() {
     };
 
     let report1 = pds.compute_report(request1).unwrap();
-    println!("Report1: {:?}", report1);
+    info!("Report1: {:?}", report1);
 
     // One event attributed to the binary OR of the source keypiece and trigger
     // keypiece = 0x159 | 0x400

@@ -1,3 +1,4 @@
+use log::{info};
 use std::collections::HashMap;
 
 use crate::{
@@ -63,7 +64,7 @@ where
 {
     /// Registers a new event.
     pub fn register_event(&mut self, event: E) -> Result<(), ERR> {
-        println!("Registering event {:?}", event);
+        info!("Registering event {:?}", event);
         self.event_storage.add_event(event)?;
         Ok(())
     }
@@ -75,7 +76,7 @@ where
         &mut self,
         request: Q,
     ) -> Result<<Q as ReportRequest>::Report, ERR> {
-        println!("Computing report for request {:?}", request);
+        info!("Computing report for request {:?}", request);
 
         // Collect events from event storage. If an epoch has no relevant
         // events, don't add it to the mapping.

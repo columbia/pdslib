@@ -12,10 +12,12 @@ use pdslib::{
         simple_last_touch_histogram::SimpleLastTouchHistogramRequest,
         traits::ReportRequestUris,
     },
+    util::log_util,
 };
 
 #[test]
 fn main() {
+    log_util::init();
     // This demo represents what happens on a single device and
     // for managing the budget of a single querier
     // Scenario similar to https://arxiv.org/pdf/2405.16719, Section 3.3

@@ -95,7 +95,7 @@ fn main() {
         }, // Not filtering yet.
         sample_report_uris.clone(),
     );
-    assert!(request1.is_err(j));
+    assert!(request1.is_err());
 
     // TODO(https://github.com/columbia/pdslib/issues/8): add more tests when we have multiple events
 }

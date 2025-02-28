@@ -15,12 +15,12 @@ use pdslib::{
         ara_histogram::{AraHistogramRequest, AraRelevantEventSelector},
         traits::ReportRequestUris,
     },
-    util::log_util,
+    util::logging,
 };
 
 #[test]
 fn main() {
-    log_util::init();
+    logging::init_default_logging();
     let events =
         HashMapEventStorage::<AraEvent, AraRelevantEventSelector>::new();
     let filters: HashMapFilterStorage<usize, PureDPBudgetFilter, PureDPBudget> =

@@ -12,12 +12,12 @@ use pdslib::{
         simple_last_touch_histogram::SimpleLastTouchHistogramRequest,
         traits::ReportRequestUris,
     },
-    util::log_util,
+    util::logging,
 };
 
 #[test]
 fn main() {
-    log_util::init();
+    logging::init_default_logging();
     let events = HashMapEventStorage::new();
     let filters: HashMapFilterStorage<usize, PureDPBudgetFilter, PureDPBudget> =
         HashMapFilterStorage::new();

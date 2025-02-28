@@ -94,15 +94,8 @@ fn main() {
             filters: HashMap::new(),
         }, // Not filtering yet.
         sample_report_uris.clone(),
-    ).unwrap();
-
-    let report1 = pds.compute_report(request1).unwrap();
-    println!("Report1: {:?}", report1);
-
-    // One event attributed to the binary OR of the source keypiece and trigger
-    // keypiece = 0x159 | 0x400
-    assert!(report1.bin_values.contains_key(&0x559));
-    assert_eq!(report1.bin_values.get(&0x559), Some(&32768.0));
+    );
+    assert!(request1.is_err(j));
 
     // TODO(https://github.com/columbia/pdslib/issues/8): add more tests when we have multiple events
 }

@@ -60,7 +60,7 @@ where
         filter.check_and_consume(budget)
     }
 
-    fn get_remaining_budget(
+    fn remaining_budget(
         &self,
         filter_id: &Self::FilterId,
     ) -> Result<Self::Budget, Self::Error> {
@@ -68,7 +68,7 @@ where
             .filters
             .get(filter_id)
             .context("Filter does not exist")?;
-        filter.get_remaining_budget()
+        filter.remaining_budget()
     }
 }
 

@@ -76,7 +76,7 @@ pub trait EventStorage {
     fn add_event(&mut self, event: Self::Event) -> Result<(), Self::Error>;
 
     /// Retrieves all relevant events for a given epoch.
-    fn get_relevant_epoch_events(
+    fn relevant_epoch_events(
         &self,
         epoch_id: &<Self::Event as Event>::EpochId,
         relevant_event_selector: &Self::RelevantEventSelector,

@@ -50,7 +50,7 @@ where
         Ok(())
     }
 
-    fn get_relevant_epoch_events(
+    fn relevant_epoch_events(
         &self,
         epoch_id: &E::EpochId,
         selector: &RES,

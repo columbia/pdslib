@@ -80,10 +80,10 @@ where
         // Collect events from event storage. If an epoch has no relevant
         // events, don't add it to the mapping.
         let mut relevant_events_per_epoch: HashMap<EI, EE> = HashMap::new();
-        let relevant_event_selector = request.get_relevant_event_selector();
-        for epoch_id in request.get_epoch_ids() {
+        let relevant_event_selector = request.relevant_event_selector();
+        for epoch_id in request.epoch_ids() {
             let epoch_relevant_events =
-                self.event_storage.get_relevant_epoch_events(
+                self.event_storage.relevant_epoch_events(
                     &epoch_id,
                     &relevant_event_selector,
                 )?;
@@ -100,7 +100,7 @@ where
             request.compute_report(&relevant_events_per_epoch);
 
         // Browse epochs in the attribution window
-        for epoch_id in request.get_epoch_ids() {
+        for epoch_id in request.epoch_ids() {
             // Step 1. Get relevant events for the current epoch `epoch_id`.
             let epoch_relevant_events =
                 relevant_events_per_epoch.get(&epoch_id);
@@ -217,18 +217,18 @@ where
         let individual_sensitivity = match num_epochs {
             1 => {
                 // Case 2: One epoch.
-                request.get_single_epoch_individual_sensitivity(
+                request.single_epoch_individual_sensitivity(
                     computed_attribution,
                     NormType::L1,
                 )
             }
             _ => {
                 // Case 3: Multiple epochs.
-                request.get_report_global_sensitivity()
+                request.report_global_sensitivity()
             }
         };
 
-        let NoiseScale::Laplace(noise_scale) = request.get_noise_scale();
+        let NoiseScale::Laplace(noise_scale) = request.noise_scale();
 
         // Treat near-zero noise scales as non-private, i.e. requesting infinite
         // budget, which can only go through if filters are also set to
@@ -300,7 +300,7 @@ mod tests {
         for epoch_id in 1..=3 {
             let remaining = pds
                 .filter_storage
-                .get_remaining_budget(&epoch_id)
+                .remaining_budget(&epoch_id)
                 .expect("Failed to get remaining budget");
             assert_eq!(remaining, PureDPBudget::Epsilon(1.0)); // 3.0 - 2.0 =
                                                                // 1.0 remaining
@@ -326,13 +326,13 @@ mod tests {
         for epoch_id in 1..=2 {
             let remaining = pds
                 .filter_storage
-                .get_remaining_budget(&epoch_id)
+                .remaining_budget(&epoch_id)
                 .expect("Failed to get remaining budget");
             assert_eq!(remaining, PureDPBudget::Epsilon(1.0));
         }
         let remaining = pds
             .filter_storage
-            .get_remaining_budget(&3)
+            .remaining_budget(&3)
             .expect("Failed to get remaining budget");
         assert_eq!(remaining, PureDPBudget::Epsilon(0.0));
     }

@@ -58,31 +58,31 @@ impl HistogramRequest for AraHistogramRequest {
     type BucketKey = usize;
     type RelevantEventSelector = AraRelevantEventSelector;
 
-    fn get_epochs_ids(&self) -> Vec<Self::EpochId> {
+    fn epochs_ids(&self) -> Vec<Self::EpochId> {
         (self.start_epoch..=self.end_epoch).rev().collect()
     }
 
-    fn get_query_global_sensitivity(&self) -> f64 {
+    fn query_global_sensitivity(&self) -> f64 {
         self.query_global_sensitivity
     }
 
-    fn get_requested_epsilon(&self) -> f64 {
+    fn requested_epsilon(&self) -> f64 {
         self.requested_epsilon
     }
 
-    fn get_laplace_noise_scale(&self) -> f64 {
+    fn laplace_noise_scale(&self) -> f64 {
         self.query_global_sensitivity / self.requested_epsilon
     }
 
-    fn get_report_global_sensitivity(&self) -> f64 {
+    fn report_global_sensitivity(&self) -> f64 {
         self.report_global_sensitivity
     }
 
-    fn get_relevant_event_selector(&self) -> Self::RelevantEventSelector {
+    fn relevant_event_selector(&self) -> Self::RelevantEventSelector {
         self.filters.clone()
     }
 
-    fn get_bucket_key(&self, event: &AraEvent) -> Self::BucketKey {
+    fn bucket_key(&self, event: &AraEvent) -> Self::BucketKey {
         // TODO(https://github.com/columbia/pdslib/issues/8):
         // What does ARA do when the source key is not present?
         // For now I still attribute with 0 for the source keypiece, but
@@ -101,7 +101,7 @@ impl HistogramRequest for AraHistogramRequest {
     ///
     /// TODO(https://github.com/columbia/pdslib/issues/8): Double check with
     /// Chromium logic.
-    fn get_values<'a>(
+    fn event_values<'a>(
         &self,
         relevant_events_per_epoch: &'a HashMap<
             Self::EpochId,

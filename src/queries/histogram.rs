@@ -44,36 +44,36 @@ pub trait HistogramRequest: Debug {
 
     /// Returns the ids of the epochs that are relevant for this query.
     /// Typically a range of epochs.
-    fn get_epochs_ids(&self) -> Vec<Self::EpochId>;
+    fn epochs_ids(&self) -> Vec<Self::EpochId>;
 
     /// Returns the query global sensitivity which is the maximum change that
     /// can be made to the output of the report generation function across all
     /// devices and reports.
-    fn get_query_global_sensitivity(&self) -> f64;
+    fn query_global_sensitivity(&self) -> f64;
 
     /// Returns the requested privacy budget.
-    fn get_requested_epsilon(&self) -> f64;
+    fn requested_epsilon(&self) -> f64;
 
     /// Returns the Laplace noise scale added after summing all the reports.
-    fn get_laplace_noise_scale(&self) -> f64;
+    fn laplace_noise_scale(&self) -> f64;
 
     /// Returns the maximum attributable value, i.e. the maximum L1 norm of an
     /// attributed histogram.
-    fn get_report_global_sensitivity(&self) -> f64;
+    fn report_global_sensitivity(&self) -> f64;
 
     /// Returns a selector object, that can be passed to the event storage to
     /// retrieve relevant events. The selector can also output a boolean
     /// indicating whether a single event is relevant.
-    fn get_relevant_event_selector(&self) -> Self::RelevantEventSelector;
+    fn relevant_event_selector(&self) -> Self::RelevantEventSelector;
 
     /// Returns the histogram bucket key (bin) for a given event.
-    fn get_bucket_key(&self, event: &Self::Event) -> Self::BucketKey;
+    fn bucket_key(&self, event: &Self::Event) -> Self::BucketKey;
 
     /// Attributes a value to each event in `relevant_events_per_epoch`, which
     /// will be obtained by retrieving *relevant* events from the event
     /// storage. Events can point to the relevant_events_per_epoch, hence
     /// the lifetime.
-    fn get_values<'a>(
+    fn event_values<'a>(
         &self,
         relevant_events_per_epoch: &'a HashMap<
             Self::EpochId,
@@ -105,19 +105,19 @@ impl<H: HistogramRequest> EpochReportRequest for H {
     /// Re-expose some methods
     ///
     /// TODO(https://github.com/columbia/pdslib/issues/19): any cleaner inheritance?
-    fn get_epoch_ids(&self) -> Vec<H::EpochId> {
-        self.get_epochs_ids()
+    fn epoch_ids(&self) -> Vec<H::EpochId> {
+        self.epochs_ids()
     }
 
-    fn get_relevant_event_selector(&self) -> H::RelevantEventSelector {
-        self.get_relevant_event_selector()
+    fn relevant_event_selector(&self) -> H::RelevantEventSelector {
+        self.relevant_event_selector()
     }
 
-    fn get_noise_scale(&self) -> NoiseScale {
+    fn noise_scale(&self) -> NoiseScale {
         // Note that the noise scale equals query_global_sensitiviity divided by the
         // requested epsilon.
-        NoiseScale::Laplace(self.get_query_global_sensitivity() / 
-            self.get_requested_epsilon())
+        NoiseScale::Laplace(self.query_global_sensitivity() / 
+            self.requested_epsilon())
     }
 
     /// Computes the report by attributing values to events, and then summing
@@ -128,7 +128,7 @@ impl<H: HistogramRequest> EpochReportRequest for H {
     ) -> Self::Report {
         let mut bin_values: HashMap<H::BucketKey, f64> = HashMap::new();
         let mut total_value: f64 = 0.0;
-        let event_values = self.get_values(relevant_events_per_epoch);
+        let event_values = self.event_values(relevant_events_per_epoch);
 
         // The order matters, since events that are attributed last might be
         // dropped by the contribution cap.
@@ -136,11 +136,11 @@ impl<H: HistogramRequest> EpochReportRequest for H {
         // TODO(https://github.com/columbia/pdslib/issues/19):  Use an ordered map for relevant_events_per_epoch?
         for (event, value) in event_values {
             total_value += value;
-            if total_value > self.get_report_global_sensitivity() {
+            if total_value > self.report_global_sensitivity() {
                 // Return partial attribution to stay within the cap.
                 return HistogramReport { bin_values };
             }
-            let bin = self.get_bucket_key(event);
+            let bin = self.bucket_key(event);
             *bin_values.entry(bin).or_default() += value;
         }
 
@@ -148,7 +148,7 @@ impl<H: HistogramRequest> EpochReportRequest for H {
     }
 
     /// Computes individual sensitivity in the single epoch case.
-    fn get_single_epoch_individual_sensitivity(
+    fn single_epoch_individual_sensitivity(
         &self,
         report: &Self::Report,
         norm_type: NormType,
@@ -165,13 +165,13 @@ impl<H: HistogramRequest> EpochReportRequest for H {
 
     /// Computes the global sensitivity, useful for the multi-epoch case.
     /// See https://arxiv.org/pdf/2405.16719, Thm. 18
-    fn get_report_global_sensitivity(&self) -> f64 {
+    fn report_global_sensitivity(&self) -> f64 {
         // NOTE: if we have only one possible bin (histogram in R instead or
         // R^m), then we can remove the factor 2. But this constraint is
         // not enforceable with HashMap<BucketKey, f64>, so for
         // use-cases that have one bin we should use a custom type
         // similar to `SimpleLastTouchHistogramReport` with Option<BucketKey,
         // f64>.
-        2.0 * self.get_report_global_sensitivity()
+        2.0 * self.report_global_sensitivity()
     }
 }

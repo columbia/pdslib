@@ -71,7 +71,7 @@ impl Filter<PureDPBudget> for PureDPBudgetFilter {
         Ok(status)
     }
 
-    fn get_remaining_budget(&self) -> Result<PureDPBudget, anyhow::Error> {
+    fn remaining_budget(&self) -> Result<PureDPBudget, anyhow::Error> {
         Ok(self.remaining_budget.clone())
     }
 }

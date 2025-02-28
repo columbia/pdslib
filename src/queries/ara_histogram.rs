@@ -55,6 +55,7 @@ impl AraHistogramRequest {
     /// - `requested_epsilon` is > 0.
     /// - `per_event_attributable_value`, `report_global_sensitivity` and 
     ///   `query_global_sensitivity` are non-negative.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         start_epoch: usize,
         end_epoch: usize,

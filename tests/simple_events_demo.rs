@@ -71,7 +71,8 @@ fn main() {
         epoch_start: 1,
         epoch_end: 1,
         report_global_sensitivity: 3.0,
-        laplace_noise_scale: 1.0,
+        query_global_sensitivity: 5.0,
+        requested_epsilon: 5.0,
         is_relevant_event: always_relevant_event,
         report_uris: sample_report_uris.clone(),
     };
@@ -88,7 +89,8 @@ fn main() {
         report_global_sensitivity: 0.1, /* Even 0.1 should be enough to go over the
                        * limit as the current budget left for
                        * epoch 1 is 0. */
-        laplace_noise_scale: 1.0,
+        query_global_sensitivity: 5.0,
+        requested_epsilon: 5.0,
         is_relevant_event: always_relevant_event,
         report_uris: sample_report_uris.clone(),
     };
@@ -102,7 +104,8 @@ fn main() {
         epoch_start: 1,
         epoch_end: 2,
         report_global_sensitivity: 3.0,
-        laplace_noise_scale: 1.0,
+        query_global_sensitivity: 5.0,
+        requested_epsilon: 5.0,
         is_relevant_event: always_relevant_event,
         report_uris: sample_report_uris.clone(),
     };
@@ -115,7 +118,8 @@ fn main() {
         epoch_start: 3, // Epoch 3 not created yet.
         epoch_end: 3,   // Epoch 3 not created yet.
         report_global_sensitivity: 0.0,
-        laplace_noise_scale: 1.0,
+        query_global_sensitivity: 5.0,
+        requested_epsilon: 5.0,
         is_relevant_event: always_relevant_event,
         report_uris: sample_report_uris.clone(),
     };
@@ -128,7 +132,8 @@ fn main() {
         epoch_start: 1,
         epoch_end: 3,
         report_global_sensitivity: 4.0,
-        laplace_noise_scale: 1.0,
+        query_global_sensitivity: 5.0,
+        requested_epsilon: 5.0,
         is_relevant_event: always_relevant_event,
         report_uris: sample_report_uris.clone(),
     };
@@ -142,7 +147,8 @@ fn main() {
         epoch_start: 1,
         epoch_end: 3,
         report_global_sensitivity: 3.0,
-        laplace_noise_scale: 1.0,
+        query_global_sensitivity: 5.0,
+        requested_epsilon: 5.0,
         is_relevant_event: always_relevant_event,
         report_uris: sample_report_uris.clone(),
     };
@@ -155,7 +161,8 @@ fn main() {
         epoch_start: 1,
         epoch_end: 3,
         report_global_sensitivity: 3.0,
-        laplace_noise_scale: 1.0,
+        query_global_sensitivity: 5.0,
+        requested_epsilon: 5.0,
         is_relevant_event: |e: &SimpleEvent| e.event_key == 1,
         report_uris: sample_report_uris.clone(),
     };

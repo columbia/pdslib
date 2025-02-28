@@ -62,7 +62,8 @@ fn main() {
         end_epoch: 2,
         per_event_report_global_sensitivity: 32768.0,
         report_global_sensitivity: 65536.0,
-        noise_scale: 65536.0,
+        query_global_sensitivity: 65536.0,
+        requested_epsilon: 1.0,
         source_key: "campaignCounts".to_string(),
         trigger_keypiece: 0x400,
         filters: AraRelevantEventSelector {

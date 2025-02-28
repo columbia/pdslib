@@ -46,6 +46,14 @@ pub trait HistogramRequest: Debug {
     /// Typically a range of epochs.
     fn get_epochs_ids(&self) -> Vec<Self::EpochId>;
 
+    /// Returns the query global sensitivity which is the maximum change that
+    /// can be made to the output of the report generation function across all
+    /// devices and reports.
+    fn get_query_global_sensitivity(&self) -> f64;
+
+    /// Returns the requested privacy budget.
+    fn get_requested_epsilon(&self) -> f64;
+
     /// Returns the Laplace noise scale added after summing all the reports.
     fn get_laplace_noise_scale(&self) -> f64;
 
@@ -106,7 +114,10 @@ impl<H: HistogramRequest> EpochReportRequest for H {
     }
 
     fn get_noise_scale(&self) -> NoiseScale {
-        NoiseScale::Laplace(self.get_laplace_noise_scale())
+        // Note that the noise scale equals query_global_sensitiviity divided by the
+        // requested epsilon.
+        NoiseScale::Laplace(self.get_query_global_sensitivity() / 
+            self.get_requested_epsilon())
     }
 
     /// Computes the report by attributing values to events, and then summing

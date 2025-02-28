@@ -42,7 +42,8 @@ pub struct AraHistogramRequest {
                                             * events */
     pub report_global_sensitivity: f64, /* E.g. 2^16 in ARA, with scaling as
                                   * post-processing */
-    pub noise_scale: f64,
+    pub query_global_sensitivity: f64,
+    pub requested_epsilon: f64,
     pub source_key: String,
     pub trigger_keypiece: usize,
     pub filters: AraRelevantEventSelector,
@@ -61,8 +62,16 @@ impl HistogramRequest for AraHistogramRequest {
         (self.start_epoch..=self.end_epoch).rev().collect()
     }
 
+    fn get_query_global_sensitivity(&self) -> f64 {
+        self.query_global_sensitivity
+    }
+
+    fn get_requested_epsilon(&self) -> f64 {
+        self.requested_epsilon
+    }
+
     fn get_laplace_noise_scale(&self) -> f64 {
-        self.noise_scale
+        self.query_global_sensitivity / self.requested_epsilon
     }
 
     fn get_report_global_sensitivity(&self) -> f64 {

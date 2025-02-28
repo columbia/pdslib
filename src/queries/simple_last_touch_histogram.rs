@@ -17,7 +17,8 @@ pub struct SimpleLastTouchHistogramRequest {
     pub epoch_start: usize,
     pub epoch_end: usize,
     pub report_global_sensitivity: f64,
-    pub laplace_noise_scale: f64,
+    pub query_global_sensitivity: f64,
+    pub requested_epsilon: f64,
     pub is_relevant_event: fn(&SimpleEvent) -> bool,
     pub report_uris: ReportRequestUris<String>,
 }
@@ -124,6 +125,6 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
     }
 
     fn get_noise_scale(&self) -> NoiseScale {
-        NoiseScale::Laplace(self.laplace_noise_scale)
+        NoiseScale::Laplace(self.query_global_sensitivity / self.requested_epsilon)
     }
 }

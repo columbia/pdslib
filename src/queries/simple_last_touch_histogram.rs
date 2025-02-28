@@ -16,8 +16,9 @@ use crate::{
 pub struct SimpleLastTouchHistogramRequest {
     pub epoch_start: usize,
     pub epoch_end: usize,
-    pub attributable_value: f64,
-    pub laplace_noise_scale: f64,
+    pub report_global_sensitivity: f64,
+    pub query_global_sensitivity: f64,
+    pub requested_epsilon: f64,
     pub is_relevant_event: fn(&SimpleEvent) -> bool,
     pub report_uris: ReportRequestUris<String>,
 }
@@ -61,12 +62,12 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
     type ReportGlobalSensitivity = f64;
     type RelevantEventSelector = SimpleRelevantEventSelector;
 
-    fn get_epoch_ids(&self) -> Vec<Self::EpochId> {
+    fn epoch_ids(&self) -> Vec<Self::EpochId> {
         let range = self.epoch_start..=self.epoch_end;
         range.rev().collect()
     }
 
-    fn get_relevant_event_selector(&self) -> Self::RelevantEventSelector {
+    fn relevant_event_selector(&self) -> Self::RelevantEventSelector {
         SimpleRelevantEventSelector {
             lambda: self.is_relevant_event,
         }
@@ -76,10 +77,10 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
         &self,
         relevant_epochs_per_epoch: &HashMap<usize, Self::EpochEvents>,
     ) -> Self::Report {
-        // Browse epochs in the order given by `get_epoch_ids, most recent
+        // Browse epochs in the order given by `epoch_ids, most recent
         // epoch first. Within each epoch, we assume that events are
         // stored in the order that they occured
-        for epoch_id in self.get_epoch_ids() {
+        for epoch_id in self.epoch_ids() {
             if let Some(relevant_events) =
                 relevant_epochs_per_epoch.get(&epoch_id)
             {
@@ -87,7 +88,7 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
                     // `last_impression` is the most recent relevant impression
                     // from the most recent non-empty epoch.
                     let event_key = last_impression.event_key;
-                    let attributed_value = self.attributable_value;
+                    let attributed_value = self.report_global_sensitivity;
 
                     // Just use event_key as the bucket key.
                     // See `ara_histogram` for a more general impression_key ->
@@ -103,7 +104,7 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
         SimpleLastTouchHistogramReport { bin_value: None }
     }
 
-    fn get_single_epoch_individual_sensitivity(
+    fn single_epoch_individual_sensitivity(
         &self,
         report: &Self::Report,
         norm_type: NormType,
@@ -119,11 +120,11 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
         }
     }
 
-    fn get_report_global_sensitivity(&self) -> f64 {
-        self.attributable_value
+    fn report_global_sensitivity(&self) -> f64 {
+        self.report_global_sensitivity
     }
 
-    fn get_noise_scale(&self) -> NoiseScale {
-        NoiseScale::Laplace(self.laplace_noise_scale)
+    fn noise_scale(&self) -> NoiseScale {
+        NoiseScale::Laplace(self.query_global_sensitivity / self.requested_epsilon)
     }
 }

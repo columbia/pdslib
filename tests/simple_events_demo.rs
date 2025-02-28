@@ -70,8 +70,9 @@ fn main() {
     let report_request = SimpleLastTouchHistogramRequest {
         epoch_start: 1,
         epoch_end: 1,
-        attributable_value: 3.0,
-        laplace_noise_scale: 1.0,
+        report_global_sensitivity: 3.0,
+        query_global_sensitivity: 5.0,
+        requested_epsilon: 5.0,
         is_relevant_event: always_relevant_event,
         report_uris: sample_report_uris.clone(),
     };
@@ -85,10 +86,11 @@ fn main() {
     let report_request2 = SimpleLastTouchHistogramRequest {
         epoch_start: 1,
         epoch_end: 1, //test restricting the end epoch
-        attributable_value: 0.1, /* Even 0.1 should be enough to go over the
+        report_global_sensitivity: 0.1, /* Even 0.1 should be enough to go over the
                        * limit as the current budget left for
                        * epoch 1 is 0. */
-        laplace_noise_scale: 1.0,
+        query_global_sensitivity: 5.0,
+        requested_epsilon: 5.0,
         is_relevant_event: always_relevant_event,
         report_uris: sample_report_uris.clone(),
     };
@@ -101,8 +103,9 @@ fn main() {
     let report_request2 = SimpleLastTouchHistogramRequest {
         epoch_start: 1,
         epoch_end: 2,
-        attributable_value: 3.0,
-        laplace_noise_scale: 1.0,
+        report_global_sensitivity: 3.0,
+        query_global_sensitivity: 5.0,
+        requested_epsilon: 5.0,
         is_relevant_event: always_relevant_event,
         report_uris: sample_report_uris.clone(),
     };
@@ -114,21 +117,23 @@ fn main() {
     let report_request3_empty = SimpleLastTouchHistogramRequest {
         epoch_start: 3, // Epoch 3 not created yet.
         epoch_end: 3,   // Epoch 3 not created yet.
-        attributable_value: 0.0,
-        laplace_noise_scale: 1.0,
+        report_global_sensitivity: 0.0,
+        query_global_sensitivity: 5.0,
+        requested_epsilon: 5.0,
         is_relevant_event: always_relevant_event,
         report_uris: sample_report_uris.clone(),
     };
     let report3_empty = pds.compute_report(report_request3_empty).unwrap();
     assert_eq!(report3_empty.bin_value, None);
 
-    // Test restricting attributable_value
+    // Test restricting report_global_sensitivity
     pds.register_event(event4.clone()).unwrap();
     let report_request3_over_budget = SimpleLastTouchHistogramRequest {
         epoch_start: 1,
         epoch_end: 3,
-        attributable_value: 4.0,
-        laplace_noise_scale: 1.0,
+        report_global_sensitivity: 4.0,
+        query_global_sensitivity: 5.0,
+        requested_epsilon: 5.0,
         is_relevant_event: always_relevant_event,
         report_uris: sample_report_uris.clone(),
     };
@@ -141,8 +146,9 @@ fn main() {
     let report_request3 = SimpleLastTouchHistogramRequest {
         epoch_start: 1,
         epoch_end: 3,
-        attributable_value: 3.0,
-        laplace_noise_scale: 1.0,
+        report_global_sensitivity: 3.0,
+        query_global_sensitivity: 5.0,
+        requested_epsilon: 5.0,
         is_relevant_event: always_relevant_event,
         report_uris: sample_report_uris.clone(),
     };
@@ -154,8 +160,9 @@ fn main() {
     let report_request4 = SimpleLastTouchHistogramRequest {
         epoch_start: 1,
         epoch_end: 3,
-        attributable_value: 3.0,
-        laplace_noise_scale: 1.0,
+        report_global_sensitivity: 3.0,
+        query_global_sensitivity: 5.0,
+        requested_epsilon: 5.0,
         is_relevant_event: |e: &SimpleEvent| e.event_key == 1,
         report_uris: sample_report_uris.clone(),
     };

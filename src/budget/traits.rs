@@ -22,7 +22,7 @@ pub trait Filter<T: Budget> {
     /// [Experimental] Gets the remaining budget for this filter.
     /// WARNING: this method is for local visualization only.
     /// Its output should not be shared outside the device.
-    fn get_remaining_budget(&self) -> Result<T, Self::Error>;
+    fn remaining_budget(&self) -> Result<T, Self::Error>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -60,7 +60,7 @@ pub trait FilterStorage {
     ) -> Result<FilterStatus, Self::Error>;
 
     /// Gets the remaining budget for a filter.
-    fn get_remaining_budget(
+    fn remaining_budget(
         &self,
         filter_id: &Self::FilterId,
     ) -> Result<Self::Budget, Self::Error>;

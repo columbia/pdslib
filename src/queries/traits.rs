@@ -43,11 +43,11 @@ pub trait EpochReportRequest: ReportRequest {
 
     /// Returns the list of requested epoch IDs, in the order the attribution
     /// should run.
-    fn get_epoch_ids(&self) -> Vec<Self::EpochId>;
+    fn epoch_ids(&self) -> Vec<Self::EpochId>;
 
     /// Returns the selector for relevant events for the query. The selector
     /// can be passed to the event storage to retrieve only the relevant events.
-    fn get_relevant_event_selector(&self) -> Self::RelevantEventSelector;
+    fn relevant_event_selector(&self) -> Self::RelevantEventSelector;
 
     /// Computes the report for the given request and epoch events.
     fn compute_report(
@@ -57,17 +57,17 @@ pub trait EpochReportRequest: ReportRequest {
 
     /// Computes the individual sensitivity for the query when the report is
     /// computed over a single epoch.
-    fn get_single_epoch_individual_sensitivity(
+    fn single_epoch_individual_sensitivity(
         &self,
         report: &Self::Report,
         norm_type: NormType,
     ) -> f64;
 
     /// Computes the global sensitivity for the query.
-    fn get_report_global_sensitivity(&self) -> f64;
+    fn report_global_sensitivity(&self) -> f64;
 
     /// Retrieves the scale of the noise that will be added by the aggregator.
-    fn get_noise_scale(&self) -> NoiseScale;
+    fn noise_scale(&self) -> NoiseScale;
 }
 
 /// Type for passive privacy loss accounting. Uniform over all epochs for now.

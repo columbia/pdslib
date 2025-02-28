@@ -57,19 +57,20 @@ fn main() {
     pds.register_event(event1.clone()).unwrap();
 
     // Test basic attribution
-    let request1 = AraHistogramRequest {
-        start_epoch: 1,
-        end_epoch: 2,
-        per_event_attributable_value: 32768.0,
-        attributable_value: 65536.0,
-        noise_scale: 65536.0,
-        source_key: "campaignCounts".to_string(),
-        trigger_keypiece: 0x400,
-        filters: AraRelevantEventSelector {
+    let request1 = AraHistogramRequest::new(
+        1,
+        2,
+        32768.0,
+        65536.0,
+        65536.0,
+        1.0,
+        "campaignCounts".to_string(),
+        0x400,
+        AraRelevantEventSelector {
             filters: HashMap::new(),
         }, // Not filtering yet.
-        uris: sample_report_uris.clone(),
-    };
+        sample_report_uris.clone(),
+    ).unwrap();
 
     let report1 = pds.compute_report(request1).unwrap();
     println!("Report1: {:?}", report1);
@@ -78,6 +79,23 @@ fn main() {
     // keypiece = 0x159 | 0x400
     assert!(report1.bin_values.contains_key(&0x559));
     assert_eq!(report1.bin_values.get(&0x559), Some(&32768.0));
+
+    // Test error case when requested_epsilon is 0.
+    let request1 = AraHistogramRequest::new(
+        1,
+        2,
+        32768.0,
+        65536.0,
+        65536.0,
+        0.0,  // This should fail.
+        "campaignCounts".to_string(),
+        0x400,
+        AraRelevantEventSelector {
+            filters: HashMap::new(),
+        }, // Not filtering yet.
+        sample_report_uris.clone(),
+    );
+    assert!(request1.is_err());
 
     // TODO(https://github.com/columbia/pdslib/issues/8): add more tests when we have multiple events
 }

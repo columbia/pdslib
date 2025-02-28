@@ -65,7 +65,6 @@ fn main() {
     // instead of a single `laplace_noise_scale`.
     let query_global_sensitivity = 100.0;
     let requested_epsilon = 1.0;
-    let laplace_noise_scale = query_global_sensitivity / requested_epsilon;
 
     // Can depend on information available to the querier about this particular
     // conversion.
@@ -79,8 +78,9 @@ fn main() {
     let report_request = SimpleLastTouchHistogramRequest {
         epoch_start: 1,
         epoch_end: 4,
-        attributable_value: report_global_sensitivity,
-        laplace_noise_scale,
+        report_global_sensitivity,
+        query_global_sensitivity,
+        requested_epsilon,
         is_relevant_event,
         report_uris: sample_report_uris.clone(),
     };

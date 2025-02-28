@@ -36,19 +36,60 @@ impl RelevantEventSelector for AraRelevantEventSelector {
 /// TODO(https://github.com/columbia/pdslib/issues/8): what is "nonMatchingKeyIdsIgnored"?
 #[derive(Debug)]
 pub struct AraHistogramRequest {
-    pub start_epoch: usize,
-    pub end_epoch: usize,
-    pub per_event_attributable_value: f64, /* ARA can attribute to multiple
+    start_epoch: usize,
+    end_epoch: usize,
+    per_event_attributable_value: f64, /* ARA can attribute to multiple
                                             * events */
-    pub report_global_sensitivity: f64, /* E.g. 2^16 in ARA, with scaling as
+    report_global_sensitivity: f64, /* E.g. 2^16 in ARA, with scaling as
                                   * post-processing */
-    pub query_global_sensitivity: f64,
-    pub requested_epsilon: f64,
-    pub source_key: String,
-    pub trigger_keypiece: usize,
-    pub filters: AraRelevantEventSelector,
-    pub uris: ReportRequestUris<String>,
+    query_global_sensitivity: f64,
+    requested_epsilon: f64,
+    source_key: String,
+    trigger_keypiece: usize,
+    filters: AraRelevantEventSelector,
+    uris: ReportRequestUris<String>,
 }
+
+impl AraHistogramRequest {
+    /// Constructs a new `AraHistogramRequest`, validating that:
+    /// - `requested_epsilon` is > 0.
+    /// - `per_event_attributable_value`, `report_global_sensitivity` and 
+    ///   `query_global_sensitivity` are non-negative.
+    pub fn new(
+        start_epoch: usize,
+        end_epoch: usize,
+        per_event_attributable_value: f64,
+        report_global_sensitivity: f64,
+        query_global_sensitivity: f64,
+        requested_epsilon: f64,
+        source_key: String,
+        trigger_keypiece: usize,
+        filters: AraRelevantEventSelector,
+        uris: ReportRequestUris<String>,
+    ) -> Result<Self, &'static str> {
+        if requested_epsilon <= 0.0 {
+            return Err("requested_epsilon must be greater than 0");
+        }
+        if per_event_attributable_value < 0.0 ||
+            report_global_sensitivity < 0.0 ||
+            query_global_sensitivity < 0.0 {
+            return Err("sensitivity values must be non-negative");
+        }
+        Ok(Self {
+            start_epoch,
+            end_epoch,
+            per_event_attributable_value,
+            report_global_sensitivity,
+            query_global_sensitivity,
+            requested_epsilon,
+            source_key,
+            trigger_keypiece,
+            filters,
+            uris,
+        })
+    }
+}
+
 
 /// See https://github.com/WICG/attribution-reporting-api/blob/main/AGGREGATE.md#attribution-trigger-registration.
 impl HistogramRequest for AraHistogramRequest {

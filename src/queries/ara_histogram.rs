@@ -38,7 +38,7 @@ impl RelevantEventSelector for AraRelevantEventSelector {
 pub struct AraHistogramRequest {
     pub start_epoch: usize,
     pub end_epoch: usize,
-    pub per_event_report_global_sensitivity: f64, /* ARA can attribute to multiple
+    pub per_event_attributable_value: f64, /* ARA can attribute to multiple
                                             * events */
     pub report_global_sensitivity: f64, /* E.g. 2^16 in ARA, with scaling as
                                   * post-processing */
@@ -112,7 +112,7 @@ impl HistogramRequest for AraHistogramRequest {
 
         for relevant_events in relevant_events_per_epoch.values() {
             for event in relevant_events.iter() {
-                event_values.push((event, self.per_event_report_global_sensitivity));
+                event_values.push((event, self.per_event_attributable_value));
             }
         }
         event_values

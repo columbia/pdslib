@@ -47,11 +47,11 @@ pub trait HistogramRequest: Debug {
     fn epochs_ids(&self) -> Vec<Self::EpochId>;
 
     /// Returns the query global sensitivity which is the maximum change that
-    /// can be made to the output of the report generation function across all
-    /// devices and reports.
+    /// can be made by a device-epoch to the output of a query over a batch of 
+    /// reports.
     fn query_global_sensitivity(&self) -> f64;
 
-    /// Returns the requested privacy budget.
+    /// Returns the global privacy budget requested by a query over a batch of reports. 
     fn requested_epsilon(&self) -> f64;
 
     /// Returns the Laplace noise scale added after summing all the reports.

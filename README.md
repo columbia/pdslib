@@ -15,3 +15,12 @@ The next version of the library -- currently under development -- will implement
 - `src/*/traits.rs` define interfaces. Other files in `src/*` implement these interfaces, with very simple in-memory datastructures for now. Other crates using pdslib in particular environments (e.g., Chromium or Android) can have implementations for the same traits using browser storage or SQLite databases.
 - `src/pds` is structured to work with  `budget`, `events`, `queries` only through interfaces. So we should be able to swap the implementation for event storage or replace the type of query, and still obtain a working implementation of the `PrivateDataService` interface.
 - `tests` contains integration tests. In particular, `tests/*_demo.rs` show how an external application can use pdslib to register events and request different types of reports on a device. 
+
+## Logging
+The pdslib library uses the log4rs library for logging.
+
+### Configure Logging
+The configuration file can be found at `./logging_config.yaml`. You can change the lowest log level, by modifying the level attribute to one of: trace, debug, info, warn, error. The configuration file contains options to log to the console and/or to write to a file `log/pdslib.log`. By default, it is set to log to the console, but you can modify this by adding or replacing appenders.
+
+### Initialize Logging
+To enable logging, call `pdslib::util::log_util::init()`. To log, use the functions: `trace!()`, `debug!()`, `info!()`, `warn!()`, `error!()`.

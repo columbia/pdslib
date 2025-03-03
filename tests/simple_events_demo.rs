@@ -24,7 +24,7 @@ fn main() -> Result<(), anyhow::Error> {
     let capacities = StaticCapacities {
         nc_capacity: PureDPBudget::Epsilon(3.0),
         c_capacity: PureDPBudget::Epsilon(20.0),
-        qtrigger_capacity: PureDPBudget::Epsilon(3.0),
+        qtrigger_capacity: PureDPBudget::Epsilon(3.5),
     };
     let filters: HashMapFilterStorage<_, PureDPBudgetFilter, _> =
         HashMapFilterStorage::new(capacities)?;

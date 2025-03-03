@@ -26,7 +26,7 @@ impl StaticCapacities<PureDPBudget> {
         Self {
             nc_capacity: PureDPBudget::Epsilon(1.0),
             c_capacity: PureDPBudget::Epsilon(20.0),
-            qtrigger_capacity: PureDPBudget::Epsilon(1.0),
+            qtrigger_capacity: PureDPBudget::Epsilon(1.5),
         }
     }
 }

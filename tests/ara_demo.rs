@@ -6,7 +6,7 @@ use pdslib::{
         pure_dp_filter::{PureDPBudget, PureDPBudgetFilter},
     },
     events::{
-        ara_event::AraEvent, hashmap_event_storage::HashMapEventStorage,
+        ppa_event::PpaEvent, hashmap_event_storage::HashMapEventStorage,
         traits::EventUris,
     },
     pds::epoch_pds::EpochPrivateDataService,
@@ -19,7 +19,7 @@ use pdslib::{
 #[test]
 fn main() {
     let events =
-        HashMapEventStorage::<AraEvent, AraRelevantEventSelector>::new();
+        HashMapEventStorage::<PpaEvent, AraRelevantEventSelector>::new();
     let filters: HashMapFilterStorage<usize, PureDPBudgetFilter, PureDPBudget> =
         HashMapFilterStorage::new();
 
@@ -47,7 +47,7 @@ fn main() {
     sources1.insert("campaignCounts".to_string(), 0x159);
     sources1.insert("geoValue".to_string(), 0x5);
 
-    let event1 = AraEvent {
+    let event1 = PpaEvent {
         id: 1,
         epoch_number: 1,
         aggregatable_sources: sources1,

@@ -4,7 +4,7 @@ use std::{collections::HashMap, vec};
 
 use crate::{
     events::{
-        ara_event::AraEvent, hashmap_event_storage::VecEpochEvents,
+        ppa_event::PpaEvent, hashmap_event_storage::VecEpochEvents,
         traits::RelevantEventSelector,
     },
     queries::{histogram::HistogramRequest, traits::ReportRequestUris},
@@ -20,9 +20,9 @@ pub struct AraRelevantEventSelector {
 /// Select events using ARA-style filters.
 /// See https://github.com/WICG/attribution-reporting-api/blob/main/EVENT.md#optional-attribution-filters
 impl RelevantEventSelector for AraRelevantEventSelector {
-    type Event = AraEvent;
+    type Event = PpaEvent;
 
-    fn is_relevant_event(&self, _event: &AraEvent) -> bool {
+    fn is_relevant_event(&self, _event: &PpaEvent) -> bool {
         // TODO(https://github.com/columbia/pdslib/issues/8): add filters to events too, and implement ARA filtering
         true
     }
@@ -95,8 +95,8 @@ impl AraHistogramRequest {
 /// See https://github.com/WICG/attribution-reporting-api/blob/main/AGGREGATE.md#attribution-trigger-registration.
 impl HistogramRequest for AraHistogramRequest {
     type EpochId = usize;
-    type EpochEvents = VecEpochEvents<AraEvent>;
-    type Event = AraEvent;
+    type EpochEvents = VecEpochEvents<PpaEvent>;
+    type Event = PpaEvent;
     type BucketKey = usize;
     type RelevantEventSelector = AraRelevantEventSelector;
 
@@ -124,7 +124,7 @@ impl HistogramRequest for AraHistogramRequest {
         self.filters.clone()
     }
 
-    fn bucket_key(&self, event: &AraEvent) -> Self::BucketKey {
+    fn bucket_key(&self, event: &PpaEvent) -> Self::BucketKey {
         // TODO(https://github.com/columbia/pdslib/issues/8):
         // What does ARA do when the source key is not present?
         // For now I still attribute with 0 for the source keypiece, but

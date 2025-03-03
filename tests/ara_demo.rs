@@ -19,7 +19,7 @@ use pdslib::{
 };
 
 #[test]
-fn main() {
+    fn main() -> Result<(), anyhow::Error> {
     logging::init_default_logging();
     let events =
         HashMapEventStorage::<AraEvent, AraRelevantEventSelector>::new();
@@ -57,7 +57,7 @@ fn main() {
         uris: sample_event_uris.clone(),
     };
 
-    pds.register_event(event1.clone()).unwrap();
+        pds.register_event(event1.clone())?;
 
     // Test basic attribution
     let request1 = AraHistogramRequest::new(
@@ -73,9 +73,10 @@ fn main() {
             filters: HashMap::new(),
         }, // Not filtering yet.
         sample_report_uris.clone(),
-    ).unwrap();
+        )
+        .unwrap();
 
-    let report1 = pds.compute_report(request1).unwrap();
+        let report1 = pds.compute_report(request1)?;
     info!("Report1: {:?}", report1);
 
     // One event attributed to the binary OR of the source keypiece and trigger
@@ -90,7 +91,7 @@ fn main() {
         32768.0,
         65536.0,
         65536.0,
-        0.0,  // This should fail.
+            0.0, // This should fail.
         "campaignCounts".to_string(),
         0x400,
         AraRelevantEventSelector {
@@ -101,4 +102,6 @@ fn main() {
     assert!(request1.is_err());
 
     // TODO(https://github.com/columbia/pdslib/issues/8): add more tests when we have multiple events
+
+    Ok(())
 }

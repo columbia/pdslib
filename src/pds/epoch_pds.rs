@@ -263,12 +263,7 @@ mod tests {
     };
 
     #[test]
-    fn test_account_for_passive_privacy_loss() {
-        let filters: HashMapFilterStorage<
-            usize,
-            PureDPBudgetFilter,
-            PureDPBudget,
-        > = HashMapFilterStorage::new();
+    fn test_account_for_passive_privacy_loss() -> Result<(), anyhow::Error> {
         let events = HashMapEventStorage::new();
 
         let mut pds = EpochPrivateDataService {
@@ -294,7 +289,7 @@ mod tests {
             epoch_ids: vec![1, 2, 3],
             privacy_budget: PureDPBudget::Epsilon(1.0),
         };
-        let result = pds.account_for_passive_privacy_loss(request).unwrap();
+        let result = pds.account_for_passive_privacy_loss(request)?;
         assert_eq!(result, FilterStatus::Continue);
 
         // Verify remaining budgets
@@ -336,5 +331,6 @@ mod tests {
             .remaining_budget(&3)
             .expect("Failed to get remaining budget");
         assert_eq!(remaining, PureDPBudget::Epsilon(0.0));
+        Ok(())
     }
 }

@@ -16,7 +16,7 @@ use pdslib::{
 };
 
 #[test]
-fn main() {
+fn main() -> Result<(), anyhow::Error> {
     logging::init_default_logging();
     // This demo represents what happens on a single device and
     // for managing the budget of a single querier
@@ -57,7 +57,7 @@ fn main() {
     };
 
     // Save impression.
-    pds.register_event(event.clone()).unwrap();
+    pds.register_event(event.clone())?;
 
     // Next, a conversion happens and the querier prepares request parameters.
 
@@ -88,8 +88,9 @@ fn main() {
     };
 
     // Measure conversion.
-    let report = pds.compute_report(report_request).unwrap();
+    let report = pds.compute_report(report_request)?;
 
     // Look at the histogram stored in the report (unencrypted here).
     assert_eq!(report.bin_value, Some((event.event_key, 70.0)));
+    Ok(())
 }

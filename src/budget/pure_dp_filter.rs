@@ -83,20 +83,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_pure_dp_budget_filter() {
-        let mut filter =
-            PureDPBudgetFilter::new(PureDPBudget::Epsilon(1.0)).unwrap();
+    fn test_pure_dp_budget_filter() -> Result<(), anyhow::Error> {
+        let mut filter = PureDPBudgetFilter::new(PureDPBudget::Epsilon(1.0))?;
         assert_eq!(
-            filter
-                .check_and_consume(&PureDPBudget::Epsilon(0.5))
-                .unwrap(),
+            filter.check_and_consume(&PureDPBudget::Epsilon(0.5))?,
             FilterStatus::Continue
         );
         assert_eq!(
-            filter
-                .check_and_consume(&PureDPBudget::Epsilon(0.6))
-                .unwrap(),
+            filter.check_and_consume(&PureDPBudget::Epsilon(0.6))?,
             FilterStatus::OutOfBudget
         );
+
+        Ok(())
     }
 }

@@ -78,13 +78,7 @@ mod tests {
     use crate::budget::pure_dp_filter::{PureDPBudget, PureDPBudgetFilter};
 
     #[test]
-    fn test_hash_map_filter_storage() {
-        let mut storage: HashMapFilterStorage<
-            usize,
-            PureDPBudgetFilter,
-            PureDPBudget,
-        > = HashMapFilterStorage::new();
-        storage.new_filter(1, PureDPBudget::Epsilon(1.0)).unwrap();
+    fn test_hash_map_filter_storage() -> Result<(), anyhow::Error> {
         assert_eq!(
             storage
                 .check_and_consume(&1, &PureDPBudget::Epsilon(0.5))
@@ -102,5 +96,7 @@ mod tests {
         assert!(storage
             .check_and_consume(&3, &PureDPBudget::Epsilon(0.2))
             .is_err());
+
+        Ok(())
     }
 }

@@ -7,13 +7,14 @@ use crate::{
         traits::{FilterStatus, FilterStorage},
     },
     events::traits::{
-        EpochEvents, EpochId, Event, EventStorage, RelevantEventSelector, Uri,
+        EpochEvents, EpochId, Event, EventStorage, RelevantEventSelector,
     },
     mechanisms::{NoiseScale, NormType},
     queries::traits::{
         EpochReportRequest, PassivePrivacyLossRequest, ReportRequest,
         ReportRequestUris,
     },
+    util::shared_types::Uri,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

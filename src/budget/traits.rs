@@ -1,6 +1,5 @@
 use crate::{
-    events::traits::{EpochId, Uri},
-    pds::epoch_pds::FilterId,
+    events::traits::EpochId, pds::epoch_pds::FilterId, util::shared_types::Uri,
 };
 
 /// Trait for privacy budgets

@@ -1,8 +1,9 @@
 use std::{collections::HashMap, fmt::Debug};
 
 use crate::{
-    events::traits::{EpochEvents, EpochId, Uri},
+    events::traits::{EpochEvents, EpochId},
     mechanisms::{NoiseScale, NormType},
+    util::shared_types::Uri,
 };
 
 #[derive(Debug, Clone)]
@@ -15,17 +16,6 @@ pub struct ReportRequestUris<U: Uri> {
 
     /// Queriers that will receive a report
     pub querier_uris: Vec<U>,
-}
-
-impl ReportRequestUris<String> {
-    /// Sample URIs for testing.
-    pub fn mock() -> Self {
-        Self {
-            trigger_uri: "shoes.com".to_string(),
-            source_uris: vec!["blog.com".to_string()],
-            querier_uris: vec!["adtech.com".to_string()],
-        }
-    }
 }
 
 /// Trait for report types returned by a device (in plaintext). Must implement a

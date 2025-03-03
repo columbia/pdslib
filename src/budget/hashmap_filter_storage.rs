@@ -20,17 +20,6 @@ pub struct StaticCapacities<B> {
     pub qtrigger_capacity: B,
 }
 
-impl StaticCapacities<PureDPBudget> {
-    /// Sample capacitiy values for testing.
-    pub fn mock() -> Self {
-        Self {
-            nc_capacity: PureDPBudget::Epsilon(1.0),
-            c_capacity: PureDPBudget::Epsilon(20.0),
-            qtrigger_capacity: PureDPBudget::Epsilon(1.5),
-        }
-    }
-}
-
 impl<B: Budget> FilterCapacities for StaticCapacities<B> {
     type Budget = B;
     type Error = anyhow::Error;

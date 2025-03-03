@@ -43,7 +43,7 @@ pub trait FilterCapacities {
 
     fn nc_capacity(&self) -> Result<Self::Budget, Self::Error>;
     fn c_capacity(&self) -> Result<Self::Budget, Self::Error>;
-    fn qconv_capacity(&self) -> Result<Self::Budget, Self::Error>;
+    fn qtrigger_capacity(&self) -> Result<Self::Budget, Self::Error>;
 }
 
 /// Trait for an interface or object that maintains a collection of filters.

@@ -26,7 +26,7 @@ pub enum FilterId<
     /// Collusion filter (tracks overall privacy loss)
     C(E),
     /// Quota filter regulating c-filter consumption per trigger_uri
-    QConv(E, U /* trigger URI */),
+    QTrigger(E, U /* trigger URI */),
     // TODO q-imp
 }
 
@@ -216,7 +216,7 @@ where
         for query_uri in uris.querier_uris {
             filters_to_consume.push(Nc(epoch_id.clone(), query_uri));
         }
-        filters_to_consume.push(QConv(epoch_id.clone(), uris.trigger_uri));
+        filters_to_consume.push(QTrigger(epoch_id.clone(), uris.trigger_uri));
         filters_to_consume.push(C(epoch_id.clone()));
         // TODO q-imp
 
@@ -353,7 +353,7 @@ mod tests {
             let expected_budgets = vec![
                 (FilterId::Nc(epoch_id, uris.querier_uris[0].clone()), 0.5),
                 (FilterId::C(epoch_id), 19.5),
-                (FilterId::QConv(epoch_id, uris.trigger_uri.clone()), 0.5),
+                (FilterId::QTrigger(epoch_id, uris.trigger_uri.clone()), 0.5),
             ];
 
             assert_remaining_budgets(&pds.filter_storage, &expected_budgets)?;
@@ -383,7 +383,7 @@ mod tests {
             let expected_budgets = vec![
                 (Nc(epoch_id, uris.querier_uris[0].clone()), 0.5),
                 (C(epoch_id), 19.5),
-                (QConv(epoch_id, uris.trigger_uri.clone()), 0.5),
+                (QTrigger(epoch_id, uris.trigger_uri.clone()), 0.5),
             ];
 
             assert_remaining_budgets(&pds.filter_storage, &expected_budgets)?;

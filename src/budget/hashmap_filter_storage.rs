@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    marker::PhantomData,
-};
+use std::{collections::HashMap, marker::PhantomData};
 
 use anyhow::Context;
 
@@ -20,7 +17,7 @@ type HashMapFilterId = FilterId<usize, String>;
 pub struct StaticCapacities<B> {
     pub nc_capacity: B,
     pub c_capacity: B,
-    pub qconv_capacity: B,
+    pub qtrigger_capacity: B,
 }
 
 impl StaticCapacities<PureDPBudget> {
@@ -29,7 +26,7 @@ impl StaticCapacities<PureDPBudget> {
         Self {
             nc_capacity: PureDPBudget::Epsilon(1.0),
             c_capacity: PureDPBudget::Epsilon(20.0),
-            qconv_capacity: PureDPBudget::Epsilon(1.0),
+            qtrigger_capacity: PureDPBudget::Epsilon(1.0),
         }
     }
 }
@@ -46,8 +43,8 @@ impl<B: Budget> FilterCapacities for StaticCapacities<B> {
         Ok(self.c_capacity.clone())
     }
 
-    fn qconv_capacity(&self) -> Result<Self::Budget, Self::Error> {
-        Ok(self.qconv_capacity.clone())
+    fn qtrigger_capacity(&self) -> Result<Self::Budget, Self::Error> {
+        Ok(self.qtrigger_capacity.clone())
     }
 }
 
@@ -58,7 +55,7 @@ pub struct HashMapFilterStorage<C, F, Budget> {
     capacities: C,
     nc: HashMap<HashMapFilterId, F>,
     c: HashMap<HashMapFilterId, F>,
-    qconv: HashMap<HashMapFilterId, F>,
+    qtrigger: HashMap<HashMapFilterId, F>,
     _marker: PhantomData<Budget>,
 }
 
@@ -82,7 +79,7 @@ where
             capacities,
             nc: HashMap::new(),
             c: HashMap::new(),
-            qconv: HashMap::new(),
+            qtrigger: HashMap::new(),
             _marker: PhantomData,
         };
         Ok(this)
@@ -94,15 +91,15 @@ where
     ) -> Result<(), Self::Error> {
         let nc_capacity = self.capacities.nc_capacity()?;
         let c_capacity = self.capacities.c_capacity()?;
-        let qconv_capacity = self.capacities.qconv_capacity()?;
+        let qtrigger_capacity = self.capacities.qtrigger_capacity()?;
 
         let nc_filter = F::new(nc_capacity)?;
         let c_filter = F::new(c_capacity)?;
-        let qconv_filter = F::new(qconv_capacity)?;
+        let qtrigger_filter = F::new(qtrigger_capacity)?;
 
         self.nc.insert(filter_id.clone(), nc_filter);
         self.c.insert(filter_id.clone(), c_filter);
-        self.qconv.insert(filter_id, qconv_filter);
+        self.qtrigger.insert(filter_id, qtrigger_filter);
 
         Ok(())
     }
@@ -134,7 +131,6 @@ where
         let filter = self
             .get_filter(filter_id)
             .context("Filter for epoch not initialized")?;
-        // Return 0 if filter not initialized?
 
         filter.remaining_budget()
     }
@@ -150,7 +146,7 @@ where
         let map = match &filter_id {
             FilterId::Nc(..) => &self.nc,
             FilterId::C(..) => &self.c,
-            FilterId::QConv(..) => &self.qconv,
+            FilterId::QTrigger(..) => &self.qtrigger,
         };
         map.get(filter_id)
     }
@@ -162,7 +158,7 @@ where
         let map = match &filter_id {
             FilterId::Nc(..) => &mut self.nc,
             FilterId::C(..) => &mut self.c,
-            FilterId::QConv(..) => &mut self.qconv,
+            FilterId::QTrigger(..) => &mut self.qtrigger,
         };
         map.get_mut(filter_id)
     }
@@ -175,11 +171,7 @@ mod tests {
 
     #[test]
     fn test_hash_map_filter_storage() -> Result<(), anyhow::Error> {
-        let capacities = StaticCapacities {
-            nc_capacity: PureDPBudget::Epsilon(1.0),
-            c_capacity: PureDPBudget::Epsilon(20.0),
-            qconv_capacity: PureDPBudget::Epsilon(1.0),
-        };
+        let capacities = StaticCapacities::mock();
         let mut storage: HashMapFilterStorage<_, PureDPBudgetFilter, _> =
             HashMapFilterStorage::new(capacities)?;
 

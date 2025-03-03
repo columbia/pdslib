@@ -41,6 +41,7 @@ pub trait HistogramRequest: Debug {
     type Event: Event;
     type BucketKey: BucketKey;
     type RelevantEventSelector: RelevantEventSelector<Event = Self::Event>;
+    type PpaLogic;
 
     /// Returns the ids of the epochs that are relevant for this query.
     /// Typically a range of epochs.
@@ -65,6 +66,9 @@ pub trait HistogramRequest: Debug {
     /// retrieve relevant events. The selector can also output a boolean
     /// indicating whether a single event is relevant.
     fn relevant_event_selector(&self) -> Self::RelevantEventSelector;
+
+    /// Returns the logic for attributing events to the query.
+    fn attribution_logic(&self) -> Self::PpaLogic;
 
     /// Returns the histogram bucket key (bin) for a given event.
     fn bucket_key(&self, event: &Self::Event) -> Self::BucketKey;

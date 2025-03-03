@@ -11,7 +11,7 @@ use pdslib::{
     },
     pds::epoch_pds::EpochPrivateDataService,
     queries::{
-        ppa_histogram::{PpaHistogramRequest, AraRelevantEventSelector},
+        ppa_histogram::{PpaHistogramRequest, AraRelevantEventSelector, PpaLogic},
         traits::ReportRequestUris,
     },
 };
@@ -69,6 +69,7 @@ fn main() {
         AraRelevantEventSelector {
             filters: HashMap::new(),
         }, // Not filtering yet.
+        PpaLogic::LastTouch,
         sample_report_uris.clone(),
     ).unwrap();
 
@@ -93,6 +94,7 @@ fn main() {
         AraRelevantEventSelector {
             filters: HashMap::new(),
         }, // Not filtering yet.
+        PpaLogic::LastTouch,
         sample_report_uris.clone(),
     );
     assert!(request1.is_err());

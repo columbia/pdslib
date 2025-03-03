@@ -17,6 +17,11 @@ pub struct AraRelevantEventSelector {
     // source_key: String,
 }
 
+#[derive(Debug, Clone)]
+pub enum PpaLogic {
+    LastTouch,
+}
+
 /// Select events using ARA-style filters.
 /// See https://github.com/WICG/attribution-reporting-api/blob/main/EVENT.md#optional-attribution-filters
 impl RelevantEventSelector for AraRelevantEventSelector {
@@ -47,6 +52,7 @@ pub struct PpaHistogramRequest {
     source_key: String,
     trigger_keypiece: usize,
     filters: AraRelevantEventSelector,
+    logic: PpaLogic,
     uris: ReportRequestUris<String>,
 }
 
@@ -66,6 +72,7 @@ impl PpaHistogramRequest {
         source_key: String,
         trigger_keypiece: usize,
         filters: AraRelevantEventSelector,
+        logic: PpaLogic,
         uris: ReportRequestUris<String>,
     ) -> Result<Self, &'static str> {
         if requested_epsilon <= 0.0 {
@@ -86,6 +93,7 @@ impl PpaHistogramRequest {
             source_key,
             trigger_keypiece,
             filters,
+            logic,
             uris,
         })
     }
@@ -99,6 +107,7 @@ impl HistogramRequest for PpaHistogramRequest {
     type Event = PpaEvent;
     type BucketKey = usize;
     type RelevantEventSelector = AraRelevantEventSelector;
+    type PpaLogic = PpaLogic;
 
     fn epochs_ids(&self) -> Vec<Self::EpochId> {
         (self.start_epoch..=self.end_epoch).rev().collect()
@@ -122,6 +131,10 @@ impl HistogramRequest for PpaHistogramRequest {
 
     fn relevant_event_selector(&self) -> Self::RelevantEventSelector {
         self.filters.clone()
+    }
+
+    fn attribution_logic(&self) -> Self::PpaLogic {
+        self.logic.clone()
     }
 
     fn bucket_key(&self, event: &PpaEvent) -> Self::BucketKey {

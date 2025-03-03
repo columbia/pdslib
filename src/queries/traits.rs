@@ -17,6 +17,17 @@ pub struct ReportRequestUris<U: Uri> {
     pub querier_uris: Vec<U>,
 }
 
+impl ReportRequestUris<String> {
+    /// Sample URIs for testing.
+    pub fn mock() -> Self {
+        Self {
+            trigger_uri: "shoes.com".to_string(),
+            source_uris: vec!["blog.com".to_string()],
+            querier_uris: vec!["adtech.com".to_string()],
+        }
+    }
+}
+
 /// Trait for report types returned by a device (in plaintext). Must implement a
 /// default variant for null reports, so devices with errors or no budget
 /// left are still sending something (and are thus indistinguishable from other

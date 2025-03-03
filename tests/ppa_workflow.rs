@@ -37,16 +37,8 @@ fn main() -> Result<(), anyhow::Error> {
         _phantom_error: std::marker::PhantomData::<anyhow::Error>,
     };
 
-    let sample_event_uris = EventUris {
-        source_uri: "blog.com".to_string(),
-        trigger_uris: vec!["shoes.com".to_string()],
-        querier_uris: vec!["shoes.com".to_string(), "adtech.com".to_string()],
-    };
-    let sample_report_uris = ReportRequestUris {
-        trigger_uri: "shoes.com".to_string(),
-        source_uris: vec!["blog.com".to_string()],
-        querier_uris: vec!["adtech.com".to_string()],
-    };
+    let sample_event_uris = EventUris::mock();
+    let sample_report_uris = ReportRequestUris::mock();
 
     // Create an impression (event, with very basic metadata).
     let event = SimpleEvent {

@@ -35,14 +35,7 @@ mod tests {
             id: 1,
             epoch_number: 1,
             event_key: 3,
-            uris: EventUris {
-                source_uri: "blog.com".to_string(),
-                trigger_uris: vec!["shoes.com".to_string()],
-                querier_uris: vec![
-                    "shoes.com".to_string(),
-                    "adtech.com".to_string(),
-                ],
-            },
+            uris: EventUris::mock(),
         };
         assert_eq!(event.id, 1);
     }

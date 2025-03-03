@@ -20,8 +20,8 @@ pub struct EventUris<U: Uri> {
     pub querier_uris: Vec<U>,
 }
 
-#[cfg(test)]
 impl EventUris<String> {
+    /// Sample URIs for testing.
     pub fn mock() -> Self {
         Self {
             source_uri: "blog.com".to_string(),

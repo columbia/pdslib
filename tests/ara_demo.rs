@@ -11,7 +11,7 @@ use pdslib::{
     },
     pds::epoch_pds::EpochPrivateDataService,
     queries::{
-        ara_histogram::{AraHistogramRequest, AraRelevantEventSelector},
+        ppa_histogram::{PpaHistogramRequest, AraRelevantEventSelector},
         traits::ReportRequestUris,
     },
 };
@@ -27,7 +27,7 @@ fn main() {
         filter_storage: filters,
         event_storage: events,
         epoch_capacity: PureDPBudget::Epsilon(3.0),
-        _phantom_request: std::marker::PhantomData::<AraHistogramRequest>,
+        _phantom_request: std::marker::PhantomData::<PpaHistogramRequest>,
         _phantom_error: std::marker::PhantomData::<anyhow::Error>,
     };
 
@@ -57,7 +57,7 @@ fn main() {
     pds.register_event(event1.clone()).unwrap();
 
     // Test basic attribution
-    let request1 = AraHistogramRequest::new(
+    let request1 = PpaHistogramRequest::new(
         1,
         2,
         32768.0,
@@ -81,7 +81,7 @@ fn main() {
     assert_eq!(report1.bin_values.get(&0x559), Some(&32768.0));
 
     // Test error case when requested_epsilon is 0.
-    let request1 = AraHistogramRequest::new(
+    let request1 = PpaHistogramRequest::new(
         1,
         2,
         32768.0,

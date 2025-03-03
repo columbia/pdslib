@@ -35,7 +35,7 @@ impl RelevantEventSelector for AraRelevantEventSelector {
 ///
 /// TODO(https://github.com/columbia/pdslib/issues/8): what is "nonMatchingKeyIdsIgnored"?
 #[derive(Debug)]
-pub struct AraHistogramRequest {
+pub struct PpaHistogramRequest {
     start_epoch: usize,
     end_epoch: usize,
     per_event_attributable_value: f64, /* ARA can attribute to multiple
@@ -50,8 +50,8 @@ pub struct AraHistogramRequest {
     uris: ReportRequestUris<String>,
 }
 
-impl AraHistogramRequest {
-    /// Constructs a new `AraHistogramRequest`, validating that:
+impl PpaHistogramRequest {
+    /// Constructs a new `PpaHistogramRequest`, validating that:
     /// - `requested_epsilon` is > 0.
     /// - `per_event_attributable_value`, `report_global_sensitivity` and 
     ///   `query_global_sensitivity` are non-negative.
@@ -93,7 +93,7 @@ impl AraHistogramRequest {
 
 
 /// See https://github.com/WICG/attribution-reporting-api/blob/main/AGGREGATE.md#attribution-trigger-registration.
-impl HistogramRequest for AraHistogramRequest {
+impl HistogramRequest for PpaHistogramRequest {
     type EpochId = usize;
     type EpochEvents = VecEpochEvents<PpaEvent>;
     type Event = PpaEvent;

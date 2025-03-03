@@ -1,7 +1,8 @@
 use pdslib::{
     budget::{
-        hashmap_filter_storage::HashMapFilterStorage,
+        hashmap_filter_storage::{HashMapFilterStorage, StaticCapacities},
         pure_dp_filter::{PureDPBudget, PureDPBudgetFilter},
+        traits::FilterStorage,
     },
     events::{
         hashmap_event_storage::HashMapEventStorage, simple_event::SimpleEvent,
@@ -24,8 +25,9 @@ fn main() -> Result<(), anyhow::Error> {
 
     // Set up storage and Private Data Service.
     let events = HashMapEventStorage::new();
-    let filters: HashMapFilterStorage<usize, PureDPBudgetFilter, PureDPBudget> =
-        HashMapFilterStorage::new();
+    let capacities = StaticCapacities::mock();
+    let filters: HashMapFilterStorage<_, PureDPBudgetFilter, _> =
+        HashMapFilterStorage::new(capacities)?;
 
     let mut pds = EpochPrivateDataService {
         filter_storage: filters,

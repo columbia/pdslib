@@ -1,7 +1,8 @@
 use pdslib::{
     budget::{
-        hashmap_filter_storage::HashMapFilterStorage,
+        hashmap_filter_storage::{HashMapFilterStorage, StaticCapacities},
         pure_dp_filter::{PureDPBudget, PureDPBudgetFilter},
+        traits::FilterStorage,
     },
     events::{
         hashmap_event_storage::HashMapEventStorage, simple_event::SimpleEvent,
@@ -19,8 +20,14 @@ use pdslib::{
 fn main() -> Result<(), anyhow::Error> {
     logging::init_default_logging();
     let events = HashMapEventStorage::new();
-    let filters: HashMapFilterStorage<usize, PureDPBudgetFilter, PureDPBudget> =
-        HashMapFilterStorage::new();
+
+    let capacities = StaticCapacities {
+        nc_capacity: PureDPBudget::Epsilon(3.0),
+        c_capacity: PureDPBudget::Epsilon(20.0),
+        qconv_capacity: PureDPBudget::Epsilon(3.0),
+    };
+    let filters: HashMapFilterStorage<_, PureDPBudgetFilter, _> =
+        HashMapFilterStorage::new(capacities)?;
 
     let mut pds = EpochPrivateDataService {
         filter_storage: filters,
@@ -81,8 +88,8 @@ fn main() -> Result<(), anyhow::Error> {
         epoch_start: 1,
         epoch_end: 1, //test restricting the end epoch
         report_global_sensitivity: 0.1, /* Even 0.1 should be enough to go over the
-                       * limit as the current budget left for
-                       * epoch 1 is 0. */
+                                         * limit as the current budget left for
+                                         * epoch 1 is 0. */
         query_global_sensitivity: 5.0,
         requested_epsilon: 5.0,
         is_relevant_event: always_relevant_event,

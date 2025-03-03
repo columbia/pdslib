@@ -1,10 +1,10 @@
-use std::collections::HashMap;
 use log::info;
+use std::collections::HashMap;
 
 use pdslib::{
     budget::{
-        hashmap_filter_storage::HashMapFilterStorage,
-        pure_dp_filter::{PureDPBudget, PureDPBudgetFilter},
+        hashmap_filter_storage::{HashMapFilterStorage, StaticCapacities},
+        pure_dp_filter::{PureDPBudget, PureDPBudgetFilter}, traits::FilterStorage,
     },
     events::{
         ara_event::AraEvent, hashmap_event_storage::HashMapEventStorage,
@@ -19,12 +19,13 @@ use pdslib::{
 };
 
 #[test]
-    fn main() -> Result<(), anyhow::Error> {
+fn main() -> Result<(), anyhow::Error> {
     logging::init_default_logging();
     let events =
         HashMapEventStorage::<AraEvent, AraRelevantEventSelector>::new();
-    let filters: HashMapFilterStorage<usize, PureDPBudgetFilter, PureDPBudget> =
-        HashMapFilterStorage::new();
+    let capacities = StaticCapacities::mock();
+    let filters: HashMapFilterStorage<_, PureDPBudgetFilter, _> =
+        HashMapFilterStorage::new(capacities)?;
 
     let mut pds = EpochPrivateDataService {
         filter_storage: filters,
@@ -49,7 +50,7 @@ use pdslib::{
         uris: sample_event_uris.clone(),
     };
 
-        pds.register_event(event1.clone())?;
+    pds.register_event(event1.clone())?;
 
     // Test basic attribution
     let request1 = AraHistogramRequest::new(
@@ -65,10 +66,10 @@ use pdslib::{
             filters: HashMap::new(),
         }, // Not filtering yet.
         sample_report_uris.clone(),
-        )
-        .unwrap();
+    )
+    .unwrap();
 
-        let report1 = pds.compute_report(request1)?;
+    let report1 = pds.compute_report(request1)?;
     info!("Report1: {:?}", report1);
 
     // One event attributed to the binary OR of the source keypiece and trigger
@@ -83,7 +84,7 @@ use pdslib::{
         32768.0,
         65536.0,
         65536.0,
-            0.0, // This should fail.
+        0.0, // This should fail.
         "campaignCounts".to_string(),
         0x400,
         AraRelevantEventSelector {

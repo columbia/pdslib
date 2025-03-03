@@ -27,7 +27,7 @@ pub enum FilterId<
     C(E),
     /// Quota filter regulating c-filter consumption per trigger_uri
     QTrigger(E, U /* trigger URI */),
-    // TODO q-imp
+    // TODO(https://github.com/columbia/pdslib/issues/38) q-source
 }
 
 /// Epoch-based private data service, using generic filter
@@ -218,7 +218,7 @@ where
         }
         filters_to_consume.push(QTrigger(epoch_id.clone(), uris.trigger_uri));
         filters_to_consume.push(C(epoch_id.clone()));
-        // TODO q-imp
+        // TODO(https://github.com/columbia/pdslib/issues/38) q-source
 
         for filter_id in filters_to_consume {
             self.initialize_filter_if_necessary(filter_id.clone())?;
@@ -229,9 +229,10 @@ where
                 }
                 FilterStatus::OutOfBudget => {
                     // The budget is depleted, stop deducting from filters.
-                    // TODO: need to implement transaction rollbacks for
-                    // previous filter deductions.
                     return Ok(FilterStatus::OutOfBudget);
+                    // TODO(https://github.com/columbia/pdslib/issues/39)
+                    // need to implement transaction rollbacks for previous
+                    // filter deductions.
                 }
             }
         }

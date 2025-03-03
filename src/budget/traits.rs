@@ -1,6 +1,3 @@
-use crate::{
-    events::traits::EpochId, pds::epoch_pds::FilterId, util::shared_types::Uri,
-};
 
 /// Trait for privacy budgets
 pub trait Budget: Clone {
@@ -37,18 +34,19 @@ pub enum FilterStatus {
 }
 
 pub trait FilterCapacities {
+    type FilterId;
     type Budget: Budget;
     type Error;
 
-    fn nc_capacity(&self) -> Result<Self::Budget, Self::Error>;
-    fn c_capacity(&self) -> Result<Self::Budget, Self::Error>;
-    fn qtrigger_capacity(&self) -> Result<Self::Budget, Self::Error>;
+    fn capacity(
+        &self,
+        filter_id: &Self::FilterId,
+    ) -> Result<Self::Budget, Self::Error>;
 }
 
 /// Trait for an interface or object that maintains a collection of filters.
 pub trait FilterStorage {
-    type EpochId: EpochId;
-    type Uri: Uri;
+    type FilterId;
     type Budget: Budget;
     type Capacities: FilterCapacities<
         Budget = Self::Budget,
@@ -64,13 +62,13 @@ pub trait FilterStorage {
     /// Initializes a new filter with an associated filter ID and capacity.
     fn new_filter(
         &mut self,
-        filter_id: FilterId<Self::EpochId, Self::Uri>,
+        filter_id: Self::FilterId,
     ) -> Result<(), Self::Error>;
 
     /// Checks if filter `filter_id` is initialized.
     fn is_initialized(
         &mut self,
-        filter_id: &FilterId<Self::EpochId, Self::Uri>,
+        filter_id: &Self::FilterId,
     ) -> Result<bool, Self::Error>;
 
     /// Tries to consume a given budget from the filter with ID `filter_id`.
@@ -78,13 +76,13 @@ pub trait FilterStorage {
     /// decide to create a new filter.
     fn check_and_consume(
         &mut self,
-        filter_id: &FilterId<Self::EpochId, Self::Uri>,
+        filter_id: &Self::FilterId,
         budget: &Self::Budget,
     ) -> Result<FilterStatus, Self::Error>;
 
     /// Gets the remaining budget for a filter.
     fn remaining_budget(
         &self,
-        filter_id: &FilterId<Self::EpochId, Self::Uri>,
+        filter_id: &Self::FilterId,
     ) -> Result<Self::Budget, Self::Error>;
 }

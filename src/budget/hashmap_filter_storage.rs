@@ -2,60 +2,27 @@ use std::{collections::HashMap, marker::PhantomData};
 
 use anyhow::Context;
 
-use crate::{
-    budget::{
-        pure_dp_filter::PureDPBudget,
-        traits::{
-            Budget, Filter, FilterCapacities, FilterStatus, FilterStorage,
-        },
-    },
-    pds::epoch_pds::FilterId,
+use crate::budget::traits::{
+    Budget, Filter, FilterCapacities, FilterStatus, FilterStorage,
 };
-
-type HashMapFilterId = FilterId<usize, String>;
-
-pub struct StaticCapacities<B> {
-    pub nc_capacity: B,
-    pub c_capacity: B,
-    pub qtrigger_capacity: B,
-}
-
-impl<B: Budget> FilterCapacities for StaticCapacities<B> {
-    type Budget = B;
-    type Error = anyhow::Error;
-
-    fn nc_capacity(&self) -> Result<Self::Budget, Self::Error> {
-        Ok(self.nc_capacity.clone())
-    }
-
-    fn c_capacity(&self) -> Result<Self::Budget, Self::Error> {
-        Ok(self.c_capacity.clone())
-    }
-
-    fn qtrigger_capacity(&self) -> Result<Self::Budget, Self::Error> {
-        Ok(self.qtrigger_capacity.clone())
-    }
-}
 
 /// Simple implementation of FilterStorage using a HashMap.
 /// Works for any Filter that implements the Filter trait.
 #[derive(Debug, Default)]
-pub struct HashMapFilterStorage<C, F, Budget> {
+pub struct HashMapFilterStorage<FID, F, B, C> {
     capacities: C,
-    nc: HashMap<HashMapFilterId, F>,
-    c: HashMap<HashMapFilterId, F>,
-    qtrigger: HashMap<HashMapFilterId, F>,
-    _marker: PhantomData<Budget>,
+    filters: HashMap<FID, F>,
+    _marker: PhantomData<B>,
 }
 
-impl<C, F, B> FilterStorage for HashMapFilterStorage<C, F, B>
+impl<FID, F, B, C> FilterStorage for HashMapFilterStorage<FID, F, B, C>
 where
-    B: Budget,
-    C: FilterCapacities<Budget = B, Error = anyhow::Error>,
+    FID: Clone + Eq + std::hash::Hash,
     F: Filter<B, Error = anyhow::Error>,
+    B: Budget,
+    C: FilterCapacities<FilterId = FID, Budget = B, Error = anyhow::Error>,
 {
-    type EpochId = usize;
-    type Uri = String;
+    type FilterId = FID;
     type Budget = B;
     type Capacities = C;
     type Error = anyhow::Error;
@@ -66,9 +33,7 @@ where
     {
         let this = Self {
             capacities,
-            nc: HashMap::new(),
-            c: HashMap::new(),
-            qtrigger: HashMap::new(),
+            filters: HashMap::new(),
             _marker: PhantomData,
         };
         Ok(this)
@@ -76,38 +41,28 @@ where
 
     fn new_filter(
         &mut self,
-        filter_id: HashMapFilterId,
+        filter_id: Self::FilterId,
     ) -> Result<(), Self::Error> {
-        let nc_capacity = self.capacities.nc_capacity()?;
-        let c_capacity = self.capacities.c_capacity()?;
-        let qtrigger_capacity = self.capacities.qtrigger_capacity()?;
-
-        let nc_filter = F::new(nc_capacity)?;
-        let c_filter = F::new(c_capacity)?;
-        let qtrigger_filter = F::new(qtrigger_capacity)?;
-
-        self.nc.insert(filter_id.clone(), nc_filter);
-        self.c.insert(filter_id.clone(), c_filter);
-        self.qtrigger.insert(filter_id, qtrigger_filter);
+        let capacity = self.capacities.capacity(&filter_id)?;
+        let filter = F::new(capacity)?;
+        self.filters.insert(filter_id, filter);
 
         Ok(())
     }
 
-    fn is_initialized(
-        &mut self,
-        filter_id: &HashMapFilterId,
-    ) -> Result<bool, Self::Error> {
-        let entry = self.get_filter_mut(filter_id);
+    fn is_initialized(&mut self, filter_id: &FID) -> Result<bool, Self::Error> {
+        let entry = self.filters.get_mut(filter_id);
         Ok(entry.is_some())
     }
 
     fn check_and_consume(
         &mut self,
-        filter_id: &HashMapFilterId,
+        filter_id: &FID,
         budget: &B,
     ) -> Result<FilterStatus, Self::Error> {
         let filter = self
-            .get_filter_mut(filter_id)
+            .filters
+            .get_mut(filter_id)
             .context("Filter for epoch not initialized")?;
 
         filter.check_and_consume(budget)
@@ -115,56 +70,32 @@ where
 
     fn remaining_budget(
         &self,
-        filter_id: &HashMapFilterId,
+        filter_id: &FID,
     ) -> Result<Self::Budget, Self::Error> {
         let filter = self
-            .get_filter(filter_id)
+            .filters
+            .get(filter_id)
             .context("Filter for epoch not initialized")?;
 
         filter.remaining_budget()
     }
 }
 
-impl<C, F, B> HashMapFilterStorage<C, F, B>
-where
-    B: Budget,
-    C: FilterCapacities<Budget = B, Error = anyhow::Error>,
-    F: Filter<B, Error = anyhow::Error>,
-{
-    fn get_filter(&self, filter_id: &HashMapFilterId) -> Option<&F> {
-        let map = match &filter_id {
-            FilterId::Nc(..) => &self.nc,
-            FilterId::C(..) => &self.c,
-            FilterId::QTrigger(..) => &self.qtrigger,
-        };
-        map.get(filter_id)
-    }
-
-    fn get_filter_mut(
-        &mut self,
-        filter_id: &HashMapFilterId,
-    ) -> Option<&mut F> {
-        let map = match &filter_id {
-            FilterId::Nc(..) => &mut self.nc,
-            FilterId::C(..) => &mut self.c,
-            FilterId::QTrigger(..) => &mut self.qtrigger,
-        };
-        map.get_mut(filter_id)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::budget::pure_dp_filter::{PureDPBudget, PureDPBudgetFilter};
+    use crate::{
+        budget::pure_dp_filter::{PureDPBudget, PureDPBudgetFilter},
+        pds::epoch_pds::{FilterId, StaticCapacities},
+    };
 
     #[test]
     fn test_hash_map_filter_storage() -> Result<(), anyhow::Error> {
         let capacities = StaticCapacities::mock();
-        let mut storage: HashMapFilterStorage<_, PureDPBudgetFilter, _> =
+        let mut storage: HashMapFilterStorage<_, PureDPBudgetFilter, _, _> =
             HashMapFilterStorage::new(capacities)?;
 
-        let fid = FilterId::C(1);
+        let fid: FilterId<_, String> = FilterId::C(1);
         storage.new_filter(fid.clone())?;
         assert_eq!(
             storage.check_and_consume(&fid, &PureDPBudget::Epsilon(10.0))?,

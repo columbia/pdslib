@@ -1,6 +1,6 @@
 use pdslib::{
     budget::{
-        hashmap_filter_storage::{HashMapFilterStorage, StaticCapacities},
+        hashmap_filter_storage::HashMapFilterStorage,
         pure_dp_filter::{PureDPBudget, PureDPBudgetFilter},
         traits::FilterStorage,
     },
@@ -8,7 +8,7 @@ use pdslib::{
         hashmap_event_storage::HashMapEventStorage, simple_event::SimpleEvent,
         traits::EventUris,
     },
-    pds::epoch_pds::EpochPrivateDataService,
+    pds::epoch_pds::{EpochPrivateDataService, StaticCapacities},
     queries::{
         simple_last_touch_histogram::SimpleLastTouchHistogramRequest,
         traits::ReportRequestUris,
@@ -26,7 +26,7 @@ fn main() -> Result<(), anyhow::Error> {
     // Set up storage and Private Data Service.
     let events = HashMapEventStorage::new();
     let capacities = StaticCapacities::mock();
-    let filters: HashMapFilterStorage<_, PureDPBudgetFilter, _> =
+    let filters: HashMapFilterStorage<_, PureDPBudgetFilter, _, _> =
         HashMapFilterStorage::new(capacities)?;
 
     let mut pds = EpochPrivateDataService {

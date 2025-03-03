@@ -1,21 +1,18 @@
 use crate::{
-    budget::{
-        hashmap_filter_storage::StaticCapacities, pure_dp_filter::PureDPBudget,
-    },
-    events::traits::EventUris,
-    queries::traits::ReportRequestUris,
+    budget::pure_dp_filter::PureDPBudget, events::traits::EventUris,
+    pds::epoch_pds::StaticCapacities, queries::traits::ReportRequestUris,
 };
 
 // Sample mock values to reduce boilerplate in tests.
 
-impl StaticCapacities<PureDPBudget> {
+impl<FID> StaticCapacities<FID, PureDPBudget> {
     /// Sample capacitiy values for testing.
     pub fn mock() -> Self {
-        Self {
-            nc_capacity: PureDPBudget::Epsilon(1.0),
-            c_capacity: PureDPBudget::Epsilon(20.0),
-            qtrigger_capacity: PureDPBudget::Epsilon(1.5),
-        }
+        Self::new(
+            PureDPBudget::Epsilon(1.0),
+            PureDPBudget::Epsilon(20.0),
+            PureDPBudget::Epsilon(1.5),
+        )
     }
 }
 

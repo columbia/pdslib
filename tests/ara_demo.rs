@@ -3,14 +3,15 @@ use std::collections::HashMap;
 
 use pdslib::{
     budget::{
-        hashmap_filter_storage::{HashMapFilterStorage, StaticCapacities},
-        pure_dp_filter::{PureDPBudget, PureDPBudgetFilter}, traits::FilterStorage,
+        hashmap_filter_storage::HashMapFilterStorage,
+        pure_dp_filter::{PureDPBudget, PureDPBudgetFilter},
+        traits::FilterStorage,
     },
     events::{
         ara_event::AraEvent, hashmap_event_storage::HashMapEventStorage,
         traits::EventUris,
     },
-    pds::epoch_pds::EpochPrivateDataService,
+    pds::epoch_pds::{EpochPrivateDataService, StaticCapacities},
     queries::{
         ara_histogram::{AraHistogramRequest, AraRelevantEventSelector},
         traits::ReportRequestUris,
@@ -24,7 +25,7 @@ fn main() -> Result<(), anyhow::Error> {
     let events =
         HashMapEventStorage::<AraEvent, AraRelevantEventSelector>::new();
     let capacities = StaticCapacities::mock();
-    let filters: HashMapFilterStorage<_, PureDPBudgetFilter, _> =
+    let filters: HashMapFilterStorage<_, PureDPBudgetFilter, _, _> =
         HashMapFilterStorage::new(capacities)?;
 
     let mut pds = EpochPrivateDataService {

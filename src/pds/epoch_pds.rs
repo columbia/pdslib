@@ -1,10 +1,11 @@
 use log::info;
 use std::collections::HashMap;
+use std::fmt::Debug;
 
 use crate::{
     budget::{
         pure_dp_filter::PureDPBudget,
-        traits::{FilterStatus, FilterStorage},
+        traits::{Budget, FilterCapacities, FilterStatus, FilterStorage},
     },
     events::traits::{
         EpochEvents, EpochId, Event, EventStorage, RelevantEventSelector,
@@ -29,6 +30,42 @@ pub enum FilterId<
     /// Quota filter regulating c-filter consumption per trigger_uri
     QTrigger(E, U /* trigger URI */),
     // TODO(https://github.com/columbia/pdslib/issues/38) q-source
+}
+
+/// Struct containing the default capacity for each type of filter.
+pub struct StaticCapacities<FID, B> {
+    pub nc: B,
+    pub c: B,
+    pub qtrigger: B,
+    _phantom: std::marker::PhantomData<FID>,
+}
+
+impl<FID, B> StaticCapacities<FID, B> {
+    pub fn new(nc: B, c: B, qtrigger: B) -> Self {
+        Self {
+            nc,
+            c,
+            qtrigger,
+            _phantom: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<B: Budget, E, U> FilterCapacities for StaticCapacities<FilterId<E, U>, B> {
+    type FilterId = FilterId<E, U>;
+    type Budget = B;
+    type Error = anyhow::Error;
+
+    fn capacity(
+        &self,
+        filter_id: &Self::FilterId,
+    ) -> Result<Self::Budget, Self::Error> {
+        match filter_id {
+            FilterId::Nc(..) => Ok(self.nc.clone()),
+            FilterId::C(..) => Ok(self.c.clone()),
+            FilterId::QTrigger(..) => Ok(self.qtrigger.clone()),
+        }
+    }
 }
 
 /// Epoch-based private data service, using generic filter
@@ -69,7 +106,7 @@ where
     EI: EpochId,
     E: Event<EpochId = EI>,
     EE: EpochEvents,
-    FS: FilterStorage<Uri = U, EpochId = EI, Budget = PureDPBudget>,
+    FS: FilterStorage<Budget = PureDPBudget, FilterId = FilterId<EI, U>>,
     RES: RelevantEventSelector<Event = E>,
     ES: EventStorage<Event = E, EpochEvents = EE, RelevantEventSelector = RES>,
     Q: EpochReportRequest<
@@ -301,7 +338,7 @@ mod tests {
     use super::*;
     use crate::{
         budget::{
-            hashmap_filter_storage::{HashMapFilterStorage, StaticCapacities},
+            hashmap_filter_storage::HashMapFilterStorage,
             pure_dp_filter::{PureDPBudget, PureDPBudgetFilter},
         },
         events::hashmap_event_storage::HashMapEventStorage,
@@ -313,9 +350,11 @@ mod tests {
 
     #[test]
     fn test_account_for_passive_privacy_loss() -> Result<(), anyhow::Error> {
-        let capacities: StaticCapacities<PureDPBudget> =
-            StaticCapacities::mock();
-        let filters: HashMapFilterStorage<_, PureDPBudgetFilter, _> =
+        let capacities: StaticCapacities<
+            FilterId<usize, String>,
+            PureDPBudget,
+        > = StaticCapacities::mock();
+        let filters: HashMapFilterStorage<_, PureDPBudgetFilter, _, _> =
             HashMapFilterStorage::new(capacities)?;
         let events = HashMapEventStorage::new();
 
@@ -355,7 +394,7 @@ mod tests {
             let expected_budgets = vec![
                 (FilterId::Nc(epoch_id, uris.querier_uris[0].clone()), 0.5),
                 (FilterId::C(epoch_id), 19.5),
-                (FilterId::QTrigger(epoch_id, uris.trigger_uri.clone()), 0.5),
+                (FilterId::QTrigger(epoch_id, uris.trigger_uri.clone()), 1.0),
             ];
 
             assert_remaining_budgets(&pds.filter_storage, &expected_budgets)?;
@@ -385,7 +424,7 @@ mod tests {
             let expected_budgets = vec![
                 (Nc(epoch_id, uris.querier_uris[0].clone()), 0.5),
                 (C(epoch_id), 19.5),
-                (QTrigger(epoch_id, uris.trigger_uri.clone()), 0.5),
+                (QTrigger(epoch_id, uris.trigger_uri.clone()), 1.0),
             ];
 
             assert_remaining_budgets(&pds.filter_storage, &expected_budgets)?;
@@ -401,13 +440,13 @@ mod tests {
     }
 
     #[track_caller]
-    #[allow(clippy::type_complexity)]
-    fn assert_remaining_budgets<
-        FS: FilterStorage<Budget = PureDPBudget, Uri = String>,
-    >(
+    fn assert_remaining_budgets<FS: FilterStorage<Budget = PureDPBudget>>(
         filter_storage: &FS,
-        expected_budgets: &[(FilterId<FS::EpochId, FS::Uri>, f64)],
-    ) -> Result<(), FS::Error> {
+        expected_budgets: &[(FS::FilterId, f64)],
+    ) -> Result<(), FS::Error>
+    where
+        FS::FilterId: Debug,
+    {
         for (filter_id, expected_budget) in expected_budgets {
             let remaining = filter_storage.remaining_budget(filter_id)?;
             assert_eq!(

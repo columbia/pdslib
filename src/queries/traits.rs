@@ -1,8 +1,9 @@
 use std::{collections::HashMap, fmt::Debug};
 
 use crate::{
-    events::traits::{EpochEvents, EpochId, Uri},
+    events::traits::{EpochEvents, EpochId},
     mechanisms::{NoiseScale, NormType},
+    util::shared_types::Uri,
 };
 
 #[derive(Debug, Clone)]
@@ -72,7 +73,8 @@ pub trait EpochReportRequest: ReportRequest {
 
 /// Type for passive privacy loss accounting. Uniform over all epochs for now.
 #[derive(Debug)]
-pub struct PassivePrivacyLossRequest<EI: EpochId, PrivacyBudget> {
+pub struct PassivePrivacyLossRequest<EI: EpochId, U: Uri, PrivacyBudget> {
     pub epoch_ids: Vec<EI>,
     pub privacy_budget: PrivacyBudget,
+    pub uris: ReportRequestUris<U>,
 }

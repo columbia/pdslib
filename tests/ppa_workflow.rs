@@ -2,12 +2,13 @@ use pdslib::{
     budget::{
         hashmap_filter_storage::HashMapFilterStorage,
         pure_dp_filter::{PureDPBudget, PureDPBudgetFilter},
+        traits::FilterStorage,
     },
     events::{
         hashmap_event_storage::HashMapEventStorage, simple_event::SimpleEvent,
         traits::EventUris,
     },
-    pds::epoch_pds::EpochPrivateDataService,
+    pds::epoch_pds::{EpochPrivateDataService, StaticCapacities},
     queries::{
         simple_last_touch_histogram::SimpleLastTouchHistogramRequest,
         traits::ReportRequestUris,
@@ -16,7 +17,7 @@ use pdslib::{
 };
 
 #[test]
-fn main() {
+fn main() -> Result<(), anyhow::Error> {
     logging::init_default_logging();
     // This demo represents what happens on a single device and
     // for managing the budget of a single querier
@@ -24,8 +25,9 @@ fn main() {
 
     // Set up storage and Private Data Service.
     let events = HashMapEventStorage::new();
-    let filters: HashMapFilterStorage<usize, PureDPBudgetFilter, PureDPBudget> =
-        HashMapFilterStorage::new();
+    let capacities = StaticCapacities::mock();
+    let filters: HashMapFilterStorage<_, PureDPBudgetFilter, _, _> =
+        HashMapFilterStorage::new(capacities)?;
 
     let mut pds = EpochPrivateDataService {
         filter_storage: filters,
@@ -37,16 +39,8 @@ fn main() {
         _phantom_error: std::marker::PhantomData::<anyhow::Error>,
     };
 
-    let sample_event_uris = EventUris {
-        source_uri: "blog.com".to_string(),
-        trigger_uris: vec!["shoes.com".to_string()],
-        querier_uris: vec!["shoes.com".to_string(), "adtech.com".to_string()],
-    };
-    let sample_report_uris = ReportRequestUris {
-        trigger_uri: "shoes.com".to_string(),
-        source_uris: vec!["blog.com".to_string()],
-        querier_uris: vec!["adtech.com".to_string()],
-    };
+    let sample_event_uris = EventUris::mock();
+    let sample_report_uris = ReportRequestUris::mock();
 
     // Create an impression (event, with very basic metadata).
     let event = SimpleEvent {
@@ -57,7 +51,7 @@ fn main() {
     };
 
     // Save impression.
-    pds.register_event(event.clone()).unwrap();
+    pds.register_event(event.clone())?;
 
     // Next, a conversion happens and the querier prepares request parameters.
 
@@ -88,8 +82,9 @@ fn main() {
     };
 
     // Measure conversion.
-    let report = pds.compute_report(report_request).unwrap();
+    let report = pds.compute_report(report_request)?;
 
     // Look at the histogram stored in the report (unencrypted here).
     assert_eq!(report.bin_value, Some((event.event_key, 70.0)));
+    Ok(())
 }

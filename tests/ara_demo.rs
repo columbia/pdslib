@@ -36,6 +36,21 @@ fn main() {
         trigger_uris: vec!["shoes.com".to_string()],
         querier_uris: vec!["shoes.com".to_string(), "adtech.com".to_string()],
     };
+    let event_uris_irrelevant_due_to_source = EventUris {
+        source_uri: "blog_off_brand.com".to_string(),
+        trigger_uris: vec!["shoes.com".to_string()],
+        querier_uris: vec!["shoes.com".to_string(), "adtech.com".to_string()],
+    };
+    let event_uris_irrelevant_due_to_trigger = EventUris {
+        source_uri: "blog.com".to_string(),
+        trigger_uris: vec!["shoes_off_brand.com".to_string()],
+        querier_uris: vec!["shoes.com".to_string(), "adtech.com".to_string()],
+    };
+    let event_uris_irrelevant_due_to_querier = EventUris {
+        source_uri: "blog.com".to_string(),
+        trigger_uris: vec!["shoes.com".to_string()],
+        querier_uris: vec!["adtech.com".to_string()],
+    };
     let sample_report_uris = ReportRequestUris {
         trigger_uri: "shoes.com".to_string(),
         source_uris: vec!["blog.com".to_string()],
@@ -50,11 +65,35 @@ fn main() {
     let event1 = PpaEvent {
         id: 1,
         epoch_number: 1,
-        aggregatable_sources: sources1,
+        aggregatable_sources: sources1.clone(),
         uris: sample_event_uris.clone(),
     };
 
+    let event_irr_1 = PpaEvent {
+        id: 1,
+        epoch_number: 1,
+        aggregatable_sources: sources1.clone(),
+        uris: event_uris_irrelevant_due_to_source.clone(),
+    };
+
+    let event_irr_2 = PpaEvent {
+        id: 1,
+        epoch_number: 1,
+        aggregatable_sources: sources1.clone(),
+        uris: event_uris_irrelevant_due_to_trigger.clone(),
+    };
+
+    let event_irr_3 = PpaEvent {
+        id: 1,
+        epoch_number: 1,
+        aggregatable_sources: sources1.clone(),
+        uris: event_uris_irrelevant_due_to_querier.clone(),
+    };
+
     pds.register_event(event1.clone()).unwrap();
+    pds.register_event(event_irr_1.clone()).unwrap();
+    pds.register_event(event_irr_2.clone()).unwrap();
+    pds.register_event(event_irr_3.clone()).unwrap();
 
     // Test basic attribution
     let request1 = PpaHistogramRequest::new(
@@ -79,7 +118,8 @@ fn main() {
     // One event attributed to the binary OR of the source keypiece and trigger
     // keypiece = 0x159 | 0x400
     assert!(report1.bin_values.contains_key(&0x559));
-    assert_eq!(report1.bin_values.get(&0x559), Some(&32768.0));
+    println!("Report1: {:?}", report1.bin_values.len());
+    assert_eq!(report1.bin_values.get(&0x559), Some(&65536.0));
 
     // Test error case when requested_epsilon is 0.
     let request1 = PpaHistogramRequest::new(

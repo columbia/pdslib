@@ -29,8 +29,9 @@ pub struct SimpleRelevantEventSelector {
 
 impl RelevantEventSelector for SimpleRelevantEventSelector {
     type Event = SimpleEvent;
+    type Uri = String;
 
-    fn is_relevant_event(&self, event: &SimpleEvent) -> bool {
+    fn is_relevant_event(&self, _report_uris: &ReportRequestUris<String>, event: &SimpleEvent) -> bool {
         (self.lambda)(event)
     }
 }

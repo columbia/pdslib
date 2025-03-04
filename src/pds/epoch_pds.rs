@@ -52,12 +52,13 @@ where
     E: Event<EpochId = EI>,
     EE: EpochEvents,
     FS: FilterStorage<FilterId = EI, Budget = PureDPBudget>,
-    RES: RelevantEventSelector<Event = E>,
+    RES: RelevantEventSelector<Event = E, Uri = ES::RequestURI>,
     ES: EventStorage<Event = E, EpochEvents = EE, RelevantEventSelector = RES>,
     Q: EpochReportRequest<
         EpochId = EI,
         EpochEvents = EE,
         RelevantEventSelector = RES,
+        Uri = ES::RequestURI,
     >,
     ERR: From<FS::Error> + From<ES::Error>,
 {
@@ -85,6 +86,7 @@ where
             let epoch_relevant_events =
                 self.event_storage.relevant_epoch_events(
                     &epoch_id,
+                    &request.report_uris(),
                     &relevant_event_selector,
                 )?;
 

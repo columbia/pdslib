@@ -26,10 +26,26 @@ pub enum PpaLogic {
 /// See https://github.com/WICG/attribution-reporting-api/blob/main/EVENT.md#optional-attribution-filters
 impl RelevantEventSelector for AraRelevantEventSelector {
     type Event = PpaEvent;
+    type Uri = String;
 
-    fn is_relevant_event(&self, _event: &PpaEvent) -> bool {
-        // TODO(https://github.com/columbia/pdslib/issues/8): add filters to events too, and implement ARA filtering
-        true
+    fn is_relevant_event(&self, report_uris: &ReportRequestUris<String>, event: &PpaEvent) -> bool {
+        // Condition 1: Event's source URI should be in the allowed list by the report request source URIs.
+        let source_match = report_uris
+            .source_uris
+            .contains(&event.uris.source_uri);
+
+        // Condition 2: Every querier URI from the report must be in the event’s querier URIs.
+        let querier_match = report_uris
+            .querier_uris
+            .iter()
+            .all(|uri| event.uris.querier_uris.contains(uri));
+
+        // Condition 3: The report’s trigger URI should be allowed by the event trigger URIs.
+        let trigger_match = event.uris
+            .trigger_uris
+            .contains(&report_uris.trigger_uri);
+
+        source_match && querier_match && trigger_match
     }
 }
 

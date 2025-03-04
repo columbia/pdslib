@@ -1,8 +1,9 @@
 use std::{collections::HashMap, marker::PhantomData};
 
 use crate::events::traits::{
-    EpochEvents, Event, EventStorage, RelevantEventSelector,
+    EpochEvents, Event, EventStorage, RelevantEventSelector, Uri,
 };
+use crate::queries::traits::ReportRequestUris;
 
 pub type VecEpochEvents<E> = Vec<E>;
 
@@ -33,14 +34,16 @@ impl<E: Event, RES: RelevantEventSelector<Event = E>>
     }
 }
 
-impl<E, RES> EventStorage for HashMapEventStorage<E, RES>
+impl<E, RES, URI> EventStorage for HashMapEventStorage<E, RES>
 where
     E: Event + Clone,
-    RES: RelevantEventSelector<Event = E>,
+    URI: Uri + Clone,
+    RES: RelevantEventSelector<Event = E, Uri = URI>,
 {
     type Event = E;
     type EpochEvents = VecEpochEvents<E>;
     type RelevantEventSelector = RES;
+    type RequestURI = URI;
     type Error = anyhow::Error;
 
     fn add_event(&mut self, event: E) -> Result<(), Self::Error> {
@@ -53,6 +56,7 @@ where
     fn relevant_epoch_events(
         &self,
         epoch_id: &E::EpochId,
+        report_request_uris: &ReportRequestUris<Self::RequestURI>,
         selector: &RES,
     ) -> Result<Option<VecEpochEvents<E>>, Self::Error> {
         // Return relevant events for a given epoch_id
@@ -60,7 +64,7 @@ where
         let events = self.epochs.get(epoch_id).map(|events| {
             events
                 .iter()
-                .filter(|event| selector.is_relevant_event(event))
+                .filter(|event| selector.is_relevant_event(report_request_uris, event))
                 .cloned()
                 .collect()
         });

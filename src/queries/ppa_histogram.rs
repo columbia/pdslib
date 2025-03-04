@@ -19,7 +19,9 @@ pub struct AraRelevantEventSelector {
 
 #[derive(Debug, Clone)]
 pub enum PpaLogic {
-    LastTouch,
+    EarlyTouchUntilThreshold,
+    UNKNOWN,
+    Default,
 }
 
 /// Select events using ARA-style filters.

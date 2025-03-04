@@ -6,13 +6,11 @@ use pdslib::{
         pure_dp_filter::{PureDPBudget, PureDPBudgetFilter},
     },
     events::{
-        ppa_event::PpaEvent, hashmap_event_storage::HashMapEventStorage,
-        traits::EventUris,
+        hashmap_event_storage::HashMapEventStorage, ppa_event::PpaEvent, traits::EventUris
     },
     pds::epoch_pds::EpochPrivateDataService,
     queries::{
-        ppa_histogram::{PpaHistogramRequest, AraRelevantEventSelector, PpaLogic},
-        traits::ReportRequestUris,
+        histogram::HistogramRequest, ppa_histogram::{AraRelevantEventSelector, PpaHistogramRequest, PpaLogic}, traits::ReportRequestUris
     },
 };
 
@@ -108,11 +106,11 @@ fn main() {
         AraRelevantEventSelector {
             filters: HashMap::new(),
         }, // Not filtering yet.
-        PpaLogic::LastTouch,
+        PpaLogic::EarlyTouchUntilThreshold,
         sample_report_uris.clone(),
     ).unwrap();
 
-    let report1 = pds.compute_report(request1).unwrap();
+    let report1 = pds.compute_report(&request1, &request1.attribution_logic()).unwrap();
     println!("Report1: {:?}", report1);
 
     // One event attributed to the binary OR of the source keypiece and trigger
@@ -122,7 +120,7 @@ fn main() {
     assert_eq!(report1.bin_values.get(&0x559), Some(&65536.0));
 
     // Test error case when requested_epsilon is 0.
-    let request1 = PpaHistogramRequest::new(
+    let request2 = PpaHistogramRequest::new(
         1,
         2,
         32768.0,
@@ -134,10 +132,33 @@ fn main() {
         AraRelevantEventSelector {
             filters: HashMap::new(),
         }, // Not filtering yet.
-        PpaLogic::LastTouch,
+        PpaLogic::EarlyTouchUntilThreshold,
         sample_report_uris.clone(),
     );
-    assert!(request1.is_err());
+    assert!(request2.is_err());
+
+    // Test empty case when the specified attribution logic hasn't been implemented.
+    let request3 = PpaHistogramRequest::new(
+        1,
+        2,
+        32768.0,
+        65536.0,
+        65536.0,
+        1.0,
+        "campaignCounts".to_string(),
+        0x400,
+        AraRelevantEventSelector {
+            filters: HashMap::new(),
+        }, // Not filtering yet.
+        PpaLogic::UNKNOWN,
+        sample_report_uris.clone(),
+    ).unwrap();
+
+    let report3 = pds.compute_report(&request3, &request3.attribution_logic()).unwrap();
+    println!("Report3: {:?}", report3);
+
+    // Since attribution logic is unexpected, no events should be attributed.
+    assert_eq!(report3.bin_values.len(), 0);
 
     // TODO(https://github.com/columbia/pdslib/issues/8): add more tests when we have multiple events
 }

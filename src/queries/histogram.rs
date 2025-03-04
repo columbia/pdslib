@@ -7,6 +7,7 @@ use crate::{
     queries::traits::{
         EpochReportRequest, Report, ReportRequest, ReportRequestUris,
     },
+    queries::ppa_histogram::PpaLogic,
 };
 
 #[derive(Debug, Clone)]
@@ -105,6 +106,7 @@ impl<H: HistogramRequest> EpochReportRequest for H {
     type PrivacyBudget = PureDPBudget;
     type ReportGlobalSensitivity = f64;
     type RelevantEventSelector = H::RelevantEventSelector; // Use the full request as the selector.
+    type PpaLogic = PpaLogic;
 
     /// Re-expose some methods
     ///
@@ -129,23 +131,31 @@ impl<H: HistogramRequest> EpochReportRequest for H {
     fn compute_report(
         &self,
         relevant_events_per_epoch: &HashMap<Self::EpochId, Self::EpochEvents>,
+        attributioin_type: &Self::PpaLogic,
     ) -> Self::Report {
         let mut bin_values: HashMap<H::BucketKey, f64> = HashMap::new();
-        let mut total_value: f64 = 0.0;
-        let event_values = self.event_values(relevant_events_per_epoch);
 
-        // The order matters, since events that are attributed last might be
-        // dropped by the contribution cap.
-        //
-        // TODO(https://github.com/columbia/pdslib/issues/19):  Use an ordered map for relevant_events_per_epoch?
-        for (event, value) in event_values {
-            total_value += value;
-            if total_value > self.report_global_sensitivity() {
-                // Return partial attribution to stay within the cap.
-                return HistogramReport { bin_values };
+        print!("FLKKKKKKK: {:?}", attributioin_type);
+
+        if let PpaLogic::EarlyTouchUntilThreshold = attributioin_type {
+            let mut total_value: f64 = 0.0;
+            let event_values = self.event_values(relevant_events_per_epoch);
+
+            // The order matters, since events that are attributed last might be
+            // dropped by the contribution cap.
+            //
+            // TODO(https://github.com/columbia/pdslib/issues/19):  Use an ordered map for relevant_events_per_epoch?
+            for (event, value) in event_values {
+                total_value += value;
+                if total_value > self.report_global_sensitivity() {
+                    // Return partial attribution to stay within the cap.
+                    return HistogramReport { bin_values };
+                }
+                let bin = self.bucket_key(event);
+                *bin_values.entry(bin).or_default() += value;
             }
-            let bin = self.bucket_key(event);
-            *bin_values.entry(bin).or_default() += value;
+        } else {
+            print!("Unsupported attribution logic, returning null report. Updating soon!");
         }
 
         HistogramReport { bin_values }

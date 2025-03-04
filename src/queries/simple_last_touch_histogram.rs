@@ -10,6 +10,7 @@ use crate::{
     queries::traits::{
         EpochReportRequest, Report, ReportRequest, ReportRequestUris,
     },
+    queries::ppa_histogram::PpaLogic,
 };
 
 #[derive(Debug)]
@@ -62,6 +63,7 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
     type PrivacyBudget = PureDPBudget;
     type ReportGlobalSensitivity = f64;
     type RelevantEventSelector = SimpleRelevantEventSelector;
+    type PpaLogic = PpaLogic;
 
     fn epoch_ids(&self) -> Vec<Self::EpochId> {
         let range = self.epoch_start..=self.epoch_end;
@@ -77,6 +79,7 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
     fn compute_report(
         &self,
         relevant_epochs_per_epoch: &HashMap<usize, Self::EpochEvents>,
+        _attribution_type: &Self::PpaLogic,
     ) -> Self::Report {
         // Browse epochs in the order given by `epoch_ids, most recent
         // epoch first. Within each epoch, we assume that events are

@@ -74,7 +74,8 @@ where
     /// Monster Algorithm (https://arxiv.org/pdf/2405.16719, Code Listing 1)
     pub fn compute_report(
         &mut self,
-        request: Q,
+        request: &Q,
+        attribution_logic: &Q::PpaLogic,
     ) -> Result<<Q as ReportRequest>::Report, ERR> {
         println!("Computing report for request {:?}", request);
 
@@ -99,7 +100,7 @@ where
         // Compute the raw report, useful for debugging and accounting.
         let num_epochs: usize = relevant_events_per_epoch.len();
         let unbiased_report =
-            request.compute_report(&relevant_events_per_epoch);
+            request.compute_report(&relevant_events_per_epoch, &attribution_logic);
 
         // Browse epochs in the attribution window
         for epoch_id in request.epoch_ids() {
@@ -141,7 +142,7 @@ where
 
         // Now that we've dropped OOB epochs, we can compute the final report.
         let filtered_report =
-            request.compute_report(&relevant_events_per_epoch);
+            request.compute_report(&relevant_events_per_epoch, &attribution_logic);
         Ok(filtered_report)
     }
 

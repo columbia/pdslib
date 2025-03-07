@@ -108,7 +108,6 @@ fn main() {
             report_uris: sample_report_uris.clone(),
         }, // Not filtering yet.
         AttributionLogic::LastTouch,
-        sample_report_uris.clone(),
     ).unwrap();
 
     let report1 = pds.compute_report(&request1).unwrap();
@@ -135,7 +134,6 @@ fn main() {
             report_uris: sample_report_uris.clone(),
         }, // Not filtering yet.
         AttributionLogic::LastTouch,
-        sample_report_uris.clone(),
     );
     assert!(request2.is_err());
 

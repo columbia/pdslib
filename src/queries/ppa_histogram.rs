@@ -70,7 +70,6 @@ pub struct PpaHistogramRequest {
     trigger_keypiece: usize,
     filters: PpaRelevantEventSelector,
     logic: AttributionLogic,
-    uris: ReportRequestUris<String>,
 }
 
 impl PpaHistogramRequest {
@@ -90,7 +89,6 @@ impl PpaHistogramRequest {
         trigger_keypiece: usize,
         filters: PpaRelevantEventSelector,
         logic: AttributionLogic,
-        uris: ReportRequestUris<String>,
     ) -> Result<Self, &'static str> {
         if requested_epsilon <= 0.0 {
             return Err("requested_epsilon must be greater than 0");
@@ -111,7 +109,6 @@ impl PpaHistogramRequest {
             trigger_keypiece,
             filters,
             logic,
-            uris,
         })
     }
 }
@@ -149,7 +146,7 @@ impl HistogramRequest for PpaHistogramRequest {
     fn relevant_event_selector(&self) -> Self::RelevantEventSelector {
         Self::RelevantEventSelector{
             filters: self.filters.filters.clone(),
-            report_uris: self.uris.clone(),
+            report_uris: self.filters.report_uris.clone(),
         }
     }
 
@@ -201,6 +198,6 @@ impl HistogramRequest for PpaHistogramRequest {
     }
 
     fn report_uris(&self) -> ReportRequestUris<String> {
-        self.uris.clone()
+        self.filters.report_uris.clone()
     }
 }

@@ -52,13 +52,12 @@ where
     E: Event<EpochId = EI>,
     EE: EpochEvents,
     FS: FilterStorage<FilterId = EI, Budget = PureDPBudget>,
-    RES: RelevantEventSelector<Event = E, Uri = ES::RequestURI>,
+    RES: RelevantEventSelector<Event = E>,
     ES: EventStorage<Event = E, EpochEvents = EE, RelevantEventSelector = RES>,
     Q: EpochReportRequest<
         EpochId = EI,
         EpochEvents = EE,
         RelevantEventSelector = RES,
-        Uri = ES::RequestURI,
     >,
     ERR: From<FS::Error> + From<ES::Error>,
 {
@@ -75,7 +74,6 @@ where
     pub fn compute_report(
         &mut self,
         request: &Q,
-        attribution_logic: &Q::PpaLogic,
     ) -> Result<<Q as ReportRequest>::Report, ERR> {
         println!("Computing report for request {:?}", request);
 
@@ -87,7 +85,6 @@ where
             let epoch_relevant_events =
                 self.event_storage.relevant_epoch_events(
                     &epoch_id,
-                    &request.report_uris(),
                     &relevant_event_selector,
                 )?;
 
@@ -100,7 +97,7 @@ where
         // Compute the raw report, useful for debugging and accounting.
         let num_epochs: usize = relevant_events_per_epoch.len();
         let unbiased_report =
-            request.compute_report(&relevant_events_per_epoch, &attribution_logic);
+            request.compute_report(&relevant_events_per_epoch);
 
         // Browse epochs in the attribution window
         for epoch_id in request.epoch_ids() {
@@ -142,7 +139,7 @@ where
 
         // Now that we've dropped OOB epochs, we can compute the final report.
         let filtered_report =
-            request.compute_report(&relevant_events_per_epoch, &attribution_logic);
+            request.compute_report(&relevant_events_per_epoch);
         Ok(filtered_report)
     }
 

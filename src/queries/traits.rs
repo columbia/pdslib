@@ -40,7 +40,7 @@ pub trait EpochReportRequest: ReportRequest {
     type RelevantEventSelector;
     type PrivacyBudget;
     type ReportGlobalSensitivity;
-    type PpaLogic;
+    type AttributionLogic;
 
     /// Returns the list of requested epoch IDs, in the order the attribution
     /// should run.
@@ -54,7 +54,6 @@ pub trait EpochReportRequest: ReportRequest {
     fn compute_report(
         &self,
         relevant_events_per_epoch: &HashMap<Self::EpochId, Self::EpochEvents>,
-        attribution_type: &Self::PpaLogic,
     ) -> Self::Report;
 
     /// Computes the individual sensitivity for the query when the report is

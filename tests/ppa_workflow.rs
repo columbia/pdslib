@@ -12,7 +12,6 @@ use pdslib::{
         simple_last_touch_histogram::SimpleLastTouchHistogramRequest,
         traits::ReportRequestUris,
     },
-    queries::ppa_histogram::PpaLogic,
 };
 
 #[test]
@@ -87,7 +86,7 @@ fn main() {
     };
 
     // Measure conversion.
-    let report = pds.compute_report(&report_request, &PpaLogic::Default).unwrap();
+    let report = pds.compute_report(&report_request).unwrap();
 
     // Look at the histogram stored in the report (unencrypted here).
     assert_eq!(report.bin_value, Some((event.event_key, 70.0)));

@@ -1,5 +1,4 @@
 use std::{fmt::Debug, hash::Hash};
-use crate::queries::traits::ReportRequestUris;
 
 /// Marker trait with bounds for epoch identifiers.
 pub trait EpochId: Hash + std::cmp::Eq + Clone + Debug {}
@@ -59,20 +58,18 @@ pub trait EpochEvents: Debug {
 /// whole request to the `EventStorage` when needed.
 pub trait RelevantEventSelector {
     type Event: Event;
-    type Uri: Uri;
 
     /// Checks whether a single event is relevant. Storage implementations
     /// don't have to use this method, they can also implement their own
     /// bulk retrieval functionality on the type implementing this trait.
-    fn is_relevant_event(&self, report_uris: &ReportRequestUris<Self::Uri>, event: &Self::Event) -> bool;
+    fn is_relevant_event(&self, event: &Self::Event) -> bool;
 }
 
 /// Interface to store events and retrieve them by epoch.
 pub trait EventStorage {
     type Event: Event;
     type EpochEvents: EpochEvents;
-    type RequestURI: Uri;
-    type RelevantEventSelector: RelevantEventSelector<Event = Self::Event, Uri = Self::RequestURI>;
+    type RelevantEventSelector: RelevantEventSelector<Event = Self::Event>;
     type Error;
 
     /// Stores a new event.
@@ -82,7 +79,6 @@ pub trait EventStorage {
     fn relevant_epoch_events(
         &self,
         epoch_id: &<Self::Event as Event>::EpochId,
-        report_request_uris: &ReportRequestUris<Self::RequestURI>,
         relevant_event_selector: &Self::RelevantEventSelector,
     ) -> Result<Option<Self::EpochEvents>, Self::Error>;
 }

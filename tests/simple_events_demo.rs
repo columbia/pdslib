@@ -12,7 +12,6 @@ use pdslib::{
         simple_last_touch_histogram::SimpleLastTouchHistogramRequest,
         traits::ReportRequestUris,
     },
-    queries::ppa_histogram::PpaLogic,
 };
 
 #[test]
@@ -77,7 +76,7 @@ fn main() {
         is_relevant_event: always_relevant_event,
         report_uris: sample_report_uris.clone(),
     };
-    let report = pds.compute_report(&report_request, &PpaLogic::Default).unwrap();
+    let report = pds.compute_report(&report_request).unwrap();
     let bucket = Some((event.event_key, 3.0));
     assert_eq!(report.bin_value, bucket);
 
@@ -95,7 +94,7 @@ fn main() {
         is_relevant_event: always_relevant_event,
         report_uris: sample_report_uris.clone(),
     };
-    let report2 = pds.compute_report(&report_request2, &PpaLogic::Default).unwrap();
+    let report2 = pds.compute_report(&report_request2).unwrap();
     // Allocated budget for epoch 1 is 3.0, but 3.0 has already been consumed in
     // the last request, so the budget is depleted. Now, the null report should
     // be returned for this additional query.
@@ -110,7 +109,7 @@ fn main() {
         is_relevant_event: always_relevant_event,
         report_uris: sample_report_uris.clone(),
     };
-    let report2 = pds.compute_report(&report_request2, &PpaLogic::Default).unwrap();
+    let report2 = pds.compute_report(&report_request2).unwrap();
     let bucket2 = Some((event2.event_key, 3.0));
     assert_eq!(report2.bin_value, bucket2);
 
@@ -124,7 +123,7 @@ fn main() {
         is_relevant_event: always_relevant_event,
         report_uris: sample_report_uris.clone(),
     };
-    let report3_empty = pds.compute_report(&report_request3_empty, &PpaLogic::Default).unwrap();
+    let report3_empty = pds.compute_report(&report_request3_empty).unwrap();
     assert_eq!(report3_empty.bin_value, None);
 
     // Test restricting report_global_sensitivity
@@ -139,7 +138,7 @@ fn main() {
         report_uris: sample_report_uris.clone(),
     };
     let report3_over_budget =
-        pds.compute_report(&report_request3_over_budget, &PpaLogic::Default).unwrap();
+        pds.compute_report(&report_request3_over_budget).unwrap();
     assert_eq!(report3_over_budget.bin_value, None);
 
     // This tests the case where we meet the first event in epoch 3, below the
@@ -153,7 +152,7 @@ fn main() {
         is_relevant_event: always_relevant_event,
         report_uris: sample_report_uris.clone(),
     };
-    let report3 = pds.compute_report(&report_request3, &PpaLogic::Default).unwrap();
+    let report3 = pds.compute_report(&report_request3).unwrap();
     let bucket3 = Some((event3.event_key, 3.0));
     assert_eq!(report3.bin_value, bucket3);
 
@@ -167,7 +166,7 @@ fn main() {
         is_relevant_event: |e: &SimpleEvent| e.event_key == 1,
         report_uris: sample_report_uris.clone(),
     };
-    let report4 = pds.compute_report(&report_request4, &PpaLogic::Default).unwrap();
+    let report4 = pds.compute_report(&report_request4).unwrap();
     let bucket4: Option<(usize, f64)> = None;
     assert_eq!(report4.bin_value, bucket4);
 }

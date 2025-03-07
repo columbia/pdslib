@@ -25,6 +25,13 @@ pub enum AttributionLogic {
 
 /// Select events using ARA-style filters.
 /// See https://github.com/WICG/attribution-reporting-api/blob/main/EVENT.md#optional-attribution-filters
+/// TODO: But additionally we might also want to filter based on metadata. Right now, any event that matches all the 3
+/// URiIs is deemed relevant. But what about a query that only cares about impressions for product_a? This is what 
+/// filterData is about in PPA. We will need to find out how it works exactly. Otherwise, a simple example would be
+/// what we've done for Simple Histogram where we pass a lambda function, e.g. to keep events with a certain value 
+/// of event_key.
+
+
 impl RelevantEventSelector for PpaRelevantEventSelector {
     type Event = PpaEvent;
 
@@ -35,6 +42,8 @@ impl RelevantEventSelector for PpaRelevantEventSelector {
             .contains(&event.uris.source_uri);
 
         // Condition 2: Every querier URI from the report must be in the event’s querier URIs.
+        // TODO: We might change Condition 2 eventually when we support split reports, where one querier is
+        // authorized but not others.
         let querier_match = self.report_uris
             .querier_uris
             .iter()
@@ -45,7 +54,6 @@ impl RelevantEventSelector for PpaRelevantEventSelector {
             .trigger_uris
             .contains(&self.report_uris.trigger_uri);
 
-        print!("FKKKKK: source_match: {}, querier_match: {}, trigger_match: {}\n", source_match, querier_match, trigger_match);
         source_match && querier_match && trigger_match
     }
 }

@@ -70,7 +70,7 @@ fn main() -> Result<(), anyhow::Error> {
         epoch_number: 1,
         aggregatable_sources: sources1.clone(),
         uris: sample_event_uris.clone(),
-        filter_data: 1.0
+        filter_data: 1
     };
 
     let event_irr_1 = PpaEvent {
@@ -78,7 +78,7 @@ fn main() -> Result<(), anyhow::Error> {
         epoch_number: 1,
         aggregatable_sources: sources1.clone(),
         uris: event_uris_irrelevant_due_to_source.clone(),
-        filter_data: 1.0
+        filter_data: 1
     };
 
     let event_irr_2 = PpaEvent {
@@ -86,7 +86,7 @@ fn main() -> Result<(), anyhow::Error> {
         epoch_number: 1,
         aggregatable_sources: sources1.clone(),
         uris: event_uris_irrelevant_due_to_trigger.clone(),
-        filter_data: 1.0
+        filter_data: 1
     };
 
     let event_irr_3 = PpaEvent {
@@ -94,7 +94,7 @@ fn main() -> Result<(), anyhow::Error> {
         epoch_number: 1,
         aggregatable_sources: sources1.clone(),
         uris: event_uris_irrelevant_due_to_querier.clone(),
-        filter_data: 1.0
+        filter_data: 1
     };
 
     pds.register_event(event1.clone())?;
@@ -113,9 +113,8 @@ fn main() -> Result<(), anyhow::Error> {
         "campaignCounts".to_string(),
         0x400,
         PpaRelevantEventSelector {
-            filters: HashMap::new(),
             report_request_uris: sample_report_request_uris.clone(),
-            lambda: |e: &PpaEvent| e.filter_data == 1.0,
+            is_matching_event: |event_filter_data: u64| event_filter_data == 1,
         }, // Not filtering yet.
         AttributionLogic::LastTouch,
     ).unwrap();
@@ -140,9 +139,8 @@ fn main() -> Result<(), anyhow::Error> {
         "campaignCounts".to_string(),
         0x400,
         PpaRelevantEventSelector {
-            filters: HashMap::new(),
             report_request_uris: sample_report_request_uris.clone(),
-            lambda: |e: &PpaEvent| e.filter_data == 1.0,
+            is_matching_event: |event_filter_data: u64| event_filter_data == 1,
         }, // Not filtering yet.
         AttributionLogic::LastTouch,
     );
@@ -159,9 +157,8 @@ fn main() -> Result<(), anyhow::Error> {
         "campaignCounts".to_string(),
         0x400,
         PpaRelevantEventSelector {
-            filters: HashMap::new(),
             report_request_uris: sample_report_request_uris.clone(),
-            lambda: |e: &PpaEvent| e.filter_data != 1.0,
+            is_matching_event: |event_filter_data: u64| event_filter_data != 1,
         }, // Not filtering yet.
         AttributionLogic::LastTouch,
     ).unwrap();

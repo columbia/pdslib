@@ -12,11 +12,10 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct PpaRelevantEventSelector {
-    pub filters: HashMap<String, Vec<String>>,
     // TODO(https://github.com/columbia/pdslib/issues/8): add this if we drop events without the right source key
     // source_key: String,
     pub report_request_uris: ReportRequestUris<String>,
-    pub lambda: fn(&PpaEvent) -> bool,
+    pub is_matching_event: fn(u64) -> bool,
 }
 
 #[derive(Debug, Clone)]
@@ -53,7 +52,7 @@ impl RelevantEventSelector for PpaRelevantEventSelector {
             .trigger_uris
             .contains(&self.report_request_uris.trigger_uri);
 
-        source_match && querier_match && trigger_match && (self.lambda)(event)
+        source_match && querier_match && trigger_match && (self.is_matching_event)(event.filter_data)
     }
 }
 
@@ -152,9 +151,8 @@ impl HistogramRequest for PpaHistogramRequest {
     #[allow(clippy::clone_on_copy)]
     fn relevant_event_selector(&self) -> Self::RelevantEventSelector {
         Self::RelevantEventSelector{
-            filters: self.filters.filters.clone(),
             report_request_uris: self.filters.report_request_uris.clone(),
-            lambda: self.filters.lambda.clone(),
+            is_matching_event: self.filters.is_matching_event.clone(),
         }
     }
 

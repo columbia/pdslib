@@ -12,7 +12,7 @@ pub struct PpaEvent {
     pub epoch_number: usize,
     pub aggregatable_sources: HashMap<String, usize>,
     pub uris: EventUris<String>,
-    pub filter_data: f64,
+    pub filter_data: u64,
 }
 
 impl Event for PpaEvent {

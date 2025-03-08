@@ -25,7 +25,7 @@ pub enum AttributionLogic {
 
 /// Select events using ARA-style filters.
 /// See https://github.com/WICG/attribution-reporting-api/blob/main/EVENT.md#optional-attribution-filters
-
+///
 /// TODO: But additionally we might also want to filter based on metadata. Right now, any event that matches all the 3
 /// URiIs is deemed relevant. But what about a query that only cares about impressions for product_a? This is what 
 /// filterData is about in PPA. We will need to find out how it works exactly. Otherwise, a simple example would be

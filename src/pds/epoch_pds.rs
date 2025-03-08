@@ -161,7 +161,7 @@ where
 
             // Step 2. Compute individual loss for current epoch.
             let individual_privacy_loss = self.compute_individual_privacy_loss(
-                &request,
+                request,
                 epoch_relevant_events,
                 &unbiased_report,
                 num_epochs,

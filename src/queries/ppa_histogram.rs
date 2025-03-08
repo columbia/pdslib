@@ -149,6 +149,7 @@ impl HistogramRequest for PpaHistogramRequest {
         self.report_global_sensitivity
     }
 
+    #[allow(clippy::clone_on_copy)]
     fn relevant_event_selector(&self) -> Self::RelevantEventSelector {
         Self::RelevantEventSelector{
             filters: self.filters.filters.clone(),

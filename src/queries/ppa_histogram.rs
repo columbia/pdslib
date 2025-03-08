@@ -16,6 +16,7 @@ pub struct PpaRelevantEventSelector {
     // TODO(https://github.com/columbia/pdslib/issues/8): add this if we drop events without the right source key
     // source_key: String,
     pub report_request_uris: ReportRequestUris<String>,
+    pub lambda: fn(&PpaEvent) -> bool,
 }
 
 #[derive(Debug, Clone)]
@@ -53,7 +54,7 @@ impl RelevantEventSelector for PpaRelevantEventSelector {
             .trigger_uris
             .contains(&self.report_request_uris.trigger_uri);
 
-        source_match && querier_match && trigger_match
+        source_match && querier_match && trigger_match && (self.lambda)(event)
     }
 }
 
@@ -153,6 +154,7 @@ impl HistogramRequest for PpaHistogramRequest {
         Self::RelevantEventSelector{
             filters: self.filters.filters.clone(),
             report_request_uris: self.filters.report_request_uris.clone(),
+            lambda: self.filters.lambda.clone(),
         }
     }
 

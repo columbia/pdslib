@@ -34,7 +34,11 @@ fn main() -> Result<(), anyhow::Error> {
         _phantom_error: std::marker::PhantomData::<anyhow::Error>,
     };
 
-    let sample_event_uris = EventUris::mock();
+    let sample_event_uris = EventUris {
+        source_uri: "blog.com".to_string(),
+        trigger_uris: vec!["shoes.com".to_string()],
+        querier_uris: vec!["shoes.com".to_string(), "adtech.com".to_string()],
+    };
     let event_uris_irrelevant_due_to_source = EventUris {
         source_uri: "blog_off_brand.com".to_string(),
         trigger_uris: vec!["shoes.com".to_string()],
@@ -50,7 +54,11 @@ fn main() -> Result<(), anyhow::Error> {
         trigger_uris: vec!["shoes.com".to_string()],
         querier_uris: vec!["adtech.com".to_string()],
     };
-    let sample_report_request_uris = ReportRequestUris::mock();
+    let sample_report_request_uris = ReportRequestUris {
+        trigger_uri: "shoes.com".to_string(),
+        source_uris: vec!["blog.com".to_string()],
+        querier_uris: vec!["adtech.com".to_string()],
+    };
 
     // Test similar to https://github.com/WICG/attribution-reporting-api/blob/main/AGGREGATE.md#attribution-trigger-registration
     let mut sources1 = HashMap::new();
@@ -62,6 +70,7 @@ fn main() -> Result<(), anyhow::Error> {
         epoch_number: 1,
         aggregatable_sources: sources1.clone(),
         uris: sample_event_uris.clone(),
+        filter_data: 1.0
     };
 
     let event_irr_1 = PpaEvent {
@@ -69,6 +78,7 @@ fn main() -> Result<(), anyhow::Error> {
         epoch_number: 1,
         aggregatable_sources: sources1.clone(),
         uris: event_uris_irrelevant_due_to_source.clone(),
+        filter_data: 1.0
     };
 
     let event_irr_2 = PpaEvent {
@@ -76,6 +86,7 @@ fn main() -> Result<(), anyhow::Error> {
         epoch_number: 1,
         aggregatable_sources: sources1.clone(),
         uris: event_uris_irrelevant_due_to_trigger.clone(),
+        filter_data: 1.0
     };
 
     let event_irr_3 = PpaEvent {
@@ -83,6 +94,7 @@ fn main() -> Result<(), anyhow::Error> {
         epoch_number: 1,
         aggregatable_sources: sources1.clone(),
         uris: event_uris_irrelevant_due_to_querier.clone(),
+        filter_data: 1.0
     };
 
     pds.register_event(event1.clone())?;
@@ -103,6 +115,7 @@ fn main() -> Result<(), anyhow::Error> {
         PpaRelevantEventSelector {
             filters: HashMap::new(),
             report_request_uris: sample_report_request_uris.clone(),
+            lambda: |e: &PpaEvent| e.filter_data == 1.0,
         }, // Not filtering yet.
         AttributionLogic::LastTouch,
     ).unwrap();
@@ -129,10 +142,35 @@ fn main() -> Result<(), anyhow::Error> {
         PpaRelevantEventSelector {
             filters: HashMap::new(),
             report_request_uris: sample_report_request_uris.clone(),
+            lambda: |e: &PpaEvent| e.filter_data == 1.0,
         }, // Not filtering yet.
         AttributionLogic::LastTouch,
     );
     assert!(request2.is_err());
+
+    // Test metadata relevant event logic check rejects.
+    let request3 = PpaHistogramRequest::new(
+        1,
+        2,
+        32768.0,
+        65536.0,
+        65536.0,
+        1.0,
+        "campaignCounts".to_string(),
+        0x400,
+        PpaRelevantEventSelector {
+            filters: HashMap::new(),
+            report_request_uris: sample_report_request_uris.clone(),
+            lambda: |e: &PpaEvent| e.filter_data != 1.0,
+        }, // Not filtering yet.
+        AttributionLogic::LastTouch,
+    ).unwrap();
+
+    let report3 = pds.compute_report(&request3).unwrap();
+    info!("Report3: {:?}", report3);
+
+    // No event attributed because the lambda logic filters out the only qualified event.
+    assert_eq!(report3.bin_values.len(), 0);
 
     // TODO(https://github.com/columbia/pdslib/issues/8): add more tests when we have multiple events
 

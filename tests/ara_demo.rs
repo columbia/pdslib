@@ -49,7 +49,7 @@ fn main() {
         trigger_uris: vec!["shoes.com".to_string()],
         querier_uris: vec!["adtech.com".to_string()],
     };
-    let sample_report_uris = ReportRequestUris {
+    let sample_report_request_uris = ReportRequestUris {
         trigger_uri: "shoes.com".to_string(),
         source_uris: vec!["blog.com".to_string()],
         querier_uris: vec!["adtech.com".to_string()],
@@ -105,7 +105,7 @@ fn main() {
         0x400,
         PpaRelevantEventSelector {
             filters: HashMap::new(),
-            report_uris: sample_report_uris.clone(),
+            report_request_uris: sample_report_request_uris.clone(),
         }, // Not filtering yet.
         AttributionLogic::LastTouch,
     ).unwrap();
@@ -131,7 +131,7 @@ fn main() {
         0x400,
         PpaRelevantEventSelector {
             filters: HashMap::new(),
-            report_uris: sample_report_uris.clone(),
+            report_request_uris: sample_report_request_uris.clone(),
         }, // Not filtering yet.
         AttributionLogic::LastTouch,
     );

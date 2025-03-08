@@ -40,7 +40,6 @@ pub trait EpochReportRequest: ReportRequest {
     type RelevantEventSelector;
     type PrivacyBudget;
     type ReportGlobalSensitivity;
-    type AttributionLogic;
 
     /// Returns the list of requested epoch IDs, in the order the attribution
     /// should run.

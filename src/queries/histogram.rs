@@ -7,7 +7,6 @@ use crate::{
     queries::traits::{
         EpochReportRequest, Report, ReportRequest, ReportRequestUris,
     },
-    queries::ppa_histogram::AttributionLogic,
 };
 
 #[derive(Debug, Clone)]
@@ -42,7 +41,6 @@ pub trait HistogramRequest: Debug {
     type Event: Event;
     type BucketKey: BucketKey;
     type RelevantEventSelector: RelevantEventSelector<Event = Self::Event>;
-    type AttributionLogic;
 
     /// Returns the ids of the epochs that are relevant for this query.
     /// Typically a range of epochs.
@@ -103,7 +101,6 @@ impl<H: HistogramRequest> EpochReportRequest for H {
     type PrivacyBudget = PureDPBudget;
     type ReportGlobalSensitivity = f64;
     type RelevantEventSelector = H::RelevantEventSelector; // Use the full request as the selector.
-    type AttributionLogic = AttributionLogic;
 
     /// Re-expose some methods
     ///

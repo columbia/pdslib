@@ -10,7 +10,6 @@ use crate::{
     queries::traits::{
         EpochReportRequest, Report, ReportRequest, ReportRequestUris,
     },
-    queries::ppa_histogram::AttributionLogic,
 };
 
 #[derive(Debug)]
@@ -62,7 +61,6 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
     type PrivacyBudget = PureDPBudget;
     type ReportGlobalSensitivity = f64;
     type RelevantEventSelector = SimpleRelevantEventSelector;
-    type AttributionLogic = AttributionLogic;
 
     fn epoch_ids(&self) -> Vec<Self::EpochId> {
         let range = self.epoch_start..=self.epoch_end;

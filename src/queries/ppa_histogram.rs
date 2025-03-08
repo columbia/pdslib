@@ -15,7 +15,7 @@ pub struct PpaRelevantEventSelector {
     pub filters: HashMap<String, Vec<String>>,
     // TODO(https://github.com/columbia/pdslib/issues/8): add this if we drop events without the right source key
     // source_key: String,
-    pub report_uris: ReportRequestUris<String>,
+    pub report_request_uris: ReportRequestUris<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -36,14 +36,14 @@ impl RelevantEventSelector for PpaRelevantEventSelector {
 
     fn is_relevant_event(&self, event: &PpaEvent) -> bool {
         // Condition 1: Event's source URI should be in the allowed list by the report request source URIs.
-        let source_match = self.report_uris
+        let source_match = self.report_request_uris
             .source_uris
             .contains(&event.uris.source_uri);
 
         // Condition 2: Every querier URI from the report must be in the event’s querier URIs.
         // TODO: We might change Condition 2 eventually when we support split reports, where one querier is
         // authorized but not others.
-        let querier_match = self.report_uris
+        let querier_match = self.report_request_uris
             .querier_uris
             .iter()
             .all(|uri| event.uris.querier_uris.contains(uri));
@@ -51,7 +51,7 @@ impl RelevantEventSelector for PpaRelevantEventSelector {
         // Condition 3: The report’s trigger URI should be allowed by the event trigger URIs.
         let trigger_match = event.uris
             .trigger_uris
-            .contains(&self.report_uris.trigger_uri);
+            .contains(&self.report_request_uris.trigger_uri);
 
         source_match && querier_match && trigger_match
     }
@@ -128,7 +128,6 @@ impl HistogramRequest for PpaHistogramRequest {
     type Event = PpaEvent;
     type BucketKey = usize;
     type RelevantEventSelector = PpaRelevantEventSelector;
-    type AttributionLogic = AttributionLogic;
 
     fn epochs_ids(&self) -> Vec<Self::EpochId> {
         (self.start_epoch..=self.end_epoch).rev().collect()
@@ -153,7 +152,7 @@ impl HistogramRequest for PpaHistogramRequest {
     fn relevant_event_selector(&self) -> Self::RelevantEventSelector {
         Self::RelevantEventSelector{
             filters: self.filters.filters.clone(),
-            report_uris: self.filters.report_uris.clone(),
+            report_request_uris: self.filters.report_request_uris.clone(),
         }
     }
 
@@ -180,7 +179,6 @@ impl HistogramRequest for PpaHistogramRequest {
     ///
     /// TODO(https://github.com/columbia/pdslib/issues/8): Double check with
     /// Chromium logic.
-    #[allow(irrefutable_let_patterns)]  // Alternatives to be implemented.
     fn event_values<'a>(
         &self,
         relevant_events_per_epoch: &'a HashMap<
@@ -190,21 +188,21 @@ impl HistogramRequest for PpaHistogramRequest {
     ) -> Vec<(&'a Self::Event, f64)> {
         let mut event_values = vec![];
 
-        if let AttributionLogic::LastTouch = self.logic {
-            for relevant_events in relevant_events_per_epoch.values() {
-                if let Some(last_impression) = relevant_events.last() {
-                    event_values.push((last_impression, self.per_event_attributable_value));
+        match self.logic {
+            AttributionLogic::LastTouch => {
+                for relevant_events in relevant_events_per_epoch.values() {
+                    if let Some(last_impression) = relevant_events.last() {
+                        event_values.push((last_impression, self.per_event_attributable_value));
+                    }
                 }
             }
-        } else {
             // Other attribution logic not supported yet.
-            print!("Unsupported attribution logic, returning null report. Updating soon!");
         }
 
         event_values
     }
 
     fn report_uris(&self) -> ReportRequestUris<String> {
-        self.filters.report_uris.clone()
+        self.filters.report_request_uris.clone()
     }
 }

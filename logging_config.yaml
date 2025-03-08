@@ -1,0 +1,14 @@
+appenders:
+  stdout:
+    kind: console
+    encoder:
+      pattern: "{h({d(%Y-%m-%d %H:%M:%S)(utc)} - {l}: {m}{n})}"
+  log_file:
+    kind: file
+    path: log/pdslib.log
+    encoder:
+      pattern: "{h({d(%Y-%m-%d %H:%M:%S)(utc)} - {l}: {m}{n})}"
+root:
+  level: trace
+  appenders:
+    - stdout

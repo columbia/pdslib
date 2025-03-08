@@ -2,72 +2,81 @@ use std::{collections::HashMap, marker::PhantomData};
 
 use anyhow::Context;
 
-use crate::budget::traits::{Budget, Filter, FilterStatus, FilterStorage};
+use crate::budget::traits::{
+    Budget, Filter, FilterCapacities, FilterStatus, FilterStorage,
+};
 
 /// Simple implementation of FilterStorage using a HashMap.
 /// Works for any Filter that implements the Filter trait.
 #[derive(Debug, Default)]
-pub struct HashMapFilterStorage<K, F, Budget> {
-    filters: HashMap<K, F>,
-    _marker: PhantomData<Budget>,
+pub struct HashMapFilterStorage<FID, F, B, C> {
+    capacities: C,
+    filters: HashMap<FID, F>,
+    _marker: PhantomData<B>,
 }
 
-impl<K, F, Budget> HashMapFilterStorage<K, F, Budget> {
-    pub fn new() -> Self {
-        Self {
+impl<FID, F, B, C> FilterStorage for HashMapFilterStorage<FID, F, B, C>
+where
+    FID: Clone + Eq + std::hash::Hash,
+    F: Filter<B, Error = anyhow::Error>,
+    B: Budget,
+    C: FilterCapacities<FilterId = FID, Budget = B, Error = anyhow::Error>,
+{
+    type FilterId = FID;
+    type Budget = B;
+    type Capacities = C;
+    type Error = anyhow::Error;
+
+    fn new(capacities: Self::Capacities) -> Result<Self, Self::Error>
+    where
+        Self: Sized,
+    {
+        let this = Self {
+            capacities,
             filters: HashMap::new(),
             _marker: PhantomData,
-        }
+        };
+        Ok(this)
     }
-}
-
-impl<K, F, B> FilterStorage for HashMapFilterStorage<K, F, B>
-where
-    B: Budget,
-    F: Filter<B, Error = anyhow::Error>,
-    K: Eq + std::hash::Hash,
-{
-    type FilterId = K;
-    type Budget = B;
-    type Error = anyhow::Error;
 
     fn new_filter(
         &mut self,
-        filter_id: K,
-        capacity: B,
+        filter_id: Self::FilterId,
     ) -> Result<(), Self::Error> {
+        let capacity = self.capacities.capacity(&filter_id)?;
         let filter = F::new(capacity)?;
         self.filters.insert(filter_id, filter);
+
         Ok(())
     }
 
-    fn is_initialized(
-        &mut self,
-        filter_id: &Self::FilterId,
-    ) -> Result<bool, Self::Error> {
-        Ok(self.filters.contains_key(filter_id))
+    fn is_initialized(&mut self, filter_id: &FID) -> Result<bool, Self::Error> {
+        let entry = self.filters.get_mut(filter_id);
+        Ok(entry.is_some())
     }
 
     fn check_and_consume(
         &mut self,
-        filter_id: &K,
+        filter_id: &FID,
         budget: &B,
     ) -> Result<FilterStatus, Self::Error> {
         let filter = self
             .filters
             .get_mut(filter_id)
             .context("Filter for epoch not initialized")?;
+
         filter.check_and_consume(budget)
     }
 
     fn remaining_budget(
         &self,
-        filter_id: &Self::FilterId,
+        filter_id: &FID,
     ) -> Result<Self::Budget, Self::Error> {
         let filter = self
             .filters
             .get(filter_id)
-            .context("Filter does not exist")?;
+            .context("Filter for epoch not initialized")?;
+
         filter.remaining_budget()
     }
 }
@@ -75,32 +84,33 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::budget::pure_dp_filter::{PureDPBudget, PureDPBudgetFilter};
+    use crate::{
+        budget::pure_dp_filter::{PureDPBudget, PureDPBudgetFilter},
+        pds::epoch_pds::{FilterId, StaticCapacities},
+    };
 
     #[test]
-    fn test_hash_map_filter_storage() {
-        let mut storage: HashMapFilterStorage<
-            usize,
-            PureDPBudgetFilter,
-            PureDPBudget,
-        > = HashMapFilterStorage::new();
-        storage.new_filter(1, PureDPBudget::Epsilon(1.0)).unwrap();
+    fn test_hash_map_filter_storage() -> Result<(), anyhow::Error> {
+        let capacities = StaticCapacities::mock();
+        let mut storage: HashMapFilterStorage<_, PureDPBudgetFilter, _, _> =
+            HashMapFilterStorage::new(capacities)?;
+
+        let fid: FilterId<_, String> = FilterId::C(1);
+        storage.new_filter(fid.clone())?;
         assert_eq!(
-            storage
-                .check_and_consume(&1, &PureDPBudget::Epsilon(0.5))
-                .unwrap(),
+            storage.check_and_consume(&fid, &PureDPBudget::Epsilon(10.0))?,
             FilterStatus::Continue
         );
         assert_eq!(
-            storage
-                .check_and_consume(&1, &PureDPBudget::Epsilon(0.6))
-                .unwrap(),
+            storage.check_and_consume(&fid, &PureDPBudget::Epsilon(11.0))?,
             FilterStatus::OutOfBudget
         );
 
-        // Filter 2 does not exist
+        // Filter C(2) does not exist
         assert!(storage
-            .check_and_consume(&3, &PureDPBudget::Epsilon(0.2))
+            .check_and_consume(&FilterId::C(2), &PureDPBudget::Epsilon(1.0))
             .is_err());
+
+        Ok(())
     }
 }

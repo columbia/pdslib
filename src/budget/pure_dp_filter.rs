@@ -1,3 +1,5 @@
+use log::info;
+
 use crate::budget::traits::{Budget, Filter, FilterStatus};
 
 /// A simple floating-point budget for pure differential privacy, with support
@@ -42,7 +44,7 @@ impl Filter<PureDPBudget> for PureDPBudgetFilter {
         &mut self,
         budget: &PureDPBudget,
     ) -> Result<FilterStatus, Self::Error> {
-        println!("The budget that remains in this epoch is {:?}, and we need to consume this much budget {:?}", self.remaining_budget, budget);
+        info!("The budget that remains in this epoch is {:?}, and we need to consume this much budget {:?}", self.remaining_budget, budget);
 
         // Check that we have enough budget and if yes, deduct in place.
         // We check `Infinite` manually instead of implementing `PartialOrd` and
@@ -81,20 +83,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_pure_dp_budget_filter() {
-        let mut filter =
-            PureDPBudgetFilter::new(PureDPBudget::Epsilon(1.0)).unwrap();
+    fn test_pure_dp_budget_filter() -> Result<(), anyhow::Error> {
+        let mut filter = PureDPBudgetFilter::new(PureDPBudget::Epsilon(1.0))?;
         assert_eq!(
-            filter
-                .check_and_consume(&PureDPBudget::Epsilon(0.5))
-                .unwrap(),
+            filter.check_and_consume(&PureDPBudget::Epsilon(0.5))?,
             FilterStatus::Continue
         );
         assert_eq!(
-            filter
-                .check_and_consume(&PureDPBudget::Epsilon(0.6))
-                .unwrap(),
+            filter.check_and_consume(&PureDPBudget::Epsilon(0.6))?,
             FilterStatus::OutOfBudget
         );
+
+        Ok(())
     }
 }

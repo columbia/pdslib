@@ -29,9 +29,8 @@ pub enum AttributionLogic {
 ///
 /// TODO: But additionally we might also want to filter based on metadata. Right now, any event that matches all the 3
 /// URiIs is deemed relevant. But what about a query that only cares about impressions for product_a? This is what 
-/// filterData is about in PPA. We will need to find out how it works exactly. Otherwise, a simple example would be
-/// what we've done for Simple Histogram where we pass a lambda function, e.g. to keep events with a certain value 
-/// of event_key.
+/// filterData is about in PPA. We will need to find out how it works exactly. A simple example has been implemented,
+/// where we pass a lambda function, e.g. to keep events with a certain value of event_key.
 impl RelevantEventSelector for PpaRelevantEventSelector {
     type Event = PpaEvent;
 

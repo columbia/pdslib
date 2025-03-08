@@ -7,14 +7,14 @@ use crate::events::traits::{Event, EventUris};
 ///
 /// TODO(https://github.com/columbia/pdslib/issues/8): add other fields as needed by callers, e.g. filters.
 #[derive(Debug, Clone)]
-pub struct AraEvent {
+pub struct PpaEvent {
     pub id: usize,
     pub epoch_number: usize,
     pub aggregatable_sources: HashMap<String, usize>,
     pub uris: EventUris<String>,
 }
 
-impl Event for AraEvent {
+impl Event for PpaEvent {
     type EpochId = usize;
     type Uri = String;
 

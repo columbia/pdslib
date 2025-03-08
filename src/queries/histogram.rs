@@ -127,9 +127,14 @@ impl<H: HistogramRequest> EpochReportRequest for H {
         relevant_events_per_epoch: &HashMap<Self::EpochId, Self::EpochEvents>,
     ) -> Self::Report {
         let mut bin_values: HashMap<H::BucketKey, f64> = HashMap::new();
+
         let mut total_value: f64 = 0.0;
         let event_values = self.event_values(relevant_events_per_epoch);
 
+        // The event_values function selects the relevant events and assigns values according to the requested attribution
+        // logic, so we should be able to aggregate values directly. For example, in the case of LastTouch logic, only the
+        // last value for an event will be selected, so the sum is juat that singular value.
+        //
         // The order matters, since events that are attributed last might be
         // dropped by the contribution cap.
         //

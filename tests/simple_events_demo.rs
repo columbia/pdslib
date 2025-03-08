@@ -77,7 +77,7 @@ fn main() -> Result<(), anyhow::Error> {
         is_relevant_event: always_relevant_event,
         report_uris: sample_report_uris.clone(),
     };
-    let report = pds.compute_report(report_request)?;
+    let report = pds.compute_report(&report_request)?;
     let bucket = Some((event.event_key, 3.0));
     assert_eq!(report.bin_value, bucket);
 
@@ -95,7 +95,7 @@ fn main() -> Result<(), anyhow::Error> {
         is_relevant_event: always_relevant_event,
         report_uris: sample_report_uris.clone(),
     };
-    let report2 = pds.compute_report(report_request2)?;
+    let report2 = pds.compute_report(&report_request2)?;
     // Allocated budget for epoch 1 is 3.0, but 3.0 has already been consumed in
     // the last request, so the budget is depleted. Now, the null report should
     // be returned for this additional query.
@@ -110,7 +110,7 @@ fn main() -> Result<(), anyhow::Error> {
         is_relevant_event: always_relevant_event,
         report_uris: sample_report_uris.clone(),
     };
-    let report2 = pds.compute_report(report_request2)?;
+    let report2 = pds.compute_report(&report_request2)?;
     let bucket2 = Some((event2.event_key, 3.0));
     assert_eq!(report2.bin_value, bucket2);
 
@@ -124,7 +124,7 @@ fn main() -> Result<(), anyhow::Error> {
         is_relevant_event: always_relevant_event,
         report_uris: sample_report_uris.clone(),
     };
-    let report3_empty = pds.compute_report(report_request3_empty)?;
+    let report3_empty = pds.compute_report(&report_request3_empty)?;
     assert_eq!(report3_empty.bin_value, None);
 
     // Test restricting report_global_sensitivity
@@ -139,7 +139,7 @@ fn main() -> Result<(), anyhow::Error> {
         report_uris: sample_report_uris.clone(),
     };
     let report3_over_budget =
-        pds.compute_report(report_request3_over_budget)?;
+        pds.compute_report(&report_request3_over_budget)?;
     assert_eq!(report3_over_budget.bin_value, None);
 
     // This tests the case where we meet the first event in epoch 3, below the
@@ -153,7 +153,7 @@ fn main() -> Result<(), anyhow::Error> {
         is_relevant_event: always_relevant_event,
         report_uris: sample_report_uris.clone(),
     };
-    let report3 = pds.compute_report(report_request3)?;
+    let report3 = pds.compute_report(&report_request3)?;
     let bucket3 = Some((event3.event_key, 3.0));
     assert_eq!(report3.bin_value, bucket3);
 
@@ -167,7 +167,7 @@ fn main() -> Result<(), anyhow::Error> {
         is_relevant_event: |e: &SimpleEvent| e.event_key == 1,
         report_uris: sample_report_uris.clone(),
     };
-    let report4 = pds.compute_report(report_request4)?;
+    let report4 = pds.compute_report(&report_request4)?;
     let bucket4: Option<(usize, f64)> = None;
     assert_eq!(report4.bin_value, bucket4);
 

@@ -4,27 +4,56 @@ use std::{collections::HashMap, vec};
 
 use crate::{
     events::{
-        ara_event::AraEvent, hashmap_event_storage::VecEpochEvents,
+        ppa_event::PpaEvent, hashmap_event_storage::VecEpochEvents,
         traits::RelevantEventSelector,
     },
     queries::{histogram::HistogramRequest, traits::ReportRequestUris},
 };
 
 #[derive(Debug, Clone)]
-pub struct AraRelevantEventSelector {
+pub struct PpaRelevantEventSelector {
     pub filters: HashMap<String, Vec<String>>,
     // TODO(https://github.com/columbia/pdslib/issues/8): add this if we drop events without the right source key
     // source_key: String,
+    pub report_request_uris: ReportRequestUris<String>,
+}
+
+#[derive(Debug, Clone)]
+pub enum AttributionLogic {
+    LastTouch,
 }
 
 /// Select events using ARA-style filters.
 /// See https://github.com/WICG/attribution-reporting-api/blob/main/EVENT.md#optional-attribution-filters
-impl RelevantEventSelector for AraRelevantEventSelector {
-    type Event = AraEvent;
+///
+/// TODO: But additionally we might also want to filter based on metadata. Right now, any event that matches all the 3
+/// URiIs is deemed relevant. But what about a query that only cares about impressions for product_a? This is what 
+/// filterData is about in PPA. We will need to find out how it works exactly. Otherwise, a simple example would be
+/// what we've done for Simple Histogram where we pass a lambda function, e.g. to keep events with a certain value 
+/// of event_key.
+impl RelevantEventSelector for PpaRelevantEventSelector {
+    type Event = PpaEvent;
 
-    fn is_relevant_event(&self, _event: &AraEvent) -> bool {
-        // TODO(https://github.com/columbia/pdslib/issues/8): add filters to events too, and implement ARA filtering
-        true
+    fn is_relevant_event(&self, event: &PpaEvent) -> bool {
+        // Condition 1: Event's source URI should be in the allowed list by the report request source URIs.
+        let source_match = self.report_request_uris
+            .source_uris
+            .contains(&event.uris.source_uri);
+
+        // Condition 2: Every querier URI from the report must be in the event’s querier URIs.
+        // TODO: We might change Condition 2 eventually when we support split reports, where one querier is
+        // authorized but not others.
+        let querier_match = self.report_request_uris
+            .querier_uris
+            .iter()
+            .all(|uri| event.uris.querier_uris.contains(uri));
+
+        // Condition 3: The report’s trigger URI should be allowed by the event trigger URIs.
+        let trigger_match = event.uris
+            .trigger_uris
+            .contains(&self.report_request_uris.trigger_uri);
+
+        source_match && querier_match && trigger_match
     }
 }
 
@@ -35,7 +64,7 @@ impl RelevantEventSelector for AraRelevantEventSelector {
 ///
 /// TODO(https://github.com/columbia/pdslib/issues/8): what is "nonMatchingKeyIdsIgnored"?
 #[derive(Debug)]
-pub struct AraHistogramRequest {
+pub struct PpaHistogramRequest {
     start_epoch: usize,
     end_epoch: usize,
     per_event_attributable_value: f64, /* ARA can attribute to multiple
@@ -46,12 +75,12 @@ pub struct AraHistogramRequest {
     requested_epsilon: f64,
     source_key: String,
     trigger_keypiece: usize,
-    filters: AraRelevantEventSelector,
-    uris: ReportRequestUris<String>,
+    filters: PpaRelevantEventSelector,
+    logic: AttributionLogic,
 }
 
-impl AraHistogramRequest {
-    /// Constructs a new `AraHistogramRequest`, validating that:
+impl PpaHistogramRequest {
+    /// Constructs a new `PpaHistogramRequest`, validating that:
     /// - `requested_epsilon` is > 0.
     /// - `per_event_attributable_value`, `report_global_sensitivity` and 
     ///   `query_global_sensitivity` are non-negative.
@@ -65,8 +94,8 @@ impl AraHistogramRequest {
         requested_epsilon: f64,
         source_key: String,
         trigger_keypiece: usize,
-        filters: AraRelevantEventSelector,
-        uris: ReportRequestUris<String>,
+        filters: PpaRelevantEventSelector,
+        logic: AttributionLogic,
     ) -> Result<Self, &'static str> {
         if requested_epsilon <= 0.0 {
             return Err("requested_epsilon must be greater than 0");
@@ -86,19 +115,19 @@ impl AraHistogramRequest {
             source_key,
             trigger_keypiece,
             filters,
-            uris,
+            logic,
         })
     }
 }
 
 
 /// See https://github.com/WICG/attribution-reporting-api/blob/main/AGGREGATE.md#attribution-trigger-registration.
-impl HistogramRequest for AraHistogramRequest {
+impl HistogramRequest for PpaHistogramRequest {
     type EpochId = usize;
-    type EpochEvents = VecEpochEvents<AraEvent>;
-    type Event = AraEvent;
+    type EpochEvents = VecEpochEvents<PpaEvent>;
+    type Event = PpaEvent;
     type BucketKey = usize;
-    type RelevantEventSelector = AraRelevantEventSelector;
+    type RelevantEventSelector = PpaRelevantEventSelector;
 
     fn epochs_ids(&self) -> Vec<Self::EpochId> {
         (self.start_epoch..=self.end_epoch).rev().collect()
@@ -121,10 +150,17 @@ impl HistogramRequest for AraHistogramRequest {
     }
 
     fn relevant_event_selector(&self) -> Self::RelevantEventSelector {
-        self.filters.clone()
+        Self::RelevantEventSelector{
+            filters: self.filters.filters.clone(),
+            report_request_uris: self.filters.report_request_uris.clone(),
+        }
     }
 
-    fn bucket_key(&self, event: &AraEvent) -> Self::BucketKey {
+    // fn attribution_logic(&self) -> Self::AttributionLogic {
+    //     self.logic.clone()
+    // }
+
+    fn bucket_key(&self, event: &PpaEvent) -> Self::BucketKey {
         // TODO(https://github.com/columbia/pdslib/issues/8):
         // What does ARA do when the source key is not present?
         // For now I still attribute with 0 for the source keypiece, but
@@ -152,15 +188,21 @@ impl HistogramRequest for AraHistogramRequest {
     ) -> Vec<(&'a Self::Event, f64)> {
         let mut event_values = vec![];
 
-        for relevant_events in relevant_events_per_epoch.values() {
-            for event in relevant_events.iter() {
-                event_values.push((event, self.per_event_attributable_value));
+        match self.logic {
+            AttributionLogic::LastTouch => {
+                for relevant_events in relevant_events_per_epoch.values() {
+                    if let Some(last_impression) = relevant_events.last() {
+                        event_values.push((last_impression, self.per_event_attributable_value));
+                    }
+                }
             }
+            // Other attribution logic not supported yet.
         }
+
         event_values
     }
 
     fn report_uris(&self) -> ReportRequestUris<String> {
-        self.uris.clone()
+        self.filters.report_request_uris.clone()
     }
 }

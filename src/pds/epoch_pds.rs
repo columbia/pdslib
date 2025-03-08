@@ -129,7 +129,7 @@ where
     /// Monster Algorithm (https://arxiv.org/pdf/2405.16719, Code Listing 1)
     pub fn compute_report(
         &mut self,
-        request: Q,
+        request: &Q,
     ) -> Result<<Q as ReportRequest>::Report, ERR> {
         info!("Computing report for request {:?}", request);
 
@@ -161,7 +161,7 @@ where
 
             // Step 2. Compute individual loss for current epoch.
             let individual_privacy_loss = self.compute_individual_privacy_loss(
-                &request,
+                request,
                 epoch_relevant_events,
                 &unbiased_report,
                 num_epochs,

@@ -37,7 +37,7 @@ impl<BK: BucketKey> Report for HistogramReport<BK> {}
 /// Can be instantiated by ARA-style queries in particular.
 pub trait HistogramRequest: Debug {
     type EpochId: EpochId;
-    type EpochEvents: EpochEvents;
+    type EpochEvents: EpochEvents<Self::Event>;
     type Event: Event;
     type BucketKey: BucketKey;
     type RelevantEventSelector: RelevantEventSelector<Event = Self::Event>;
@@ -97,6 +97,7 @@ impl<H: HistogramRequest> ReportRequest for H {
 /// HistogramRequest can be used as an EpochReportRequest.
 impl<H: HistogramRequest> EpochReportRequest for H {
     type EpochId = H::EpochId;
+    type Event = H::Event;
     type EpochEvents = H::EpochEvents;
     type PrivacyBudget = PureDPBudget;
     type ReportGlobalSensitivity = f64;

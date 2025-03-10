@@ -1,4 +1,5 @@
 use std::{fmt::Debug, hash::Hash};
+use std::ops::{Index, IndexMut};
 
 use crate::util::shared_types::Uri;
 
@@ -32,8 +33,10 @@ pub trait Event: Debug {
 }
 
 /// Collection of events for a given epoch.
-pub trait EpochEvents: Debug {
+pub trait EpochEvents<E>: Debug + Index<usize, Output=E> + IndexMut<usize, Output=E> {
     fn is_empty(&self) -> bool;
+
+    fn iter(&self) -> std::slice::Iter<'_, E>;
 }
 
 /// Selector that can tag relevant events one by one or in bulk.
@@ -54,7 +57,7 @@ pub trait RelevantEventSelector {
 /// Interface to store events and retrieve them by epoch.
 pub trait EventStorage {
     type Event: Event;
-    type EpochEvents: EpochEvents;
+    type EpochEvents: EpochEvents<Self::Event>;
     type RelevantEventSelector: RelevantEventSelector<Event = Self::Event>;
     type Error;
 

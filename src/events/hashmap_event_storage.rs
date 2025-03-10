@@ -6,9 +6,13 @@ use crate::events::traits::{
 
 pub type VecEpochEvents<E> = Vec<E>;
 
-impl<E: Event> EpochEvents for VecEpochEvents<E> {
+impl<E: Event> EpochEvents<E> for VecEpochEvents<E> {
     fn is_empty(&self) -> bool {
         self.is_empty()
+    }
+
+    fn iter(&self) -> std::slice::Iter<'_, E> {
+        self.as_slice().iter()
     }
 }
 

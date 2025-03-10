@@ -109,7 +109,7 @@ where
     U: Uri + Clone,
     EI: EpochId,
     E: Event<EpochId = EI>,
-    EE: EpochEvents,
+    EE: EpochEvents<E>,
     FS: FilterStorage<Budget = PureDPBudget, FilterId = FilterId<EI, U>>,
     RES: RelevantEventSelector<Event = E>,
     ES: EventStorage<Event = E, EpochEvents = EE, RelevantEventSelector = RES>,
@@ -260,7 +260,9 @@ where
         }
         filters_to_consume.push(QTrigger(epoch_id.clone(), uris.trigger_uri));
         filters_to_consume.push(C(epoch_id.clone()));
-        // TODO(https://github.com/columbia/pdslib/issues/38) q-source
+        for source_uri in uris.source_uris {
+            filters_to_consume.push(QSource(epoch_id.clone(), source_uri));
+        }
 
         for filter_id in filters_to_consume {
             self.initialize_filter_if_necessary(filter_id.clone())?;

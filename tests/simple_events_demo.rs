@@ -25,6 +25,7 @@ fn main() -> Result<(), anyhow::Error> {
         PureDPBudget::Epsilon(3.0),
         PureDPBudget::Epsilon(20.0),
         PureDPBudget::Epsilon(3.5),
+        PureDPBudget::Epsilon(3.5),
     );
     let filters: HashMapFilterStorage<_, PureDPBudgetFilter, _, _> =
         HashMapFilterStorage::new(capacities)?;

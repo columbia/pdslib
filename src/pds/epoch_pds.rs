@@ -1,7 +1,6 @@
 use log::info;
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::hash::Hash;
 
 use crate::{
     budget::{
@@ -107,7 +106,7 @@ pub struct EpochPrivateDataService<
 /// TODO(https://github.com/columbia/pdslib/issues/22): simplify trait bounds?
 impl<U, EI, E, EE, RES, FS, ES, Q, ERR> EpochPrivateDataService<FS, ES, Q, ERR>
 where
-    U: Uri + Clone + Eq + Hash,
+    U: Uri,
     EI: EpochId,
     E: Event<EpochId = EI, Uri = U> + Clone,
     EE: EpochEvents<E>,
@@ -165,7 +164,7 @@ where
                 relevant_events_per_epoch.get(&epoch_id);
 
             // Step 2. Compute individual loss for current epoch.
-            let individual_privacy_loss = self.compute_epoch_level_individual_privacy_loss(
+            let individual_privacy_loss = self.compute_epoch_loss(
                 request,
                 epoch_relevant_events,
                 &unbiased_report,
@@ -173,7 +172,7 @@ where
             );
 
             // Step 3. Compute per-iimpression-site losses.
-            let impression_site_losses = self.compute_epoch_source_uri_level_individual_privacy_losses(
+            let impression_site_losses = self.compute_epoch_source_losses(
                 request,
                 epoch_relevant_events,
                 &unbiased_report,
@@ -261,7 +260,7 @@ where
     /// Compute the per-impression-site loss.
     /// TODO(https://github.com/columbia/pdslib/issues/44): Replace
     /// device-epoch individual sensitivity with device-epoch-site individual sensitivity.
-    fn compute_epoch_source_uri_level_individual_privacy_losses(
+    fn compute_epoch_source_losses(
         &self,
         request: &Q,
         epoch_relevant_events: Option<&EE>,
@@ -321,7 +320,6 @@ where
 
             // In Cookie Monster, we have `query_global_sensitivity` /
             // `requested_epsilon` instead of just `noise_scale`.
-            // instead of a single `noise_scale`.
             per_impression_site_losses.insert(imp_site, PureDPBudget::Epsilon(individual_sensitivity / noise_scale));
         }
 
@@ -380,10 +378,10 @@ where
     }
 
     /// Pure DP individual privacy loss, following
-    /// `compute_epoch_level_individual_privacy_loss` from Code Listing 1 in Cookie Monster (https://arxiv.org/pdf/2405.16719).
+    /// `compute_individual_privacy_loss` from Code Listing 1 in Cookie Monster (https://arxiv.org/pdf/2405.16719).
     ///
     /// TODO(https://github.com/columbia/pdslib/issues/21): generic budget.
-    fn compute_epoch_level_individual_privacy_loss(
+    fn compute_epoch_loss(
         &self,
         request: &Q,
         epoch_relevant_events: Option<&EE>,

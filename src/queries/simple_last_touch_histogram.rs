@@ -57,6 +57,7 @@ impl ReportRequest for SimpleLastTouchHistogramRequest {
 
 impl EpochReportRequest for SimpleLastTouchHistogramRequest {
     type EpochId = usize;
+    type Event = SimpleEvent;
     type EpochEvents = VecEpochEvents<SimpleEvent>;
     type PrivacyBudget = PureDPBudget;
     type ReportGlobalSensitivity = f64;

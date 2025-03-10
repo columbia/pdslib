@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fmt::Debug};
 
 use crate::{
-    events::traits::{EpochEvents, EpochId},
+    events::traits::{EpochEvents, EpochId, Event},
     mechanisms::{NoiseScale, NormType},
     util::shared_types::Uri,
 };
@@ -37,7 +37,8 @@ pub trait ReportRequest: Debug {
 /// Trait for an epoch-based query.
 pub trait EpochReportRequest: ReportRequest {
     type EpochId: EpochId;
-    type EpochEvents: EpochEvents;
+    type Event: Event;
+    type EpochEvents: EpochEvents<Self::Event>;
     type RelevantEventSelector;
     type PrivacyBudget;
     type ReportGlobalSensitivity;

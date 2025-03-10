@@ -105,7 +105,7 @@ impl<U, EI, E, EE, RES, FS, ES, Q, ERR> EpochPrivateDataService<FS, ES, Q, ERR>
 where
     U: Uri + Clone + Eq + Hash,
     EI: EpochId,
-    E: Event<EpochId = EI, Uri = U>,
+    E: Event<EpochId = EI, Uri = U> + Clone,
     EE: EpochEvents<E>,
     FS: FilterStorage<Budget = PureDPBudget, FilterId = FilterId<EI, U>>,
     RES: RelevantEventSelector<Event = E>,
@@ -169,9 +169,11 @@ where
             );
 
             // Step 3. Compute per-iimpression-site losses.
-            let impression_site_losses = self.compute_impression_site_loss(
+            let impression_site_losses = self.compute_epoch_source_uri_level_losses(
+                request,
                 epoch_relevant_events,
-                &individual_privacy_loss,
+                &unbiased_report,
+                num_epochs,
             );
 
             // Step 4. Try to consume budget from current epoch, drop events if
@@ -179,8 +181,8 @@ where
             let deduct_res = self.deduct_budget(
                 &epoch_id,
                 &individual_privacy_loss,
-                request.report_uris(),
                 &impression_site_losses,
+                request.report_uris(),
             );
             match deduct_res {
                 Ok(FilterStatus::Continue) => {
@@ -221,8 +223,8 @@ where
             let budget_res = self.deduct_budget(
                 &epoch_id,
                 &request.privacy_budget,
-                request.uris.clone(),
                 &impression_site_losses,
+                request.uris.clone(),
             )?;
             if budget_res == FilterStatus::OutOfBudget {
                 return Ok(FilterStatus::OutOfBudget);
@@ -252,53 +254,74 @@ where
         Ok(())
     }
 
-    // Compute the impression site loss that can be incurred at each site as a hashmap.
-    fn compute_impression_site_loss(
+    /// Compute the per-impression-site loss.
+    /// TODO(https://github.com/columbia/pdslib/issues/38): Replace
+    /// device-epoch individual sensitivity with device-epoch-site individual sensitivity.
+    fn compute_epoch_source_uri_level_losses(
         &self,
-        epoch_events: Option<&EE>,
-        epoch_budget: &PureDPBudget,
+        request: &Q,
+        epoch_relevant_events: Option<&EE>,
+        computed_attribution: &<Q as ReportRequest>::Report,
+        num_epochs: usize,
     ) -> HashMap<U, PureDPBudget> {
-        let mut site_losses: HashMap<U, PureDPBudget> = HashMap::new();
+        let mut per_impression_site_losses = HashMap::new();
 
-        // If no events or undefined, then no impression sites map to events. Return already.
-        let Some(events) = epoch_events else {
-            return site_losses;
+        // If relevant events is None, return empty event-epoch-site loss.
+        let Some(epoch_events) = epoch_relevant_events else {
+            return per_impression_site_losses;
         };
-        if events.is_empty() {
-            return site_losses;
-        }
 
-        // Over events, find impression site URIs.
-        let mut impression_counts: HashMap<U, usize> = HashMap::new();
-        let mut total_impressions = 0_usize;
-        for event in events.iter() {
-            let uri = event.event_uris().source_uri.clone();
-            // Increment the count fo rthe particular impression site URI.
-            *impression_counts.entry(uri).or_insert(0) += 1;
-            // Increment the total count of impressions.
-            total_impressions += 1;
-        }
-
-        // Not impression is found.
-        if total_impressions == 0 {
-            return site_losses;
-        }
-
-        // Split the budget for each impression site.
-        let eps_value = match epoch_budget {
-            PureDPBudget::Epsilon(eps) => *eps,
-            _ => {
-                // If the budget is not a numerical value, then we cannot split it.
-                return site_losses;
+        // If relevant events is not None, we check the source URIs of the events for each impression site.
+        let imp_sites = request.report_uris().source_uris;
+        for imp_site in imp_sites {
+            // Pick out relevant event for the current impression site. Source URI of the event should be the impression site.
+            let mut relevant_events_to_site = EE::new();
+            for event in epoch_events.iter() {
+                if event.event_uris().source_uri == imp_site {
+                    relevant_events_to_site.push(event.clone());
+                }
             }
-        };
-        for (site, count) in impression_counts {
-            let fraction = (count as f64) / (total_impressions as f64);
-            let one_site_loss = PureDPBudget::Epsilon(eps_value * fraction);
-            site_losses.insert(site, one_site_loss);
+
+            // Case 1: Epoch with no relevant events
+            if relevant_events_to_site.is_empty() {
+                per_impression_site_losses.insert(imp_site, PureDPBudget::Epsilon(0.0));
+                continue;
+            }
+
+            // If not case 1.
+            let individual_sensitivity = match num_epochs {
+                1 => {
+                    // Case 2: One epoch.
+                    request.single_epoch_individual_sensitivity(
+                        computed_attribution,
+                        NormType::L1,
+                    )
+                }
+                _ => {
+                    // Case 3: Multiple epochs.
+                    request.report_global_sensitivity()
+                }
+            };
+
+            let NoiseScale::Laplace(noise_scale) = request.noise_scale();
+
+            // Treat near-zero noise scales as non-private, i.e. requesting infinite
+            // budget, which can only go through if filters are also set to
+            // infinite capacity, e.g. for debugging. The machine precision
+            // `f64::EPSILON` is not related to privacy.
+            if noise_scale.abs() < f64::EPSILON {
+                per_impression_site_losses.insert(imp_site, PureDPBudget::Infinite);
+                continue;
+            }
+
+            // In Cookie Monster, we have `query_global_sensitivity` /
+            // `requested_epsilon` instead of just `noise_scale`.
+            // TODO(https://github.com/columbia/pdslib/issues/23): potentially use two parameters
+            // instead of a single `noise_scale`.
+            per_impression_site_losses.insert(imp_site, PureDPBudget::Epsilon(individual_sensitivity / noise_scale));
         }
-    
-        site_losses
+
+        per_impression_site_losses
     }
 
     /// Deduct the privacy loss from the various filters.
@@ -306,8 +329,8 @@ where
         &mut self,
         epoch_id: &EI,
         loss: &FS::Budget,
-        uris: ReportRequestUris<U>,
         impression_site_losses: &HashMap<U, FS::Budget>,
+        uris: ReportRequestUris<U>,
     ) -> Result<FilterStatus, ERR> {
         use FilterId::*;
         let mut filters_to_consume = vec![];

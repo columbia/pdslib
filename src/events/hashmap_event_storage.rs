@@ -7,12 +7,20 @@ use crate::events::traits::{
 pub type VecEpochEvents<E> = Vec<E>;
 
 impl<E: Event> EpochEvents<E> for VecEpochEvents<E> {
+    fn new() -> Self {
+        Vec::new()
+    }
+
     fn is_empty(&self) -> bool {
         self.is_empty()
     }
 
     fn iter(&self) -> std::slice::Iter<'_, E> {
         self.as_slice().iter()
+    }
+
+    fn push(&mut self, event: E) {
+        self.push(event);
     }
 }
 

@@ -34,9 +34,13 @@ pub trait Event: Debug {
 
 /// Collection of events for a given epoch.
 pub trait EpochEvents<E>: Debug + Index<usize, Output=E> + IndexMut<usize, Output=E> {
+    fn new() -> Self;
+
     fn is_empty(&self) -> bool;
 
     fn iter(&self) -> std::slice::Iter<'_, E>;
+
+    fn push(&mut self, event: E);
 }
 
 /// Selector that can tag relevant events one by one or in bulk.

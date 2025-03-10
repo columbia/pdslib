@@ -1,6 +1,7 @@
 use log::info;
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::hash::Hash;
 
 use crate::{
     budget::{
@@ -102,9 +103,9 @@ pub struct EpochPrivateDataService<
 /// TODO(https://github.com/columbia/pdslib/issues/22): simplify trait bounds?
 impl<U, EI, E, EE, RES, FS, ES, Q, ERR> EpochPrivateDataService<FS, ES, Q, ERR>
 where
-    U: Uri + Clone,
+    U: Uri + Clone + Eq + Hash,
     EI: EpochId,
-    E: Event<EpochId = EI>,
+    E: Event<EpochId = EI, Uri = U>,
     EE: EpochEvents<E>,
     FS: FilterStorage<Budget = PureDPBudget, FilterId = FilterId<EI, U>>,
     RES: RelevantEventSelector<Event = E>,
@@ -167,12 +168,19 @@ where
                 num_epochs,
             );
 
-            // Step 3. Try to consume budget from current epoch, drop events if
+            // Step 3. Compute per-iimpression-site losses.
+            let impression_site_losses = self.compute_impression_site_loss(
+                epoch_relevant_events,
+                &individual_privacy_loss,
+            );
+
+            // Step 4. Try to consume budget from current epoch, drop events if
             // OOB.
             let deduct_res = self.deduct_budget(
                 &epoch_id,
                 &individual_privacy_loss,
                 request.report_uris(),
+                &impression_site_losses,
             );
             match deduct_res {
                 Ok(FilterStatus::Continue) => {
@@ -205,6 +213,8 @@ where
         &mut self,
         request: PassivePrivacyLossRequest<EI, U, PureDPBudget>,
     ) -> Result<FilterStatus, ERR> {
+        let impression_site_losses = HashMap::new();  // Dummy.
+
         // For each epoch, try to consume the privacy budget.
         for epoch_id in request.epoch_ids {
             // Try to consume budget from current epoch.
@@ -212,6 +222,7 @@ where
                 &epoch_id,
                 &request.privacy_budget,
                 request.uris.clone(),
+                &impression_site_losses,
             )?;
             if budget_res == FilterStatus::OutOfBudget {
                 return Ok(FilterStatus::OutOfBudget);
@@ -241,12 +252,62 @@ where
         Ok(())
     }
 
+    // Compute the impression site loss that can be incurred at each site as a hashmap.
+    fn compute_impression_site_loss(
+        &self,
+        epoch_events: Option<&EE>,
+        epoch_budget: &PureDPBudget,
+    ) -> HashMap<U, PureDPBudget> {
+        let mut site_losses: HashMap<U, PureDPBudget> = HashMap::new();
+
+        // If no events or undefined, then no impression sites map to events. Return already.
+        let Some(events) = epoch_events else {
+            return site_losses;
+        };
+        if events.is_empty() {
+            return site_losses;
+        }
+
+        // Over events, find impression site URIs.
+        let mut impression_counts: HashMap<U, usize> = HashMap::new();
+        let mut total_impressions = 0_usize;
+        for event in events.iter() {
+            let uri = event.event_uris().source_uri.clone();
+            // Increment the count fo rthe particular impression site URI.
+            *impression_counts.entry(uri).or_insert(0) += 1;
+            // Increment the total count of impressions.
+            total_impressions += 1;
+        }
+
+        // Not impression is found.
+        if total_impressions == 0 {
+            return site_losses;
+        }
+
+        // Split the budget for each impression site.
+        let eps_value = match epoch_budget {
+            PureDPBudget::Epsilon(eps) => *eps,
+            _ => {
+                // If the budget is not a numerical value, then we cannot split it.
+                return site_losses;
+            }
+        };
+        for (site, count) in impression_counts {
+            let fraction = (count as f64) / (total_impressions as f64);
+            let one_site_loss = PureDPBudget::Epsilon(eps_value * fraction);
+            site_losses.insert(site, one_site_loss);
+        }
+    
+        site_losses
+    }
+
     /// Deduct the privacy loss from the various filters.
     fn deduct_budget(
         &mut self,
         epoch_id: &EI,
         loss: &FS::Budget,
         uris: ReportRequestUris<U>,
+        impression_site_losses: &HashMap<U, FS::Budget>,
     ) -> Result<FilterStatus, ERR> {
         use FilterId::*;
         let mut filters_to_consume = vec![];
@@ -256,10 +317,6 @@ where
         }
         filters_to_consume.push(QTrigger(epoch_id.clone(), uris.trigger_uri));
         filters_to_consume.push(C(epoch_id.clone()));
-        for source_uri in uris.source_uris {
-            filters_to_consume.push(QSource(epoch_id.clone(), source_uri));
-        }
-
         for filter_id in filters_to_consume {
             self.initialize_filter_if_necessary(filter_id.clone())?;
 
@@ -273,6 +330,21 @@ where
                     // TODO(https://github.com/columbia/pdslib/issues/39)
                     // need to implement transaction rollbacks for previous
                     // filter deductions.
+                }
+            }
+        }
+
+        for (imp_site, imp_loss) in impression_site_losses {
+            let fid = FilterId::QSource(epoch_id.clone(), imp_site.clone());
+            self.initialize_filter_if_necessary(fid.clone())?;
+
+            match self.filter_storage.check_and_consume(&fid, imp_loss)? {
+                FilterStatus::Continue => {
+                    // The budget is not depleted, keep going.
+                }
+                FilterStatus::OutOfBudget => {
+                    // The budget is depleted, stop deducting from filters.
+                    return Ok(FilterStatus::OutOfBudget);
                 }
             }
         }

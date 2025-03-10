@@ -57,8 +57,6 @@ fn main() -> Result<(), anyhow::Error> {
 
     // pdslib only needs the mechanism (noise distribution and scale), which
     // can be computed from the global sensitivity and global epsilon if needed.
-    // TODO(https://github.com/columbia/pdslib/issues/23): potentially use two parameters
-    // instead of a single `laplace_noise_scale`.
     let query_global_sensitivity = 100.0;
     let requested_epsilon = 1.0;
 

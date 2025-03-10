@@ -331,8 +331,6 @@ where
 
         // In Cookie Monster, we have `query_global_sensitivity` /
         // `requested_epsilon` instead of just `noise_scale`.
-        // TODO(https://github.com/columbia/pdslib/issues/23): potentially use two parameters
-        // instead of a single `noise_scale`.
         PureDPBudget::Epsilon(individual_sensitivity / noise_scale)
     }
 }

@@ -161,7 +161,7 @@ where
                 relevant_events_per_epoch.get(&epoch_id);
 
             // Step 2. Compute individual loss for current epoch.
-            let individual_privacy_loss = self.compute_individual_privacy_loss(
+            let individual_privacy_loss = self.compute_epoch_level_individual_privacy_loss(
                 request,
                 epoch_relevant_events,
                 &unbiased_report,
@@ -169,7 +169,7 @@ where
             );
 
             // Step 3. Compute per-iimpression-site losses.
-            let impression_site_losses = self.compute_epoch_source_uri_level_losses(
+            let impression_site_losses = self.compute_epoch_source_uri_level_individual_privacy_losses(
                 request,
                 epoch_relevant_events,
                 &unbiased_report,
@@ -257,7 +257,7 @@ where
     /// Compute the per-impression-site loss.
     /// TODO(https://github.com/columbia/pdslib/issues/44): Replace
     /// device-epoch individual sensitivity with device-epoch-site individual sensitivity.
-    fn compute_epoch_source_uri_level_losses(
+    fn compute_epoch_source_uri_level_individual_privacy_losses(
         &self,
         request: &Q,
         epoch_relevant_events: Option<&EE>,
@@ -377,10 +377,10 @@ where
     }
 
     /// Pure DP individual privacy loss, following
-    /// `compute_individual_privacy_loss` from Code Listing 1 in Cookie Monster (https://arxiv.org/pdf/2405.16719).
+    /// `compute_epoch_level_individual_privacy_loss` from Code Listing 1 in Cookie Monster (https://arxiv.org/pdf/2405.16719).
     ///
     /// TODO(https://github.com/columbia/pdslib/issues/21): generic budget.
-    fn compute_individual_privacy_loss(
+    fn compute_epoch_level_individual_privacy_loss(
         &self,
         request: &Q,
         epoch_relevant_events: Option<&EE>,

@@ -259,7 +259,7 @@ where
     }
 
     /// Compute the per-impression-site loss.
-    /// TODO(https://github.com/columbia/pdslib/issues/38): Replace
+    /// TODO(https://github.com/columbia/pdslib/issues/44): Replace
     /// device-epoch individual sensitivity with device-epoch-site individual sensitivity.
     fn compute_epoch_source_uri_level_losses(
         &self,
@@ -296,6 +296,7 @@ where
             let individual_sensitivity = match num_epochs {
                 1 => {
                     // Case 2: One epoch.
+                    // TODO(https://github.com/columbia/pdslib/issues/44): Replace with device-epoch-site individual sensitivity.
                     request.single_epoch_individual_sensitivity(
                         computed_attribution,
                         NormType::L1,

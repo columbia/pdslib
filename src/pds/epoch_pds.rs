@@ -30,7 +30,8 @@ pub enum FilterId<
     C(E),
     /// Quota filter regulating c-filter consumption per trigger_uri
     QTrigger(E, U /* trigger URI */),
-    // TODO(https://github.com/columbia/pdslib/issues/38) q-source
+    /// Quota filter regulating c-filter consumption per source_uri
+    QSource(E, U /* source URI */),
 }
 
 /// Struct containing the default capacity for each type of filter.
@@ -38,15 +39,17 @@ pub struct StaticCapacities<FID, B> {
     pub nc: B,
     pub c: B,
     pub qtrigger: B,
+    pub qsource: B,
     _phantom: std::marker::PhantomData<FID>,
 }
 
 impl<FID, B> StaticCapacities<FID, B> {
-    pub fn new(nc: B, c: B, qtrigger: B) -> Self {
+    pub fn new(nc: B, c: B, qtrigger: B, qsource: B) -> Self {
         Self {
             nc,
             c,
             qtrigger,
+            qsource,
             _phantom: std::marker::PhantomData,
         }
     }
@@ -65,6 +68,7 @@ impl<B: Budget, E, U> FilterCapacities for StaticCapacities<FilterId<E, U>, B> {
             FilterId::Nc(..) => Ok(self.nc.clone()),
             FilterId::C(..) => Ok(self.c.clone()),
             FilterId::QTrigger(..) => Ok(self.qtrigger.clone()),
+            FilterId::QSource(..) => Ok(self.qsource.clone())
         }
     }
 }

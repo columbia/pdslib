@@ -97,6 +97,7 @@ impl<H: HistogramRequest> ReportRequest for H {
 /// HistogramRequest can be used as an EpochReportRequest.
 impl<H: HistogramRequest> EpochReportRequest for H {
     type EpochId = H::EpochId;
+    type Event = H::Event;
     type EpochEvents = H::EpochEvents;
     type PrivacyBudget = PureDPBudget;
     type ReportGlobalSensitivity = f64;

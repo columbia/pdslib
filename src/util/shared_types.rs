@@ -1,2 +1,3 @@
 /// Marker trait for URIs.
-pub trait Uri {}
+use std::hash::Hash;
+pub trait Uri: Clone + Eq + Hash {}

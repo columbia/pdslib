@@ -12,6 +12,7 @@ impl<FID> StaticCapacities<FID, PureDPBudget> {
             PureDPBudget::Epsilon(1.0),
             PureDPBudget::Epsilon(20.0),
             PureDPBudget::Epsilon(1.5),
+            PureDPBudget::Epsilon(4.0),
         )
     }
 }

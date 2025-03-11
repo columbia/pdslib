@@ -1,4 +1,5 @@
 use std::{fmt::Debug, hash::Hash};
+use std::collections::HashMap;
 
 use crate::util::shared_types::Uri;
 
@@ -7,6 +8,9 @@ pub trait EpochId: Hash + std::cmp::Eq + Clone + Debug {}
 
 /// Default EpochId
 impl EpochId for usize {}
+
+pub type EpochEventsMap<U, E> = HashMap<U, E>;
+pub type EpochSiteEventsResult<U, E, Err> = Result<Option<EpochEventsMap<U, E>>, Err>;
 
 #[derive(Debug, Clone)]
 pub struct EventUris<U: Uri> {
@@ -33,6 +37,8 @@ pub trait Event: Debug {
 
 /// Collection of events for a given epoch.
 pub trait EpochEvents: Debug {
+    fn new() -> Self;
+
     fn is_empty(&self) -> bool;
 }
 
@@ -53,7 +59,8 @@ pub trait RelevantEventSelector {
 
 /// Interface to store events and retrieve them by epoch.
 pub trait EventStorage {
-    type Event: Event;
+    type Uri: Uri;
+    type Event: Event<Uri = Self::Uri>;
     type EpochEvents: EpochEvents;
     type RelevantEventSelector: RelevantEventSelector<Event = Self::Event>;
     type Error;
@@ -67,4 +74,11 @@ pub trait EventStorage {
         epoch_id: &<Self::Event as Event>::EpochId,
         relevant_event_selector: &Self::RelevantEventSelector,
     ) -> Result<Option<Self::EpochEvents>, Self::Error>;
+
+    /// Retrieves all relevant events for a given epoch.
+    fn relevant_epoch_site_events(
+        &self,
+        epoch_id: &<Self::Event as Event>::EpochId,
+        relevant_event_selector: &Self::RelevantEventSelector,
+    ) -> EpochSiteEventsResult<Self::Uri, Self::EpochEvents, Self::Error>;
 }

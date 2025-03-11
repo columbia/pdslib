@@ -29,7 +29,8 @@ pub enum FilterId<
     C(E),
     /// Quota filter regulating c-filter consumption per trigger_uri
     QTrigger(E, U /* trigger URI */),
-    // TODO(https://github.com/columbia/pdslib/issues/38) q-source
+    /// Quota filter regulating c-filter consumption per source_uri
+    QSource(E, U /* source URI */),
 }
 
 /// Struct containing the default capacity for each type of filter.
@@ -37,15 +38,17 @@ pub struct StaticCapacities<FID, B> {
     pub nc: B,
     pub c: B,
     pub qtrigger: B,
+    pub qsource: B,
     _phantom: std::marker::PhantomData<FID>,
 }
 
 impl<FID, B> StaticCapacities<FID, B> {
-    pub fn new(nc: B, c: B, qtrigger: B) -> Self {
+    pub fn new(nc: B, c: B, qtrigger: B, qsource: B) -> Self {
         Self {
             nc,
             c,
             qtrigger,
+            qsource,
             _phantom: std::marker::PhantomData,
         }
     }
@@ -64,6 +67,7 @@ impl<B: Budget, E, U> FilterCapacities for StaticCapacities<FilterId<E, U>, B> {
             FilterId::Nc(..) => Ok(self.nc.clone()),
             FilterId::C(..) => Ok(self.c.clone()),
             FilterId::QTrigger(..) => Ok(self.qtrigger.clone()),
+            FilterId::QSource(..) => Ok(self.qsource.clone())
         }
     }
 }
@@ -102,13 +106,13 @@ pub struct EpochPrivateDataService<
 /// TODO(https://github.com/columbia/pdslib/issues/22): simplify trait bounds?
 impl<U, EI, E, EE, RES, FS, ES, Q, ERR> EpochPrivateDataService<FS, ES, Q, ERR>
 where
-    U: Uri + Clone,
+    U: Uri,
     EI: EpochId,
-    E: Event<EpochId = EI>,
+    E: Event<EpochId = EI, Uri = U> + Clone,
     EE: EpochEvents,
     FS: FilterStorage<Budget = PureDPBudget, FilterId = FilterId<EI, U>>,
     RES: RelevantEventSelector<Event = E>,
-    ES: EventStorage<Event = E, EpochEvents = EE, RelevantEventSelector = RES>,
+    ES: EventStorage<Event = E, EpochEvents = EE, RelevantEventSelector = RES, Uri = U>,
     Q: EpochReportRequest<
         EpochId = EI,
         EpochEvents = EE,
@@ -133,7 +137,7 @@ where
     ) -> Result<<Q as ReportRequest>::Report, ERR> {
         info!("Computing report for request {:?}", request);
 
-        // Collect events from event storage. If an epoch has no relevant
+        // Collect events from event storage by epoch. If an epoch has no relevant
         // events, don't add it to the mapping.
         let mut relevant_events_per_epoch: HashMap<EI, EE> = HashMap::new();
         let relevant_event_selector = request.relevant_event_selector();
@@ -148,6 +152,21 @@ where
             }
         }
 
+        // Collect events from event storage by epoch per impression site. If an epoch-site
+        // has no relevant events, don't add it to the mapping.
+        let mut relevant_events_per_epoch_site: HashMap<EI, HashMap<U, EE>> = HashMap::new();
+        for epoch_id in request.epoch_ids() {
+            let epoch_site_relevant_events = self
+                .event_storage
+                .relevant_epoch_site_events(&epoch_id, &relevant_event_selector)?;
+
+            if let Some(epoch_site_relevant_events) = epoch_site_relevant_events {
+                relevant_events_per_epoch_site
+                    .insert(epoch_id, epoch_site_relevant_events);
+            }
+        }
+        
+
         // Compute the raw report, useful for debugging and accounting.
         let num_epochs: usize = relevant_events_per_epoch.len();
         let unbiased_report =
@@ -160,18 +179,31 @@ where
                 relevant_events_per_epoch.get(&epoch_id);
 
             // Step 2. Compute individual loss for current epoch.
-            let individual_privacy_loss = self.compute_individual_privacy_loss(
+            let individual_privacy_loss = self.compute_epoch_loss(
                 request,
                 epoch_relevant_events,
                 &unbiased_report,
                 num_epochs,
             );
 
-            // Step 3. Try to consume budget from current epoch, drop events if
+            // Step 3. Get relevant events for the current epoch `epoch_id` per impression site.
+            let epoch_site_relevant_events = relevant_events_per_epoch_site.get(&epoch_id);
+    
+
+            // Step 3. Compute per-iimpression-site losses.
+            let impression_site_losses = self.compute_epoch_source_losses(
+                request,
+                epoch_site_relevant_events,
+                &unbiased_report,
+                num_epochs,
+            );
+
+            // Step 4. Try to consume budget from current epoch, drop events if
             // OOB.
             let deduct_res = self.deduct_budget(
                 &epoch_id,
                 &individual_privacy_loss,
+                &impression_site_losses,
                 request.report_uris(),
             );
             match deduct_res {
@@ -205,12 +237,15 @@ where
         &mut self,
         request: PassivePrivacyLossRequest<EI, U, PureDPBudget>,
     ) -> Result<FilterStatus, ERR> {
+        let impression_site_losses = HashMap::new();  // Dummy.
+
         // For each epoch, try to consume the privacy budget.
         for epoch_id in request.epoch_ids {
             // Try to consume budget from current epoch.
             let budget_res = self.deduct_budget(
                 &epoch_id,
                 &request.privacy_budget,
+                &impression_site_losses,
                 request.uris.clone(),
             )?;
             if budget_res == FilterStatus::OutOfBudget {
@@ -241,11 +276,80 @@ where
         Ok(())
     }
 
+    /// Compute the per-impression-site loss.
+    /// TODO(https://github.com/columbia/pdslib/issues/44): Replace
+    /// device-epoch individual sensitivity with device-epoch-site individual sensitivity.
+    fn compute_epoch_source_losses(
+        &self,
+        request: &Q,
+        relevant_events_per_epoch_site: Option<&HashMap<U, EE>>,
+        computed_attribution: &<Q as ReportRequest>::Report,
+        num_epochs: usize,
+    ) -> HashMap<U, PureDPBudget> {
+        let mut per_impression_site_losses = HashMap::new();
+
+        // If relevant events is None, return empty event-epoch-site loss.
+        let Some(epoch_events_per_site) = relevant_events_per_epoch_site else {
+            return per_impression_site_losses;
+        };
+
+        // If relevant events is not None, we check the source URIs of the events for each impression site.
+        let imp_sites = request.report_uris().source_uris;
+        for imp_site in imp_sites {
+            // Pick out relevant event for the current impression site. Source URI of the event should be the impression site.
+            let Some(relevant_events_to_site) = epoch_events_per_site.get(&imp_site) else {
+                // No relevant events for the current impression site, default to no privacy consumption.
+                per_impression_site_losses.insert(imp_site, PureDPBudget::Epsilon(0.0));
+                continue;
+            };
+
+            // Case 1: Epoch with no relevant events
+            if relevant_events_to_site.is_empty() {
+                per_impression_site_losses.insert(imp_site, PureDPBudget::Epsilon(0.0));
+                continue;
+            }
+
+            // If not case 1.
+            let individual_sensitivity = match num_epochs {
+                1 => {
+                    // Case 2: One epoch.
+                    // TODO(https://github.com/columbia/pdslib/issues/44): Replace with device-epoch-site individual sensitivity.
+                    request.single_epoch_individual_sensitivity(
+                        computed_attribution,
+                        NormType::L1,
+                    )
+                }
+                _ => {
+                    // Case 3: Multiple epochs.
+                    request.report_global_sensitivity()
+                }
+            };
+
+            let NoiseScale::Laplace(noise_scale) = request.noise_scale();
+
+            // Treat near-zero noise scales as non-private, i.e. requesting infinite
+            // budget, which can only go through if filters are also set to
+            // infinite capacity, e.g. for debugging. The machine precision
+            // `f64::EPSILON` is not related to privacy.
+            if noise_scale.abs() < f64::EPSILON {
+                per_impression_site_losses.insert(imp_site, PureDPBudget::Infinite);
+                continue;
+            }
+
+            // In Cookie Monster, we have `query_global_sensitivity` /
+            // `requested_epsilon` instead of just `noise_scale`.
+            per_impression_site_losses.insert(imp_site, PureDPBudget::Epsilon(individual_sensitivity / noise_scale));
+        }
+
+        per_impression_site_losses
+    }
+
     /// Deduct the privacy loss from the various filters.
     fn deduct_budget(
         &mut self,
         epoch_id: &EI,
         loss: &FS::Budget,
+        impression_site_losses: &HashMap<U, FS::Budget>,
         uris: ReportRequestUris<U>,
     ) -> Result<FilterStatus, ERR> {
         use FilterId::*;
@@ -256,8 +360,6 @@ where
         }
         filters_to_consume.push(QTrigger(epoch_id.clone(), uris.trigger_uri));
         filters_to_consume.push(C(epoch_id.clone()));
-        // TODO(https://github.com/columbia/pdslib/issues/38) q-source
-
         for filter_id in filters_to_consume {
             self.initialize_filter_if_necessary(filter_id.clone())?;
 
@@ -275,6 +377,21 @@ where
             }
         }
 
+        for (imp_site, imp_loss) in impression_site_losses {
+            let fid = FilterId::QSource(epoch_id.clone(), imp_site.clone());
+            self.initialize_filter_if_necessary(fid.clone())?;
+
+            match self.filter_storage.check_and_consume(&fid, imp_loss)? {
+                FilterStatus::Continue => {
+                    // The budget is not depleted, keep going.
+                }
+                FilterStatus::OutOfBudget => {
+                    // The budget is depleted, stop deducting from filters.
+                    return Ok(FilterStatus::OutOfBudget);
+                }
+            }
+        }
+
         Ok(FilterStatus::Continue)
     }
 
@@ -282,7 +399,7 @@ where
     /// `compute_individual_privacy_loss` from Code Listing 1 in Cookie Monster (https://arxiv.org/pdf/2405.16719).
     ///
     /// TODO(https://github.com/columbia/pdslib/issues/21): generic budget.
-    fn compute_individual_privacy_loss(
+    fn compute_epoch_loss(
         &self,
         request: &Q,
         epoch_relevant_events: Option<&EE>,

@@ -1,5 +1,5 @@
 use std::{fmt::Debug, hash::Hash};
-use std::ops::{Index, IndexMut};
+use std::collections::HashMap;
 
 use crate::util::shared_types::Uri;
 
@@ -33,14 +33,10 @@ pub trait Event: Debug {
 }
 
 /// Collection of events for a given epoch.
-pub trait EpochEvents<E>: Debug + Index<usize, Output=E> + IndexMut<usize, Output=E> {
+pub trait EpochEvents: Debug {
     fn new() -> Self;
 
     fn is_empty(&self) -> bool;
-
-    fn iter(&self) -> std::slice::Iter<'_, E>;
-
-    fn push(&mut self, event: E);
 }
 
 /// Selector that can tag relevant events one by one or in bulk.
@@ -60,8 +56,9 @@ pub trait RelevantEventSelector {
 
 /// Interface to store events and retrieve them by epoch.
 pub trait EventStorage {
-    type Event: Event;
-    type EpochEvents: EpochEvents<Self::Event>;
+    type Uri: Uri;
+    type Event: Event<Uri = Self::Uri>;
+    type EpochEvents: EpochEvents;
     type RelevantEventSelector: RelevantEventSelector<Event = Self::Event>;
     type Error;
 
@@ -74,4 +71,11 @@ pub trait EventStorage {
         epoch_id: &<Self::Event as Event>::EpochId,
         relevant_event_selector: &Self::RelevantEventSelector,
     ) -> Result<Option<Self::EpochEvents>, Self::Error>;
+
+    /// Retrieves all relevant events for a given epoch.
+    fn relevant_epoch_site_events(
+        &self,
+        epoch_id: &<Self::Event as Event>::EpochId,
+        relevant_event_selector: &Self::RelevantEventSelector,
+    ) -> Result<Option<HashMap<Self::Uri, Self::EpochEvents>>, Self::Error>;
 }

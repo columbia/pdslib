@@ -38,7 +38,7 @@ pub trait ReportRequest: Debug {
 pub trait EpochReportRequest: ReportRequest {
     type EpochId: EpochId;
     type Event: Event;
-    type EpochEvents: EpochEvents<Self::Event>;
+    type EpochEvents: EpochEvents;
     type RelevantEventSelector;
     type PrivacyBudget;
     type ReportGlobalSensitivity;

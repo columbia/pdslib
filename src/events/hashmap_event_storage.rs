@@ -6,21 +6,13 @@ use crate::events::traits::{
 
 pub type VecEpochEvents<E> = Vec<E>;
 
-impl<E: Event> EpochEvents<E> for VecEpochEvents<E> {
+impl<E: Event> EpochEvents for VecEpochEvents<E> {
     fn new() -> Self {
         Vec::new()
     }
 
     fn is_empty(&self) -> bool {
         self.is_empty()
-    }
-
-    fn iter(&self) -> std::slice::Iter<'_, E> {
-        self.as_slice().iter()
-    }
-
-    fn push(&mut self, event: E) {
-        self.push(event);
     }
 }
 
@@ -50,6 +42,7 @@ where
     E: Event + Clone,
     RES: RelevantEventSelector<Event = E>,
 {
+    type Uri = E::Uri;
     type Event = E;
     type EpochEvents = VecEpochEvents<E>;
     type RelevantEventSelector = RES;
@@ -77,5 +70,28 @@ where
                 .collect()
         });
         Ok(events)
+    }
+
+    fn relevant_epoch_site_events(
+        &self,
+        epoch_id: &<Self::Event as Event>::EpochId,
+        selector: &Self::RelevantEventSelector,
+    ) -> Result<Option<HashMap<Self::Uri, Self::EpochEvents>>, Self::Error> {
+        // Return relevant events for a given epoch_id
+        // TODO: instead of returning an empty Vec, return None?
+        let events_map = self.epochs.get(epoch_id).map(|events| {
+            events
+                .iter()
+                .filter(|event| selector.is_relevant_event(event))
+                .cloned()
+                .fold(HashMap::new(), |mut acc, event| {
+                    let key = event.event_uris().source_uri.clone();
+                    acc.entry(key)
+                        .or_insert_with(Vec::new)
+                        .push(event);
+                    acc
+                })
+        });
+        Ok(events_map)
     }
 }

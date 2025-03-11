@@ -109,10 +109,10 @@ where
     U: Uri,
     EI: EpochId,
     E: Event<EpochId = EI, Uri = U> + Clone,
-    EE: EpochEvents<E>,
+    EE: EpochEvents,
     FS: FilterStorage<Budget = PureDPBudget, FilterId = FilterId<EI, U>>,
     RES: RelevantEventSelector<Event = E>,
-    ES: EventStorage<Event = E, EpochEvents = EE, RelevantEventSelector = RES>,
+    ES: EventStorage<Event = E, EpochEvents = EE, RelevantEventSelector = RES, Uri = U>,
     Q: EpochReportRequest<
         EpochId = EI,
         EpochEvents = EE,
@@ -137,7 +137,7 @@ where
     ) -> Result<<Q as ReportRequest>::Report, ERR> {
         info!("Computing report for request {:?}", request);
 
-        // Collect events from event storage. If an epoch has no relevant
+        // Collect events from event storage by epoch. If an epoch has no relevant
         // events, don't add it to the mapping.
         let mut relevant_events_per_epoch: HashMap<EI, EE> = HashMap::new();
         let relevant_event_selector = request.relevant_event_selector();
@@ -151,6 +151,21 @@ where
                     .insert(epoch_id, epoch_relevant_events);
             }
         }
+
+        // Collect events from event storage by epoch per impression site. If an epoch-site
+        // has no relevant events, don't add it to the mapping.
+        let mut relevant_events_per_epoch_site: HashMap<EI, HashMap<U, EE>> = HashMap::new();
+        for epoch_id in request.epoch_ids() {
+            let epoch_site_relevant_events = self
+                .event_storage
+                .relevant_epoch_site_events(&epoch_id, &relevant_event_selector)?;
+
+            if let Some(epoch_site_relevant_events) = epoch_site_relevant_events {
+                relevant_events_per_epoch_site
+                    .insert(epoch_id, epoch_site_relevant_events);
+            }
+        }
+        
 
         // Compute the raw report, useful for debugging and accounting.
         let num_epochs: usize = relevant_events_per_epoch.len();
@@ -171,10 +186,14 @@ where
                 num_epochs,
             );
 
+            // Step 3. Get relevant events for the current epoch `epoch_id` per impression site.
+            let epoch_site_relevant_events = relevant_events_per_epoch_site.get(&epoch_id);
+    
+
             // Step 3. Compute per-iimpression-site losses.
             let impression_site_losses = self.compute_epoch_source_losses(
                 request,
-                epoch_relevant_events,
+                epoch_site_relevant_events,
                 &unbiased_report,
                 num_epochs,
             );
@@ -263,14 +282,14 @@ where
     fn compute_epoch_source_losses(
         &self,
         request: &Q,
-        epoch_relevant_events: Option<&EE>,
+        relevant_events_per_epoch_site: Option<&HashMap<U, EE>>,
         computed_attribution: &<Q as ReportRequest>::Report,
         num_epochs: usize,
     ) -> HashMap<U, PureDPBudget> {
         let mut per_impression_site_losses = HashMap::new();
 
         // If relevant events is None, return empty event-epoch-site loss.
-        let Some(epoch_events) = epoch_relevant_events else {
+        let Some(epoch_events_per_site) = relevant_events_per_epoch_site else {
             return per_impression_site_losses;
         };
 
@@ -278,12 +297,11 @@ where
         let imp_sites = request.report_uris().source_uris;
         for imp_site in imp_sites {
             // Pick out relevant event for the current impression site. Source URI of the event should be the impression site.
-            let mut relevant_events_to_site = EE::new();
-            for event in epoch_events.iter() {
-                if event.event_uris().source_uri == imp_site {
-                    relevant_events_to_site.push(event.clone());
-                }
-            }
+            let Some(relevant_events_to_site) = epoch_events_per_site.get(&imp_site) else {
+                // No relevant events for the current impression site, default to no privacy consumption.
+                per_impression_site_losses.insert(imp_site, PureDPBudget::Epsilon(0.0));
+                continue;
+            };
 
             // Case 1: Epoch with no relevant events
             if relevant_events_to_site.is_empty() {

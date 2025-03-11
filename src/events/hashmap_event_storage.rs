@@ -1,7 +1,7 @@
 use std::{collections::HashMap, marker::PhantomData};
 
 use crate::events::traits::{
-    EpochEvents, Event, EventStorage, RelevantEventSelector, EpochEventsMap,
+    EpochEvents, Event, EventStorage, RelevantEventSelector, EpochSiteEventsResult,
 };
 
 pub type VecEpochEvents<E> = Vec<E>;
@@ -76,7 +76,7 @@ where
         &self,
         epoch_id: &<Self::Event as Event>::EpochId,
         selector: &Self::RelevantEventSelector,
-    ) -> Result<Option<EpochEventsMap<Self::Uri, Self::EpochEvents>>, Self::Error> {
+    ) -> EpochSiteEventsResult<Self::Uri, Self::EpochEvents, Self::Error> {
         // Return relevant events for a given epoch_id
         // TODO: instead of returning an empty Vec, return None?
         let events_map = self.epochs.get(epoch_id).map(|events| {

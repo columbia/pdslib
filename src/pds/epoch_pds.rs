@@ -34,6 +34,7 @@ pub enum FilterId<
 }
 
 /// Struct containing the default capacity for each type of filter.
+#[derive(Debug, Clone)]
 pub struct StaticCapacities<FID, B> {
     pub nc: B,
     pub c: B,
@@ -67,7 +68,7 @@ impl<B: Budget, E, U> FilterCapacities for StaticCapacities<FilterId<E, U>, B> {
             FilterId::Nc(..) => Ok(self.nc.clone()),
             FilterId::C(..) => Ok(self.c.clone()),
             FilterId::QTrigger(..) => Ok(self.qtrigger.clone()),
-            FilterId::QSource(..) => Ok(self.qsource.clone())
+            FilterId::QSource(..) => Ok(self.qsource.clone()),
         }
     }
 }
@@ -112,7 +113,12 @@ where
     EE: EpochEvents,
     FS: FilterStorage<Budget = PureDPBudget, FilterId = FilterId<EI, U>>,
     RES: RelevantEventSelector<Event = E>,
-    ES: EventStorage<Event = E, EpochEvents = EE, RelevantEventSelector = RES, Uri = U>,
+    ES: EventStorage<
+        Event = E,
+        EpochEvents = EE,
+        RelevantEventSelector = RES,
+        Uri = U,
+    >,
     Q: EpochReportRequest<
         EpochId = EI,
         EpochEvents = EE,
@@ -154,18 +160,21 @@ where
 
         // Collect events from event storage by epoch per impression site. If an epoch-site
         // has no relevant events, don't add it to the mapping.
-        let mut relevant_events_per_epoch_site: HashMap<EI, HashMap<U, EE>> = HashMap::new();
+        let mut relevant_events_per_epoch_site: HashMap<EI, HashMap<U, EE>> =
+            HashMap::new();
         for epoch_id in request.epoch_ids() {
-            let epoch_site_relevant_events = self
-                .event_storage
-                .relevant_epoch_site_events(&epoch_id, &relevant_event_selector)?;
+            let epoch_site_relevant_events =
+                self.event_storage.relevant_epoch_site_events(
+                    &epoch_id,
+                    &relevant_event_selector,
+                )?;
 
-            if let Some(epoch_site_relevant_events) = epoch_site_relevant_events {
+            if let Some(epoch_site_relevant_events) = epoch_site_relevant_events
+            {
                 relevant_events_per_epoch_site
                     .insert(epoch_id, epoch_site_relevant_events);
             }
         }
-        
 
         // Compute the raw report, useful for debugging and accounting.
         let num_epochs: usize = relevant_events_per_epoch.len();
@@ -187,8 +196,8 @@ where
             );
 
             // Step 3. Get relevant events for the current epoch `epoch_id` per impression site.
-            let epoch_site_relevant_events = relevant_events_per_epoch_site.get(&epoch_id);
-    
+            let epoch_site_relevant_events =
+                relevant_events_per_epoch_site.get(&epoch_id);
 
             // Step 3. Compute per-iimpression-site losses.
             let impression_site_losses = self.compute_epoch_source_losses(
@@ -237,7 +246,7 @@ where
         &mut self,
         request: PassivePrivacyLossRequest<EI, U, PureDPBudget>,
     ) -> Result<FilterStatus, ERR> {
-        let impression_site_losses = HashMap::new();  // Dummy.
+        let impression_site_losses = HashMap::new(); // Dummy.
 
         // For each epoch, try to consume the privacy budget.
         for epoch_id in request.epoch_ids {
@@ -297,15 +306,19 @@ where
         let imp_sites = request.report_uris().source_uris;
         for imp_site in imp_sites {
             // Pick out relevant event for the current impression site. Source URI of the event should be the impression site.
-            let Some(relevant_events_to_site) = epoch_events_per_site.get(&imp_site) else {
+            let Some(relevant_events_to_site) =
+                epoch_events_per_site.get(&imp_site)
+            else {
                 // No relevant events for the current impression site, default to no privacy consumption.
-                per_impression_site_losses.insert(imp_site, PureDPBudget::Epsilon(0.0));
+                per_impression_site_losses
+                    .insert(imp_site, PureDPBudget::Epsilon(0.0));
                 continue;
             };
 
             // Case 1: Epoch with no relevant events
             if relevant_events_to_site.is_empty() {
-                per_impression_site_losses.insert(imp_site, PureDPBudget::Epsilon(0.0));
+                per_impression_site_losses
+                    .insert(imp_site, PureDPBudget::Epsilon(0.0));
                 continue;
             }
 
@@ -332,13 +345,17 @@ where
             // infinite capacity, e.g. for debugging. The machine precision
             // `f64::EPSILON` is not related to privacy.
             if noise_scale.abs() < f64::EPSILON {
-                per_impression_site_losses.insert(imp_site, PureDPBudget::Infinite);
+                per_impression_site_losses
+                    .insert(imp_site, PureDPBudget::Infinite);
                 continue;
             }
 
             // In Cookie Monster, we have `query_global_sensitivity` /
             // `requested_epsilon` instead of just `noise_scale`.
-            per_impression_site_losses.insert(imp_site, PureDPBudget::Epsilon(individual_sensitivity / noise_scale));
+            per_impression_site_losses.insert(
+                imp_site,
+                PureDPBudget::Epsilon(individual_sensitivity / noise_scale),
+            );
         }
 
         per_impression_site_losses

@@ -101,6 +101,15 @@ pub struct EpochPrivateDataService<
     pub _phantom_error: std::marker::PhantomData<ERR>,
 }
 
+/// Report returned by Pds, potentially augmented with debugging information
+/// TODO: add more detailed information about which filters/quotas kicked in.
+///
+#[derive(Default, Debug)]
+pub struct PdsReport<Q: ReportRequest> {
+    pub filtered_report: <Q as ReportRequest>::Report,
+    pub unfiltered_report: <Q as ReportRequest>::Report,
+}
+
 /// API for the epoch-based PDS.
 ///
 /// TODO(https://github.com/columbia/pdslib/issues/21): support more than PureDP
@@ -137,10 +146,7 @@ where
     /// Computes a report for the given report request.
     /// This function follows `compute_attribution_report` from the Cookie
     /// Monster Algorithm (https://arxiv.org/pdf/2405.16719, Code Listing 1)
-    pub fn compute_report(
-        &mut self,
-        request: &Q,
-    ) -> Result<<Q as ReportRequest>::Report, ERR> {
+    pub fn compute_report(&mut self, request: &Q) -> Result<PdsReport<Q>, ERR> {
         info!("Computing report for request {:?}", request);
 
         // Collect events from event storage by epoch. If an epoch has no relevant
@@ -178,7 +184,7 @@ where
 
         // Compute the raw report, useful for debugging and accounting.
         let num_epochs: usize = relevant_events_per_epoch.len();
-        let unbiased_report =
+        let unfiltered_report =
             request.compute_report(&relevant_events_per_epoch);
 
         // Browse epochs in the attribution window
@@ -191,7 +197,7 @@ where
             let individual_privacy_loss = self.compute_epoch_loss(
                 request,
                 epoch_relevant_events,
-                &unbiased_report,
+                &unfiltered_report,
                 num_epochs,
             );
 
@@ -203,7 +209,7 @@ where
             let impression_site_losses = self.compute_epoch_source_losses(
                 request,
                 epoch_site_relevant_events,
-                &unbiased_report,
+                &unfiltered_report,
                 num_epochs,
             );
 
@@ -225,7 +231,10 @@ where
                 }
                 Err(_) => {
                     // Return default report if anything else goes wrong.
-                    return Ok(Default::default());
+                    return Ok(PdsReport {
+                        filtered_report: Default::default(),
+                        unfiltered_report,
+                    });
                 }
             }
         }
@@ -233,7 +242,10 @@ where
         // Now that we've dropped OOB epochs, we can compute the final report.
         let filtered_report =
             request.compute_report(&relevant_events_per_epoch);
-        Ok(filtered_report)
+        Ok(PdsReport {
+            filtered_report,
+            unfiltered_report,
+        })
     }
 
     /// [Experimental] Accounts for passive privacy loss. Can fail if the

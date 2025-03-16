@@ -1,3 +1,5 @@
+mod common;
+
 use log::info;
 use std::collections::HashMap;
 
@@ -14,8 +16,9 @@ use pdslib::{
     queries::{
         ppa_histogram::{PpaRelevantEventSelector, PpaHistogramRequest, AttributionLogic}, traits::ReportRequestUris
     },
-    util::logging,
 };
+
+use common::logging;
 
 #[test]
 fn main() -> Result<(), anyhow::Error> {

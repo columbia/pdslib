@@ -1,3 +1,5 @@
+mod common;
+
 use pdslib::{
     budget::{
         hashmap_filter_storage::HashMapFilterStorage,
@@ -13,8 +15,9 @@ use pdslib::{
         simple_last_touch_histogram::SimpleLastTouchHistogramRequest,
         traits::ReportRequestUris,
     },
-    util::logging,
 };
+
+use common::logging;
 
 #[test]
 fn main() -> Result<(), anyhow::Error> {

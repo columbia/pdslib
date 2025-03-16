@@ -34,26 +34,20 @@ fn main() -> Result<(), anyhow::Error> {
         _phantom_error: std::marker::PhantomData::<anyhow::Error>,
     };
 
-    let sample_event_uris = EventUris {
-        source_uri: "blog.com".to_string(),
-        trigger_uris: vec!["shoes.com".to_string()],
-        querier_uris: vec!["shoes.com".to_string(), "adtech.com".to_string()],
-    };
+    let sample_event_uris = EventUris::mock();
     let event_uris_irrelevant_due_to_source = EventUris {
         source_uri: "blog_off_brand.com".to_string(),
-        trigger_uris: vec!["shoes.com".to_string()],
-        querier_uris: vec!["shoes.com".to_string(), "adtech.com".to_string()],
+        ..EventUris::mock()
     };
     let event_uris_irrelevant_due_to_trigger = EventUris {
-        source_uri: "blog.com".to_string(),
         trigger_uris: vec!["shoes_off_brand.com".to_string()],
-        querier_uris: vec!["shoes.com".to_string(), "adtech.com".to_string()],
+        ..EventUris::mock()
     };
     let event_uris_irrelevant_due_to_querier = EventUris {
-        source_uri: "blog.com".to_string(),
-        trigger_uris: vec!["shoes.com".to_string()],
-        querier_uris: vec!["adtech.com".to_string()],
+        querier_uris: vec!["adtech_off_brand.com".to_string()],
+        ..EventUris::mock()
     };
+
     let sample_report_request_uris = ReportRequestUris {
         trigger_uri: "shoes.com".to_string(),
         source_uris: vec!["blog.com".to_string()],

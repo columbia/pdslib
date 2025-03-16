@@ -37,7 +37,7 @@ fn main() -> Result<(), anyhow::Error> {
         event_storage: events,
         epoch_capacity: PureDPBudget::Epsilon(3.0),
         _phantom_request: std::marker::PhantomData::<
-            LastTouchHistogramRequest,
+            SimpleLastTouchHistogramRequest,
         >,
         _phantom_error: std::marker::PhantomData::<anyhow::Error>,
     };
@@ -86,6 +86,6 @@ fn main() -> Result<(), anyhow::Error> {
     let report = pds.compute_report(&report_request)?;
 
     // Look at the histogram stored in the report (unencrypted here).
-    assert_eq!(report.bin_value, Some((event.event_key, 70.0)));
+    assert_eq!(report.unfiltered_report.bin_value, Some((event.event_key, 70.0)));
     Ok(())
 }

@@ -124,9 +124,9 @@ fn main() -> Result<(), anyhow::Error> {
 
     // One event attributed to the binary OR of the source keypiece and trigger
     // keypiece = 0x159 | 0x400
-    assert!(report1.bin_values.contains_key(&0x559));
-    println!("Report1: {:?}", report1.bin_values.len());
-    assert_eq!(report1.bin_values.get(&0x559), Some(&32768.0));
+    assert!(report1.filtered_report.bin_values.contains_key(&0x559));
+    println!("Report1: {:?}", report1.filtered_report.bin_values.len());
+    assert_eq!(report1.filtered_report.bin_values.get(&0x559), Some(&32768.0));
 
     // Test error case when requested_epsilon is 0.
     let request2 = PpaHistogramRequest::new(
@@ -167,7 +167,7 @@ fn main() -> Result<(), anyhow::Error> {
     info!("Report3: {:?}", report3);
 
     // No event attributed because the lambda logic filters out the only qualified event.
-    assert_eq!(report3.bin_values.len(), 0);
+    assert_eq!(report3.filtered_report.bin_values.len(), 0);
 
     // TODO(https://github.com/columbia/pdslib/issues/8): add more tests when we have multiple events
 

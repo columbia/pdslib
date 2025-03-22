@@ -10,11 +10,15 @@ use pdslib::{
         traits::FilterStorage,
     },
     events::{
-        hashmap_event_storage::HashMapEventStorage, ppa_event::PpaEvent, traits::EventUris
+        hashmap_event_storage::HashMapEventStorage, ppa_event::PpaEvent,
+        traits::EventUris,
     },
     pds::epoch_pds::{EpochPrivateDataService, StaticCapacities},
     queries::{
-        ppa_histogram::{PpaRelevantEventSelector, PpaHistogramRequest, AttributionLogic}, traits::ReportRequestUris
+        ppa_histogram::{
+            AttributionLogic, PpaHistogramRequest, PpaRelevantEventSelector,
+        },
+        traits::ReportRequestUris,
     },
 };
 
@@ -27,7 +31,7 @@ fn main() -> Result<(), anyhow::Error> {
         HashMapEventStorage::<PpaEvent, PpaRelevantEventSelector>::new();
     let capacities = StaticCapacities::mock();
     let filters: HashMapFilterStorage<_, PureDPBudgetFilter, _, _> =
-            HashMapFilterStorage::new(capacities)?;
+        HashMapFilterStorage::new(capacities)?;
 
     let mut pds = EpochPrivateDataService {
         filter_storage: filters,
@@ -67,7 +71,7 @@ fn main() -> Result<(), anyhow::Error> {
         epoch_number: 1,
         aggregatable_sources: sources1.clone(),
         uris: sample_event_uris.clone(),
-        filter_data: 1
+        filter_data: 1,
     };
 
     let event_irr_1 = PpaEvent {
@@ -75,7 +79,7 @@ fn main() -> Result<(), anyhow::Error> {
         epoch_number: 1,
         aggregatable_sources: sources1.clone(),
         uris: event_uris_irrelevant_due_to_source.clone(),
-        filter_data: 1
+        filter_data: 1,
     };
 
     let event_irr_2 = PpaEvent {
@@ -83,7 +87,7 @@ fn main() -> Result<(), anyhow::Error> {
         epoch_number: 1,
         aggregatable_sources: sources1.clone(),
         uris: event_uris_irrelevant_due_to_trigger.clone(),
-        filter_data: 1
+        filter_data: 1,
     };
 
     let event_irr_3 = PpaEvent {
@@ -91,7 +95,7 @@ fn main() -> Result<(), anyhow::Error> {
         epoch_number: 1,
         aggregatable_sources: sources1.clone(),
         uris: event_uris_irrelevant_due_to_querier.clone(),
-        filter_data: 1
+        filter_data: 1,
     };
 
     pds.register_event(event1.clone())?;
@@ -114,11 +118,12 @@ fn main() -> Result<(), anyhow::Error> {
             is_matching_event: |event_filter_data: u64| event_filter_data == 1,
         }, // Not filtering yet.
         AttributionLogic::LastTouch,
-    ).unwrap();
+    )
+    .unwrap();
 
     let report1 = pds.compute_report(&request1).unwrap();
     info!("Report1: {:?}", report1);
-    let bin_values1 = &report1.unfiltered_report.bin_values;
+    let bin_values1 = &report1.filtered_report.bin_values;
 
     // One event attributed to the binary OR of the source keypiece and trigger
     // keypiece = 0x159 | 0x400
@@ -159,7 +164,8 @@ fn main() -> Result<(), anyhow::Error> {
             is_matching_event: |event_filter_data: u64| event_filter_data != 1,
         }, // Not filtering yet.
         AttributionLogic::LastTouch,
-    ).unwrap();
+    )
+    .unwrap();
 
     let report3 = pds.compute_report(&request3).unwrap();
     info!("Report3: {:?}", report3);

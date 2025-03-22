@@ -1,5 +1,6 @@
 mod common;
 
+use common::logging;
 use pdslib::{
     budget::{
         hashmap_filter_storage::HashMapFilterStorage,
@@ -16,8 +17,6 @@ use pdslib::{
         traits::ReportRequestUris,
     },
 };
-
-use common::logging;
 
 #[test]
 fn main() -> Result<(), anyhow::Error> {
@@ -86,6 +85,9 @@ fn main() -> Result<(), anyhow::Error> {
     let report = pds.compute_report(&report_request)?;
 
     // Look at the histogram stored in the report (unencrypted here).
-    assert_eq!(report.unfiltered_report.bin_value, Some((event.event_key, 70.0)));
+    assert_eq!(
+        report.filtered_report.bin_value,
+        Some((event.event_key, 70.0))
+    );
     Ok(())
 }

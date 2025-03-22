@@ -1,4 +1,3 @@
-
 /// Trait for privacy budgets
 pub trait Budget: Clone {
     // For now just a marker trait requiring Clone

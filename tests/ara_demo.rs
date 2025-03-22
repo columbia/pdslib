@@ -1,6 +1,9 @@
-use log::info;
+mod common;
+
 use std::collections::HashMap;
 
+use common::logging;
+use log::info;
 use pdslib::{
     budget::{
         hashmap_filter_storage::HashMapFilterStorage,
@@ -8,13 +11,16 @@ use pdslib::{
         traits::FilterStorage,
     },
     events::{
-        hashmap_event_storage::HashMapEventStorage, ppa_event::PpaEvent, traits::EventUris
+        hashmap_event_storage::HashMapEventStorage, ppa_event::PpaEvent,
+        traits::EventUris,
     },
     pds::epoch_pds::{EpochPrivateDataService, StaticCapacities},
     queries::{
-        ppa_histogram::{PpaRelevantEventSelector, PpaHistogramRequest, AttributionLogic}, traits::ReportRequestUris
+        ppa_histogram::{
+            AttributionLogic, PpaHistogramRequest, PpaRelevantEventSelector,
+        },
+        traits::ReportRequestUris,
     },
-    util::logging,
 };
 
 #[test]
@@ -24,7 +30,7 @@ fn main() -> Result<(), anyhow::Error> {
         HashMapEventStorage::<PpaEvent, PpaRelevantEventSelector>::new();
     let capacities = StaticCapacities::mock();
     let filters: HashMapFilterStorage<_, PureDPBudgetFilter, _, _> =
-            HashMapFilterStorage::new(capacities)?;
+        HashMapFilterStorage::new(capacities)?;
 
     let mut pds = EpochPrivateDataService {
         filter_storage: filters,
@@ -34,26 +40,20 @@ fn main() -> Result<(), anyhow::Error> {
         _phantom_error: std::marker::PhantomData::<anyhow::Error>,
     };
 
-    let sample_event_uris = EventUris {
-        source_uri: "blog.com".to_string(),
-        trigger_uris: vec!["shoes.com".to_string()],
-        querier_uris: vec!["shoes.com".to_string(), "adtech.com".to_string()],
-    };
+    let sample_event_uris = EventUris::mock();
     let event_uris_irrelevant_due_to_source = EventUris {
         source_uri: "blog_off_brand.com".to_string(),
-        trigger_uris: vec!["shoes.com".to_string()],
-        querier_uris: vec!["shoes.com".to_string(), "adtech.com".to_string()],
+        ..EventUris::mock()
     };
     let event_uris_irrelevant_due_to_trigger = EventUris {
-        source_uri: "blog.com".to_string(),
         trigger_uris: vec!["shoes_off_brand.com".to_string()],
-        querier_uris: vec!["shoes.com".to_string(), "adtech.com".to_string()],
+        ..EventUris::mock()
     };
     let event_uris_irrelevant_due_to_querier = EventUris {
-        source_uri: "blog.com".to_string(),
-        trigger_uris: vec!["shoes.com".to_string()],
-        querier_uris: vec!["adtech.com".to_string()],
+        querier_uris: vec!["adtech_off_brand.com".to_string()],
+        ..EventUris::mock()
     };
+
     let sample_report_request_uris = ReportRequestUris {
         trigger_uri: "shoes.com".to_string(),
         source_uris: vec!["blog.com".to_string()],
@@ -70,7 +70,7 @@ fn main() -> Result<(), anyhow::Error> {
         epoch_number: 1,
         aggregatable_sources: sources1.clone(),
         uris: sample_event_uris.clone(),
-        filter_data: 1
+        filter_data: 1,
     };
 
     let event_irr_1 = PpaEvent {
@@ -78,7 +78,7 @@ fn main() -> Result<(), anyhow::Error> {
         epoch_number: 1,
         aggregatable_sources: sources1.clone(),
         uris: event_uris_irrelevant_due_to_source.clone(),
-        filter_data: 1
+        filter_data: 1,
     };
 
     let event_irr_2 = PpaEvent {
@@ -86,7 +86,7 @@ fn main() -> Result<(), anyhow::Error> {
         epoch_number: 1,
         aggregatable_sources: sources1.clone(),
         uris: event_uris_irrelevant_due_to_trigger.clone(),
-        filter_data: 1
+        filter_data: 1,
     };
 
     let event_irr_3 = PpaEvent {
@@ -94,7 +94,7 @@ fn main() -> Result<(), anyhow::Error> {
         epoch_number: 1,
         aggregatable_sources: sources1.clone(),
         uris: event_uris_irrelevant_due_to_querier.clone(),
-        filter_data: 1
+        filter_data: 1,
     };
 
     pds.register_event(event1.clone())?;
@@ -117,16 +117,18 @@ fn main() -> Result<(), anyhow::Error> {
             is_matching_event: |event_filter_data: u64| event_filter_data == 1,
         }, // Not filtering yet.
         AttributionLogic::LastTouch,
-    ).unwrap();
+    )
+    .unwrap();
 
     let report1 = pds.compute_report(&request1).unwrap();
     info!("Report1: {:?}", report1);
+    let bin_values1 = &report1.filtered_report.bin_values;
 
     // One event attributed to the binary OR of the source keypiece and trigger
     // keypiece = 0x159 | 0x400
-    assert!(report1.filtered_report.bin_values.contains_key(&0x559));
-    println!("Report1: {:?}", report1.filtered_report.bin_values.len());
-    assert_eq!(report1.filtered_report.bin_values.get(&0x559), Some(&32768.0));
+    assert!(bin_values1.contains_key(&0x559));
+    println!("Report1: {:?}", bin_values1.len());
+    assert_eq!(bin_values1.get(&0x559), Some(&32768.0));
 
     // Test error case when requested_epsilon is 0.
     let request2 = PpaHistogramRequest::new(
@@ -161,12 +163,14 @@ fn main() -> Result<(), anyhow::Error> {
             is_matching_event: |event_filter_data: u64| event_filter_data != 1,
         }, // Not filtering yet.
         AttributionLogic::LastTouch,
-    ).unwrap();
+    )
+    .unwrap();
 
     let report3 = pds.compute_report(&request3).unwrap();
     info!("Report3: {:?}", report3);
 
-    // No event attributed because the lambda logic filters out the only qualified event.
+    // No event attributed because the lambda logic filters out the only
+    // qualified event.
     assert_eq!(report3.filtered_report.bin_values.len(), 0);
 
     // TODO(https://github.com/columbia/pdslib/issues/8): add more tests when we have multiple events

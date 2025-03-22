@@ -1,3 +1,6 @@
+mod common;
+
+use common::logging;
 use pdslib::{
     budget::{
         hashmap_filter_storage::HashMapFilterStorage,
@@ -13,7 +16,6 @@ use pdslib::{
         simple_last_touch_histogram::SimpleLastTouchHistogramRequest,
         traits::ReportRequestUris,
     },
-    util::logging,
 };
 
 #[test]
@@ -88,8 +90,10 @@ fn main() -> Result<(), anyhow::Error> {
     let report_request2 = SimpleLastTouchHistogramRequest {
         epoch_start: 1,
         epoch_end: 1, //test restricting the end epoch
-        report_global_sensitivity: 0.1, /* Even 0.1 should be enough to go over the
-                                         * limit as the current budget left for
+        report_global_sensitivity: 0.1, /* Even 0.1 should be enough to go
+                                         * over the
+                                         * limit as the current budget left
+                                         * for
                                          * epoch 1 is 0. */
         query_global_sensitivity: 5.0,
         requested_epsilon: 5.0,

@@ -4,7 +4,7 @@ use std::{collections::HashMap, vec};
 
 use crate::{
     events::{
-        ppa_event::PpaEvent, hashmap_event_storage::VecEpochEvents,
+        hashmap_event_storage::VecEpochEvents, ppa_event::PpaEvent,
         traits::RelevantEventSelector,
     },
     queries::{histogram::HistogramRequest, traits::ReportRequestUris},
@@ -26,33 +26,44 @@ pub enum AttributionLogic {
 /// Select events using ARA-style filters.
 /// See https://github.com/WICG/attribution-reporting-api/blob/main/EVENT.md#optional-attribution-filters
 ///
-/// TODO: But additionally we might also want to filter based on metadata. Right now, any event that matches all the 3
-/// URiIs is deemed relevant. But what about a query that only cares about impressions for product_a? This is what 
-/// filterData is about in PPA. We will need to find out how it works exactly. A simple example has been implemented,
-/// where we pass a lambda function, e.g. to keep events with a certain value of event_key.
+/// TODO: But additionally we might also want to filter based on metadata. Right
+/// now, any event that matches all the 3 URiIs is deemed relevant. But what
+/// about a query that only cares about impressions for product_a? This is what
+/// filterData is about in PPA. We will need to find out how it works exactly. A
+/// simple example has been implemented, where we pass a lambda function, e.g.
+/// to keep events with a certain value of event_key.
 impl RelevantEventSelector for PpaRelevantEventSelector {
     type Event = PpaEvent;
 
     fn is_relevant_event(&self, event: &PpaEvent) -> bool {
-        // Condition 1: Event's source URI should be in the allowed list by the report request source URIs.
-        let source_match = self.report_request_uris
+        // Condition 1: Event's source URI should be in the allowed list by the
+        // report request source URIs.
+        let source_match = self
+            .report_request_uris
             .source_uris
             .contains(&event.uris.source_uri);
 
-        // Condition 2: Every querier URI from the report must be in the event’s querier URIs.
-        // TODO: We might change Condition 2 eventually when we support split reports, where one querier is
+        // Condition 2: Every querier URI from the report must be in the event’s
+        // querier URIs. TODO: We might change Condition 2 eventually
+        // when we support split reports, where one querier is
         // authorized but not others.
-        let querier_match = self.report_request_uris
+        let querier_match = self
+            .report_request_uris
             .querier_uris
             .iter()
             .all(|uri| event.uris.querier_uris.contains(uri));
 
-        // Condition 3: The report’s trigger URI should be allowed by the event trigger URIs.
-        let trigger_match = event.uris
+        // Condition 3: The report’s trigger URI should be allowed by the event
+        // trigger URIs.
+        let trigger_match = event
+            .uris
             .trigger_uris
             .contains(&self.report_request_uris.trigger_uri);
 
-        source_match && querier_match && trigger_match && (self.is_matching_event)(event.filter_data)
+        source_match
+            && querier_match
+            && trigger_match
+            && (self.is_matching_event)(event.filter_data)
     }
 }
 
@@ -67,9 +78,9 @@ pub struct PpaHistogramRequest {
     start_epoch: usize,
     end_epoch: usize,
     per_event_attributable_value: f64, /* ARA can attribute to multiple
-                                            * events */
+                                        * events */
     report_global_sensitivity: f64, /* E.g. 2^16 in ARA, with scaling as
-                                  * post-processing */
+                                     * post-processing */
     query_global_sensitivity: f64,
     requested_epsilon: f64,
     source_key: String,
@@ -81,7 +92,7 @@ pub struct PpaHistogramRequest {
 impl PpaHistogramRequest {
     /// Constructs a new `PpaHistogramRequest`, validating that:
     /// - `requested_epsilon` is > 0.
-    /// - `per_event_attributable_value`, `report_global_sensitivity` and 
+    /// - `per_event_attributable_value`, `report_global_sensitivity` and
     ///   `query_global_sensitivity` are non-negative.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -99,9 +110,10 @@ impl PpaHistogramRequest {
         if requested_epsilon <= 0.0 {
             return Err("requested_epsilon must be greater than 0");
         }
-        if per_event_attributable_value < 0.0 ||
-            report_global_sensitivity < 0.0 ||
-            query_global_sensitivity < 0.0 {
+        if per_event_attributable_value < 0.0
+            || report_global_sensitivity < 0.0
+            || query_global_sensitivity < 0.0
+        {
             return Err("sensitivity values must be non-negative");
         }
         Ok(Self {
@@ -118,7 +130,6 @@ impl PpaHistogramRequest {
         })
     }
 }
-
 
 /// See https://github.com/WICG/attribution-reporting-api/blob/main/AGGREGATE.md#attribution-trigger-registration.
 impl HistogramRequest for PpaHistogramRequest {
@@ -150,7 +161,7 @@ impl HistogramRequest for PpaHistogramRequest {
 
     #[allow(clippy::clone_on_copy)]
     fn relevant_event_selector(&self) -> Self::RelevantEventSelector {
-        Self::RelevantEventSelector{
+        Self::RelevantEventSelector {
             report_request_uris: self.filters.report_request_uris.clone(),
             is_matching_event: self.filters.is_matching_event.clone(),
         }
@@ -192,11 +203,13 @@ impl HistogramRequest for PpaHistogramRequest {
             AttributionLogic::LastTouch => {
                 for relevant_events in relevant_events_per_epoch.values() {
                     if let Some(last_impression) = relevant_events.last() {
-                        event_values.push((last_impression, self.per_event_attributable_value));
+                        event_values.push((
+                            last_impression,
+                            self.per_event_attributable_value,
+                        ));
                     }
                 }
-            }
-            // Other attribution logic not supported yet.
+            } // Other attribution logic not supported yet.
         }
 
         event_values

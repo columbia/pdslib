@@ -47,11 +47,12 @@ pub trait HistogramRequest: Debug {
     fn epochs_ids(&self) -> Vec<Self::EpochId>;
 
     /// Returns the query global sensitivity which is the maximum change that
-    /// can be made by a device-epoch to the output of a query over a batch of 
+    /// can be made by a device-epoch to the output of a query over a batch of
     /// reports.
     fn query_global_sensitivity(&self) -> f64;
 
-    /// Returns the global privacy budget requested by a query over a batch of reports. 
+    /// Returns the global privacy budget requested by a query over a batch of
+    /// reports.
     fn requested_epsilon(&self) -> f64;
 
     /// Returns the Laplace noise scale added after summing all the reports.
@@ -115,10 +116,11 @@ impl<H: HistogramRequest> EpochReportRequest for H {
     }
 
     fn noise_scale(&self) -> NoiseScale {
-        // Note that the noise scale equals query_global_sensitiviity divided by the
-        // requested epsilon.
-        NoiseScale::Laplace(self.query_global_sensitivity() / 
-            self.requested_epsilon())
+        // Note that the noise scale equals query_global_sensitiviity divided by
+        // the requested epsilon.
+        NoiseScale::Laplace(
+            self.query_global_sensitivity() / self.requested_epsilon(),
+        )
     }
 
     /// Computes the report by attributing values to events, and then summing
@@ -132,9 +134,11 @@ impl<H: HistogramRequest> EpochReportRequest for H {
         let mut total_value: f64 = 0.0;
         let event_values = self.event_values(relevant_events_per_epoch);
 
-        // The event_values function selects the relevant events and assigns values according to the requested attribution
-        // logic, so we should be able to aggregate values directly. For example, in the case of LastTouch logic, only the
-        // last value for an event will be selected, so the sum is juat that singular value.
+        // The event_values function selects the relevant events and assigns
+        // values according to the requested attribution logic, so we
+        // should be able to aggregate values directly. For example, in the case
+        // of LastTouch logic, only the last value for an event will be
+        // selected, so the sum is juat that singular value.
         //
         // The order matters, since events that are attributed last might be
         // dropped by the contribution cap.

@@ -1,7 +1,8 @@
 use std::{collections::HashMap, marker::PhantomData};
 
 use crate::events::traits::{
-    EpochEvents, Event, EventStorage, RelevantEventSelector, EpochSiteEventsResult,
+    EpochEvents, EpochSiteEventsResult, Event, EventStorage,
+    RelevantEventSelector,
 };
 
 pub type VecEpochEvents<E> = Vec<E>;
@@ -84,13 +85,14 @@ where
                 .iter()
                 .filter(|event| selector.is_relevant_event(event))
                 .cloned()
-                .fold(HashMap::new(), |mut acc: HashMap<<E as Event>::Uri, Vec<E>>, event| {
-                    let key = event.event_uris().source_uri.clone();
-                    acc.entry(key)
-                        .or_default()
-                        .push(event);
-                    acc
-                })
+                .fold(
+                    HashMap::new(),
+                    |mut acc: HashMap<<E as Event>::Uri, Vec<E>>, event| {
+                        let key = event.event_uris().source_uri.clone();
+                        acc.entry(key).or_default().push(event);
+                        acc
+                    },
+                )
         });
         Ok(events_map)
     }

@@ -1,5 +1,4 @@
-use std::{fmt::Debug, hash::Hash};
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
 use crate::util::shared_types::Uri;
 
@@ -10,7 +9,8 @@ pub trait EpochId: Hash + std::cmp::Eq + Clone + Debug {}
 impl EpochId for usize {}
 
 pub type EpochEventsMap<U, E> = HashMap<U, E>;
-pub type EpochSiteEventsResult<U, E, Err> = Result<Option<EpochEventsMap<U, E>>, Err>;
+pub type EpochSiteEventsResult<U, E, Err> =
+    Result<Option<EpochEventsMap<U, E>>, Err>;
 
 #[derive(Debug, Clone)]
 pub struct EventUris<U: Uri> {

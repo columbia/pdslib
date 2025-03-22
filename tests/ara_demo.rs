@@ -1,8 +1,9 @@
 mod common;
 
-use log::info;
 use std::collections::HashMap;
 
+use common::logging;
+use log::info;
 use pdslib::{
     budget::{
         hashmap_filter_storage::HashMapFilterStorage,
@@ -21,8 +22,6 @@ use pdslib::{
         traits::ReportRequestUris,
     },
 };
-
-use common::logging;
 
 #[test]
 fn main() -> Result<(), anyhow::Error> {
@@ -170,7 +169,8 @@ fn main() -> Result<(), anyhow::Error> {
     let report3 = pds.compute_report(&request3).unwrap();
     info!("Report3: {:?}", report3);
 
-    // No event attributed because the lambda logic filters out the only qualified event.
+    // No event attributed because the lambda logic filters out the only
+    // qualified event.
     assert_eq!(report3.filtered_report.bin_values.len(), 0);
 
     // TODO(https://github.com/columbia/pdslib/issues/8): add more tests when we have multiple events

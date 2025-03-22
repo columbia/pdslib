@@ -126,6 +126,8 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
     }
 
     fn noise_scale(&self) -> NoiseScale {
-        NoiseScale::Laplace(self.query_global_sensitivity / self.requested_epsilon)
+        NoiseScale::Laplace(
+            self.query_global_sensitivity / self.requested_epsilon,
+        )
     }
 }

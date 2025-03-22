@@ -1,6 +1,6 @@
+use std::{collections::HashMap, fmt::Debug};
+
 use log::info;
-use std::collections::HashMap;
-use std::fmt::Debug;
 
 use crate::{
     budget::{
@@ -103,7 +103,6 @@ pub struct EpochPrivateDataService<
 
 /// Report returned by Pds, potentially augmented with debugging information
 /// TODO: add more detailed information about which filters/quotas kicked in.
-///
 #[derive(Default, Debug)]
 pub struct PdsReport<Q: ReportRequest> {
     pub filtered_report: <Q as ReportRequest>::Report,
@@ -149,8 +148,8 @@ where
     pub fn compute_report(&mut self, request: &Q) -> Result<PdsReport<Q>, ERR> {
         info!("Computing report for request {:?}", request);
 
-        // Collect events from event storage by epoch. If an epoch has no relevant
-        // events, don't add it to the mapping.
+        // Collect events from event storage by epoch. If an epoch has no
+        // relevant events, don't add it to the mapping.
         let mut relevant_events_per_epoch: HashMap<EI, EE> = HashMap::new();
         let relevant_event_selector = request.relevant_event_selector();
         for epoch_id in request.epoch_ids() {
@@ -164,8 +163,9 @@ where
             }
         }
 
-        // Collect events from event storage by epoch per impression site. If an epoch-site
-        // has no relevant events, don't add it to the mapping.
+        // Collect events from event storage by epoch per impression site. If an
+        // epoch-site has no relevant events, don't add it to the
+        // mapping.
         let mut relevant_events_per_epoch_site: HashMap<EI, HashMap<U, EE>> =
             HashMap::new();
         for epoch_id in request.epoch_ids() {
@@ -201,7 +201,8 @@ where
                 num_epochs,
             );
 
-            // Step 3. Get relevant events for the current epoch `epoch_id` per impression site.
+            // Step 3. Get relevant events for the current epoch `epoch_id` per
+            // impression site.
             let epoch_site_relevant_events =
                 relevant_events_per_epoch_site.get(&epoch_id);
 
@@ -299,7 +300,8 @@ where
 
     /// Compute the per-impression-site loss.
     /// TODO(https://github.com/columbia/pdslib/issues/44): Replace
-    /// device-epoch individual sensitivity with device-epoch-site individual sensitivity.
+    /// device-epoch individual sensitivity with device-epoch-site individual
+    /// sensitivity.
     fn compute_epoch_source_losses(
         &self,
         request: &Q,
@@ -314,14 +316,17 @@ where
             return per_impression_site_losses;
         };
 
-        // If relevant events is not None, we check the source URIs of the events for each impression site.
+        // If relevant events is not None, we check the source URIs of the
+        // events for each impression site.
         let imp_sites = request.report_uris().source_uris;
         for imp_site in imp_sites {
-            // Pick out relevant event for the current impression site. Source URI of the event should be the impression site.
+            // Pick out relevant event for the current impression site. Source
+            // URI of the event should be the impression site.
             let Some(relevant_events_to_site) =
                 epoch_events_per_site.get(&imp_site)
             else {
-                // No relevant events for the current impression site, default to no privacy consumption.
+                // No relevant events for the current impression site, default
+                // to no privacy consumption.
                 per_impression_site_losses
                     .insert(imp_site, PureDPBudget::Epsilon(0.0));
                 continue;
@@ -352,10 +357,11 @@ where
 
             let NoiseScale::Laplace(noise_scale) = request.noise_scale();
 
-            // Treat near-zero noise scales as non-private, i.e. requesting infinite
-            // budget, which can only go through if filters are also set to
-            // infinite capacity, e.g. for debugging. The machine precision
-            // `f64::EPSILON` is not related to privacy.
+            // Treat near-zero noise scales as non-private, i.e. requesting
+            // infinite budget, which can only go through if filters
+            // are also set to infinite capacity, e.g. for
+            // debugging. The machine precision `f64::EPSILON` is
+            // not related to privacy.
             if noise_scale.abs() < f64::EPSILON {
                 per_impression_site_losses
                     .insert(imp_site, PureDPBudget::Infinite);

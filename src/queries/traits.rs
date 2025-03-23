@@ -65,6 +65,14 @@ pub trait EpochReportRequest: ReportRequest {
         norm_type: NormType,
     ) -> f64;
 
+    /// Computes the individual sensitivity for the query when the report is
+    /// computed over a single epoch site.
+    fn single_epoch_site_individual_sensitivity(
+        &self,
+        report: &Self::Report,
+        norm_type: NormType,
+    ) -> f64;
+
     /// Computes the global sensitivity for the query.
     fn report_global_sensitivity(&self) -> f64;
 

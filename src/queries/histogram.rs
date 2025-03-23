@@ -173,6 +173,15 @@ impl<H: HistogramRequest> EpochReportRequest for H {
         }
     }
 
+    /// Computes individual sensitivity in the single epoch-site case.
+    fn single_epoch_site_individual_sensitivity(
+        &self,
+        report: &Self::Report,
+        norm_type: NormType,
+    ) -> f64 {
+        self.single_epoch_individual_sensitivity(report, norm_type)
+    }
+
     /// Computes the global sensitivity, useful for the multi-epoch case.
     /// See https://arxiv.org/pdf/2405.16719, Thm. 18
     fn report_global_sensitivity(&self) -> f64 {

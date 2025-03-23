@@ -313,9 +313,8 @@ where
 
         // Collect sites and noise scale from the request.
         let imp_sites = request.report_uris().source_uris;
-        let noise_scale = match request.noise_scale() {
-            NoiseScale::Laplace(scale) => scale,
-        };
+        let NoiseScale::Laplace(noise_scale) = request.noise_scale();
+
 
         // Count sites with relevant events for case analysis
         let num_sites_with_relevant_events = relevant_events_per_epoch_site

@@ -310,15 +310,18 @@ where
         num_epochs: usize,
     ) -> HashMap<U, PureDPBudget> {
         let mut per_impression_site_losses = HashMap::new();
-
+    
         // If relevant events is None, return empty event-epoch-site loss.
         let Some(epoch_events_per_site) = relevant_events_per_epoch_site else {
             return per_impression_site_losses;
         };
-
+    
         // If relevant events is not None, we check the source URIs of the
         // events for each impression site.
         let imp_sites = request.report_uris().source_uris;
+        let sites_with_relevant_events: Vec<&U> = epoch_events_per_site.keys().collect();
+        let num_sites_with_relevant_events = sites_with_relevant_events.len();
+    
         for imp_site in imp_sites {
             // Pick out relevant event for the current impression site. Source
             // URI of the event should be the impression site.
@@ -331,32 +334,30 @@ where
                     .insert(imp_site, PureDPBudget::Epsilon(0.0));
                 continue;
             };
-
-            // Case 1: Epoch with no relevant events
+    
+            // Case 1: Epoch-site with no relevant events.
             if relevant_events_to_site.is_empty() {
                 per_impression_site_losses
                     .insert(imp_site, PureDPBudget::Epsilon(0.0));
                 continue;
             }
-
-            // If not case 1.
-            let individual_sensitivity = match num_epochs {
-                1 => {
-                    // Case 2: One epoch.
-                    // TODO(https://github.com/columbia/pdslib/issues/44): Replace with device-epoch-site individual sensitivity.
-                    request.single_epoch_individual_sensitivity(
-                        computed_attribution,
-                        NormType::L1,
-                    )
-                }
-                _ => {
-                    // Case 3: Multiple epochs.
-                    request.report_global_sensitivity()
-                }
+    
+            // If not case 1. Determine individual sensitivity based on how many epoch-sites.
+            let individual_sensitivity = if num_epochs == 1 && num_sites_with_relevant_events == 1 {
+                // Case 2: Single epoch and single site with relevant events.
+                // Use actual individual sensitivity for this specific site.
+                request.single_epoch_individual_sensitivity(
+                    computed_attribution,
+                    NormType::L1,
+                )
+            } else {
+                // Case 3: Multiple epochs or multiple sites with relevant events.
+                // Use global sensitivity as an upper bound.
+                request.report_global_sensitivity()
             };
-
+    
             let NoiseScale::Laplace(noise_scale) = request.noise_scale();
-
+    
             // Treat near-zero noise scales as non-private, i.e. requesting
             // infinite budget, which can only go through if filters
             // are also set to infinite capacity, e.g. for
@@ -367,15 +368,14 @@ where
                     .insert(imp_site, PureDPBudget::Infinite);
                 continue;
             }
-
-            // In Cookie Monster, we have `query_global_sensitivity` /
-            // `requested_epsilon` instead of just `noise_scale`.
+    
+            // Calculate and store the privacy budget for this impression site
             per_impression_site_losses.insert(
                 imp_site,
                 PureDPBudget::Epsilon(individual_sensitivity / noise_scale),
             );
         }
-
+    
         per_impression_site_losses
     }
 

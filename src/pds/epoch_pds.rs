@@ -325,7 +325,7 @@ where
             // Case 1: No relevant events map, or no events for this site, or empty events
             let has_relevant_events = relevant_events_per_epoch_site
                 .and_then(|map| map.get(&imp_site))
-                .map_or(false, |events| !events.is_empty());
+                .is_some_and(|events| !events.is_empty());
                 
             let individual_sensitivity = if !has_relevant_events {
                 // Case 1: Epoch-site with no relevant events.
@@ -352,14 +352,15 @@ where
                 per_impression_site_losses
                     .insert(imp_site, PureDPBudget::Infinite);
             } else {
-                // Calculate and store the privacy budget for this impression site
+                // In Cookie Monster, we have `query_global_sensitivity` /
+                // `requested_epsilon` instead of just `noise_scale`.
                 per_impression_site_losses.insert(
                     imp_site, 
                     PureDPBudget::Epsilon(individual_sensitivity / noise_scale),
                 );
             }
         }
-    
+
         per_impression_site_losses
     }
 

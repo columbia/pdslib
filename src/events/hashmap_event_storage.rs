@@ -73,7 +73,7 @@ where
         Ok(events)
     }
 
-    fn relevant_epoch_site_events(
+    fn relevant_epoch_source_events(
         &self,
         epoch_id: &<Self::Event as Event>::EpochId,
         selector: &Self::RelevantEventSelector,

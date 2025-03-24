@@ -163,22 +163,23 @@ where
             }
         }
 
-        // Collect events from event storage by epoch per impression site. If an
-        // epoch-site has no relevant events, don't add it to the
+        // Collect events from event storage by epoch per source. If an
+        // epoch-source has no relevant events, don't add it to the
         // mapping.
-        let mut relevant_events_per_epoch_site: HashMap<EI, HashMap<U, EE>> =
+        let mut relevant_events_per_epoch_source: HashMap<EI, HashMap<U, EE>> =
             HashMap::new();
         for epoch_id in request.epoch_ids() {
-            let epoch_site_relevant_events =
-                self.event_storage.relevant_epoch_site_events(
+            let epoch_source_relevant_events =
+                self.event_storage.relevant_epoch_source_events(
                     &epoch_id,
                     &relevant_event_selector,
                 )?;
 
-            if let Some(epoch_site_relevant_events) = epoch_site_relevant_events
+            if let Some(epoch_source_relevant_events) =
+                epoch_source_relevant_events
             {
-                relevant_events_per_epoch_site
-                    .insert(epoch_id, epoch_site_relevant_events);
+                relevant_events_per_epoch_source
+                    .insert(epoch_id, epoch_source_relevant_events);
             }
         }
 
@@ -201,15 +202,14 @@ where
                 num_epochs,
             );
 
-            // Step 3. Get relevant events for the current epoch `epoch_id` per
-            // impression site.
-            let epoch_site_relevant_events =
-                relevant_events_per_epoch_site.get(&epoch_id);
+            // Step 3. Get relevant events for the current epoch `epoch_id` per source.
+            let epoch_source_relevant_events =
+                relevant_events_per_epoch_source.get(&epoch_id);
 
-            // Step 3. Compute per-iimpression-site losses.
-            let impression_site_losses = self.compute_epoch_source_losses(
+            // Step 3. Compute device-epoch-source losses.
+            let source_losses = self.compute_epoch_source_losses(
                 request,
-                epoch_site_relevant_events,
+                epoch_source_relevant_events,
                 &unfiltered_report,
                 num_epochs,
             );
@@ -219,7 +219,7 @@ where
             let deduct_res = self.deduct_budget(
                 &epoch_id,
                 &individual_privacy_loss,
-                &impression_site_losses,
+                &source_losses,
                 request.report_uris(),
             );
             match deduct_res {
@@ -259,7 +259,7 @@ where
         &mut self,
         request: PassivePrivacyLossRequest<EI, U, PureDPBudget>,
     ) -> Result<FilterStatus, ERR> {
-        let impression_site_losses = HashMap::new(); // Dummy.
+        let source_losses = HashMap::new(); // Dummy.
 
         // For each epoch, try to consume the privacy budget.
         for epoch_id in request.epoch_ids {
@@ -267,7 +267,7 @@ where
             let budget_res = self.deduct_budget(
                 &epoch_id,
                 &request.privacy_budget,
-                &impression_site_losses,
+                &source_losses,
                 request.uris.clone(),
             )?;
             if budget_res == FilterStatus::OutOfBudget {
@@ -298,32 +298,29 @@ where
         Ok(())
     }
 
-    /// Compute the per-impression-site loss.
-    /// TODO(https://github.com/columbia/pdslib/issues/44): Replace
-    /// device-epoch individual sensitivity with device-epoch-site individual
-    /// sensitivity.
+    /// Compute the privacy loss at the device-epoch-source level.
     fn compute_epoch_source_losses(
         &self,
         request: &Q,
-        relevant_events_per_epoch_site: Option<&HashMap<U, EE>>,
+        relevant_events_per_epoch_source: Option<&HashMap<U, EE>>,
         computed_attribution: &<Q as ReportRequest>::Report,
         num_epochs: usize,
     ) -> HashMap<U, PureDPBudget> {
-        let mut per_impression_site_losses = HashMap::new();
+        let mut per_source_losses = HashMap::new();
 
         // Collect sites and noise scale from the request.
-        let imp_sites = request.report_uris().source_uris;
+        let sources = request.report_uris().source_uris;
         let NoiseScale::Laplace(noise_scale) = request.noise_scale();
 
         // Count sites with relevant events for case analysis
         let num_sites_with_relevant_events =
-            relevant_events_per_epoch_site.map_or(0, |map| map.len());
+            relevant_events_per_epoch_source.map_or(0, |map| map.len());
 
-        for imp_site in imp_sites {
+        for source in sources {
             // Case 1: No relevant events map, or no events for this site, or
             // empty events
-            let has_relevant_events = relevant_events_per_epoch_site
-                .and_then(|map| map.get(&imp_site))
+            let has_relevant_events = relevant_events_per_epoch_source
+                .and_then(|map| map.get(&source))
                 .is_some_and(|events| !events.is_empty());
 
             let individual_sensitivity = if !has_relevant_events {
@@ -332,7 +329,7 @@ where
             } else if num_epochs == 1 && num_sites_with_relevant_events == 1 {
                 // Case 2: Single epoch and single site with relevant events.
                 // Use actual individual sensitivity for this specific site.
-                request.single_epoch_site_individual_sensitivity(
+                request.single_epoch_source_individual_sensitivity(
                     computed_attribution,
                     NormType::L1,
                 )
@@ -349,19 +346,18 @@ where
             // debugging. The machine precision `f64::EPSILON` is
             // not related to privacy.
             if noise_scale.abs() < f64::EPSILON {
-                per_impression_site_losses
-                    .insert(imp_site, PureDPBudget::Infinite);
+                per_source_losses.insert(source, PureDPBudget::Infinite);
             } else {
                 // In Cookie Monster, we have `query_global_sensitivity` /
                 // `requested_epsilon` instead of just `noise_scale`.
-                per_impression_site_losses.insert(
-                    imp_site,
+                per_source_losses.insert(
+                    source,
                     PureDPBudget::Epsilon(individual_sensitivity / noise_scale),
                 );
             }
         }
 
-        per_impression_site_losses
+        per_source_losses
     }
 
     /// Deduct the privacy loss from the various filters.
@@ -369,7 +365,7 @@ where
         &mut self,
         epoch_id: &EI,
         loss: &FS::Budget,
-        impression_site_losses: &HashMap<U, FS::Budget>,
+        source_losses: &HashMap<U, FS::Budget>,
         uris: ReportRequestUris<U>,
     ) -> Result<FilterStatus, ERR> {
         use FilterId::*;
@@ -397,11 +393,11 @@ where
             }
         }
 
-        for (imp_site, imp_loss) in impression_site_losses {
-            let fid = FilterId::QSource(epoch_id.clone(), imp_site.clone());
+        for (source, loss) in source_losses {
+            let fid = FilterId::QSource(epoch_id.clone(), source.clone());
             self.initialize_filter_if_necessary(fid.clone())?;
 
-            match self.filter_storage.check_and_consume(&fid, imp_loss)? {
+            match self.filter_storage.check_and_consume(&fid, loss)? {
                 FilterStatus::Continue => {
                     // The budget is not depleted, keep going.
                 }

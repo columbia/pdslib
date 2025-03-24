@@ -67,7 +67,7 @@ pub trait EpochReportRequest: ReportRequest {
 
     /// Computes the individual sensitivity for the query when the report is
     /// computed over a single epoch site.
-    fn single_epoch_site_individual_sensitivity(
+    fn single_epoch_source_individual_sensitivity(
         &self,
         report: &Self::Report,
         norm_type: NormType,

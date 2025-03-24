@@ -174,7 +174,7 @@ impl<H: HistogramRequest> EpochReportRequest for H {
     }
 
     /// Computes individual sensitivity in the single epoch-site case.
-    fn single_epoch_site_individual_sensitivity(
+    fn single_epoch_source_individual_sensitivity(
         &self,
         report: &Self::Report,
         norm_type: NormType,

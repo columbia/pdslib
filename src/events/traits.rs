@@ -76,7 +76,7 @@ pub trait EventStorage {
     ) -> Result<Option<Self::EpochEvents>, Self::Error>;
 
     /// Retrieves all relevant events for a given epoch.
-    fn relevant_epoch_site_events(
+    fn relevant_epoch_source_events(
         &self,
         epoch_id: &<Self::Event as Event>::EpochId,
         relevant_event_selector: &Self::RelevantEventSelector,

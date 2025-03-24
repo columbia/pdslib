@@ -121,7 +121,7 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
         }
     }
 
-    fn single_epoch_site_individual_sensitivity(
+    fn single_epoch_source_individual_sensitivity(
         &self,
         report: &Self::Report,
         norm_type: NormType,

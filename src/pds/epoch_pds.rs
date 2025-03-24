@@ -202,7 +202,8 @@ where
                 num_epochs,
             );
 
-            // Step 3. Get relevant events for the current epoch `epoch_id` per source.
+            // Step 3. Get relevant events for the current epoch `epoch_id` per
+            // source.
             let epoch_source_relevant_events =
                 relevant_events_per_epoch_source.get(&epoch_id);
 
@@ -308,35 +309,39 @@ where
     ) -> HashMap<U, PureDPBudget> {
         let mut per_source_losses = HashMap::new();
 
-        // Collect sites and noise scale from the request.
-        let sources = request.report_uris().source_uris;
+        // Collect sources and noise scale from the request.
+        let requested_sources = request.report_uris().source_uris;
         let NoiseScale::Laplace(noise_scale) = request.noise_scale();
 
-        // Count sites with relevant events for case analysis
-        let num_sites_with_relevant_events =
-            relevant_events_per_epoch_source.map_or(0, |map| map.len());
+        // Count requested sources for case analysis
+        let num_requested_sources = requested_sources.len();
 
-        for source in sources {
-            // Case 1: No relevant events map, or no events for this site, or
-            // empty events
-            let has_relevant_events = relevant_events_per_epoch_source
-                .and_then(|map| map.get(&source))
-                .is_some_and(|events| !events.is_empty());
+        for source in requested_sources {
+            // No relevant events map, or no events for this source, or empty
+            // events
+            let has_no_relevant_events = match relevant_events_per_epoch_source
+            {
+                None => true,
+                Some(map) => match map.get(&source) {
+                    None => true,
+                    Some(events) => events.is_empty(),
+                },
+            };
 
-            let individual_sensitivity = if !has_relevant_events {
-                // Case 1: Epoch-site with no relevant events.
+            let individual_sensitivity = if has_no_relevant_events {
+                // Case 1: Epoch-source with no relevant events.
                 0.0
-            } else if num_epochs == 1 && num_sites_with_relevant_events == 1 {
-                // Case 2: Single epoch and single site with relevant events.
-                // Use actual individual sensitivity for this specific site.
+            } else if num_epochs == 1 && num_requested_sources == 1 {
+                // Case 2: Single epoch and single source with relevant events.
+                // Use actual individual sensitivity for this specific
+                // epoch-source.
                 request.single_epoch_source_individual_sensitivity(
                     computed_attribution,
                     NormType::L1,
                 )
             } else {
-                // Case 3: Multiple epochs or multiple sites with relevant
-                // events. Use global sensitivity as an upper
-                // bound.
+                // Case 3: Multiple epochs or multiple sources.
+                // Use global sensitivity as an upper bound.
                 request.report_global_sensitivity()
             };
 

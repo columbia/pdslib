@@ -9,7 +9,7 @@ pub trait EpochId: Hash + std::cmp::Eq + Clone + Debug {}
 impl EpochId for usize {}
 
 pub type EpochEventsMap<U, E> = HashMap<U, E>;
-pub type EpochSiteEventsResult<U, E, Err> =
+pub type EpochSourceEventsResult<U, E, Err> =
     Result<Option<EpochEventsMap<U, E>>, Err>;
 
 #[derive(Debug, Clone)]
@@ -80,5 +80,5 @@ pub trait EventStorage {
         &self,
         epoch_id: &<Self::Event as Event>::EpochId,
         relevant_event_selector: &Self::RelevantEventSelector,
-    ) -> EpochSiteEventsResult<Self::Uri, Self::EpochEvents, Self::Error>;
+    ) -> EpochSourceEventsResult<Self::Uri, Self::EpochEvents, Self::Error>;
 }

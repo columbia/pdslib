@@ -83,6 +83,7 @@ pub struct PpaHistogramRequest {
                                      * post-processing */
     query_global_sensitivity: f64,
     requested_epsilon: f64,
+    histogram_size: usize,
     filters: PpaRelevantEventSelector,
     logic: AttributionLogic,
 }
@@ -100,6 +101,7 @@ impl PpaHistogramRequest {
         report_global_sensitivity: f64,
         query_global_sensitivity: f64,
         requested_epsilon: f64,
+        histogram_size: usize,
         filters: PpaRelevantEventSelector,
         logic: AttributionLogic,
     ) -> Result<Self, &'static str> {
@@ -112,6 +114,9 @@ impl PpaHistogramRequest {
         {
             return Err("sensitivity values must be non-negative");
         }
+        if histogram_size == 0 {
+            return Err("histogram_size must be greater than 0");
+        }
         Ok(Self {
             start_epoch,
             end_epoch,
@@ -119,6 +124,7 @@ impl PpaHistogramRequest {
             report_global_sensitivity,
             query_global_sensitivity,
             requested_epsilon,
+            histogram_size,
             filters,
             logic,
         })
@@ -166,6 +172,16 @@ impl HistogramRequest for PpaHistogramRequest {
     // }
 
     fn bucket_key(&self, event: &PpaEvent) -> Self::BucketKey {
+        // Bucket key validation.
+        if event.histogram_index >= self.histogram_size {
+            log::warn!(
+                "Invalid bucket key {}: exceeds histogram size {}. Event id: {}",
+                event.histogram_index,
+                self.histogram_size,
+                event.id
+            );
+        }
+        
         event.histogram_index
     }
 
@@ -188,10 +204,19 @@ impl HistogramRequest for PpaHistogramRequest {
             AttributionLogic::LastTouch => {
                 for relevant_events in relevant_events_per_epoch.values() {
                     if let Some(last_impression) = relevant_events.last() {
-                        event_values.push((
-                            last_impression,
-                            self.per_event_attributable_value,
-                        ));
+                        if last_impression.histogram_index < self.histogram_size {
+                            event_values.push((
+                                last_impression,
+                                self.per_event_attributable_value,
+                            ));
+                        } else {
+                            // Log error for dropped events
+                            log::error!(
+                                "Dropping event with id {} due to invalid bucket key {}",
+                                last_impression.id,
+                                last_impression.histogram_index
+                            );
+                        }
                     }
                 }
             } // Other attribution logic not supported yet.

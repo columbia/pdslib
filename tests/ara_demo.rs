@@ -103,6 +103,7 @@ fn main() -> Result<(), anyhow::Error> {
         65536.0,
         65536.0,
         1.0,
+        2048,
         PpaRelevantEventSelector {
             report_request_uris: sample_report_request_uris.clone(),
             is_matching_event: |event_filter_data: u64| event_filter_data == 1,
@@ -129,6 +130,7 @@ fn main() -> Result<(), anyhow::Error> {
         65536.0,
         65536.0,
         0.0, // This should fail.
+        2048,
         PpaRelevantEventSelector {
             report_request_uris: sample_report_request_uris.clone(),
             is_matching_event: |event_filter_data: u64| event_filter_data == 1,
@@ -145,6 +147,7 @@ fn main() -> Result<(), anyhow::Error> {
         65536.0,
         65536.0,
         1.0,
+        2048,
         PpaRelevantEventSelector {
             report_request_uris: sample_report_request_uris.clone(),
             is_matching_event: |event_filter_data: u64| event_filter_data != 1,

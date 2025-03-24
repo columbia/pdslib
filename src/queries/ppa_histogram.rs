@@ -83,8 +83,6 @@ pub struct PpaHistogramRequest {
                                      * post-processing */
     query_global_sensitivity: f64,
     requested_epsilon: f64,
-    source_key: String,
-    trigger_keypiece: usize,
     filters: PpaRelevantEventSelector,
     logic: AttributionLogic,
 }
@@ -102,8 +100,6 @@ impl PpaHistogramRequest {
         report_global_sensitivity: f64,
         query_global_sensitivity: f64,
         requested_epsilon: f64,
-        source_key: String,
-        trigger_keypiece: usize,
         filters: PpaRelevantEventSelector,
         logic: AttributionLogic,
     ) -> Result<Self, &'static str> {
@@ -123,8 +119,6 @@ impl PpaHistogramRequest {
             report_global_sensitivity,
             query_global_sensitivity,
             requested_epsilon,
-            source_key,
-            trigger_keypiece,
             filters,
             logic,
         })
@@ -172,16 +166,7 @@ impl HistogramRequest for PpaHistogramRequest {
     // }
 
     fn bucket_key(&self, event: &PpaEvent) -> Self::BucketKey {
-        // TODO(https://github.com/columbia/pdslib/issues/8):
-        // What does ARA do when the source key is not present?
-        // For now I still attribute with 0 for the source keypiece, but
-        // I could treat the event as irrelevant too.
-        let source_keypiece = event
-            .aggregatable_sources
-            .get(&self.source_key)
-            .copied()
-            .unwrap_or(0);
-        source_keypiece | self.trigger_keypiece
+        event.histogram_index
     }
 
     /// Returns the same value for each relevant event. Will be capped by

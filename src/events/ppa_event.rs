@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::events::traits::{Event, EventUris};
 
 /// Source event for ARA-style callers such as Chromium.
@@ -10,7 +8,7 @@ use crate::events::traits::{Event, EventUris};
 pub struct PpaEvent {
     pub id: usize,
     pub epoch_number: usize,
-    pub aggregatable_sources: HashMap<String, usize>,
+    pub histogram_index: usize,
     pub uris: EventUris<String>,
     pub filter_data: u64,
 }

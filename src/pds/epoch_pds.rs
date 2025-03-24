@@ -315,17 +315,17 @@ where
         let imp_sites = request.report_uris().source_uris;
         let NoiseScale::Laplace(noise_scale) = request.noise_scale();
 
-
         // Count sites with relevant events for case analysis
-        let num_sites_with_relevant_events = relevant_events_per_epoch_site
-            .map_or(0, |map| map.len());
+        let num_sites_with_relevant_events =
+            relevant_events_per_epoch_site.map_or(0, |map| map.len());
 
         for imp_site in imp_sites {
-            // Case 1: No relevant events map, or no events for this site, or empty events
+            // Case 1: No relevant events map, or no events for this site, or
+            // empty events
             let has_relevant_events = relevant_events_per_epoch_site
                 .and_then(|map| map.get(&imp_site))
                 .is_some_and(|events| !events.is_empty());
-                
+
             let individual_sensitivity = if !has_relevant_events {
                 // Case 1: Epoch-site with no relevant events.
                 0.0
@@ -337,8 +337,9 @@ where
                     NormType::L1,
                 )
             } else {
-                // Case 3: Multiple epochs or multiple sites with relevant events.
-                // Use global sensitivity as an upper bound.
+                // Case 3: Multiple epochs or multiple sites with relevant
+                // events. Use global sensitivity as an upper
+                // bound.
                 request.report_global_sensitivity()
             };
 
@@ -354,7 +355,7 @@ where
                 // In Cookie Monster, we have `query_global_sensitivity` /
                 // `requested_epsilon` instead of just `noise_scale`.
                 per_impression_site_losses.insert(
-                    imp_site, 
+                    imp_site,
                     PureDPBudget::Epsilon(individual_sensitivity / noise_scale),
                 );
             }

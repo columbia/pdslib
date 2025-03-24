@@ -122,10 +122,10 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
     }
 
     fn single_epoch_site_individual_sensitivity(
-            &self,
-            report: &Self::Report,
-            norm_type: NormType,
-        ) -> f64 {
+        &self,
+        report: &Self::Report,
+        norm_type: NormType,
+    ) -> f64 {
         self.single_epoch_individual_sensitivity(report, norm_type)
     }
 

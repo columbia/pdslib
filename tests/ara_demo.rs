@@ -1,7 +1,5 @@
 mod common;
 
-use std::collections::HashMap;
-
 use common::logging;
 use log::info;
 use pdslib::{
@@ -60,39 +58,38 @@ fn main() -> Result<(), anyhow::Error> {
         querier_uris: vec!["adtech.com".to_string()],
     };
 
-    // Test similar to https://github.com/WICG/attribution-reporting-api/blob/main/AGGREGATE.md#attribution-trigger-registration
-    let mut sources1 = HashMap::new();
-    sources1.insert("campaignCounts".to_string(), 0x159);
-    sources1.insert("geoValue".to_string(), 0x5);
-
     let event1 = PpaEvent {
         id: 1,
+        timestamp: 0,
         epoch_number: 1,
-        aggregatable_sources: sources1.clone(),
+        histogram_index: 0x559, // 0x559 = "campaignCounts".to_string() | 0x400
         uris: sample_event_uris.clone(),
         filter_data: 1,
     };
 
     let event_irr_1 = PpaEvent {
         id: 1,
+        timestamp: 0,
         epoch_number: 1,
-        aggregatable_sources: sources1.clone(),
+        histogram_index: 0x559, // 0x559 = "campaignCounts".to_string() | 0x400
         uris: event_uris_irrelevant_due_to_source.clone(),
         filter_data: 1,
     };
 
     let event_irr_2 = PpaEvent {
         id: 1,
+        timestamp: 0,
         epoch_number: 1,
-        aggregatable_sources: sources1.clone(),
+        histogram_index: 0x559, // 0x559 = "campaignCounts".to_string() | 0x400
         uris: event_uris_irrelevant_due_to_trigger.clone(),
         filter_data: 1,
     };
 
     let event_irr_3 = PpaEvent {
         id: 1,
+        timestamp: 0,
         epoch_number: 1,
-        aggregatable_sources: sources1.clone(),
+        histogram_index: 0x559, // 0x559 = "campaignCounts".to_string() | 0x400
         uris: event_uris_irrelevant_due_to_querier.clone(),
         filter_data: 1,
     };
@@ -110,8 +107,7 @@ fn main() -> Result<(), anyhow::Error> {
         65536.0,
         65536.0,
         1.0,
-        "campaignCounts".to_string(),
-        0x400,
+        2048,
         PpaRelevantEventSelector {
             report_request_uris: sample_report_request_uris.clone(),
             is_matching_event: |event_filter_data: u64| event_filter_data == 1,
@@ -138,8 +134,7 @@ fn main() -> Result<(), anyhow::Error> {
         65536.0,
         65536.0,
         0.0, // This should fail.
-        "campaignCounts".to_string(),
-        0x400,
+        2048,
         PpaRelevantEventSelector {
             report_request_uris: sample_report_request_uris.clone(),
             is_matching_event: |event_filter_data: u64| event_filter_data == 1,
@@ -156,8 +151,7 @@ fn main() -> Result<(), anyhow::Error> {
         65536.0,
         65536.0,
         1.0,
-        "campaignCounts".to_string(),
-        0x400,
+        2048,
         PpaRelevantEventSelector {
             report_request_uris: sample_report_request_uris.clone(),
             is_matching_event: |event_filter_data: u64| event_filter_data != 1,

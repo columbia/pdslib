@@ -6,6 +6,7 @@ use crate::events::traits::{Event, EventUris};
 /// TODO(https://github.com/columbia/pdslib/issues/8): add other fields as needed by callers, e.g. filters.
 #[derive(Debug, Clone)]
 pub struct PpaEvent {
+    // Unused but kept for debugging purposes - can be filled with counter or random ID
     pub id: usize,
     pub epoch_number: usize,
     pub histogram_index: usize,

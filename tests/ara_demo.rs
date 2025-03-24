@@ -60,6 +60,7 @@ fn main() -> Result<(), anyhow::Error> {
 
     let event1 = PpaEvent {
         id: 1,
+        timestamp: 0,
         epoch_number: 1,
         histogram_index: 0x559, // 0x559 = "campaignCounts".to_string() | 0x400
         uris: sample_event_uris.clone(),
@@ -68,6 +69,7 @@ fn main() -> Result<(), anyhow::Error> {
 
     let event_irr_1 = PpaEvent {
         id: 1,
+        timestamp: 0,
         epoch_number: 1,
         histogram_index: 0x559, // 0x559 = "campaignCounts".to_string() | 0x400
         uris: event_uris_irrelevant_due_to_source.clone(),
@@ -76,6 +78,7 @@ fn main() -> Result<(), anyhow::Error> {
 
     let event_irr_2 = PpaEvent {
         id: 1,
+        timestamp: 0,
         epoch_number: 1,
         histogram_index: 0x559, // 0x559 = "campaignCounts".to_string() | 0x400
         uris: event_uris_irrelevant_due_to_trigger.clone(),
@@ -84,6 +87,7 @@ fn main() -> Result<(), anyhow::Error> {
 
     let event_irr_3 = PpaEvent {
         id: 1,
+        timestamp: 0,
         epoch_number: 1,
         histogram_index: 0x559, // 0x559 = "campaignCounts".to_string() | 0x400
         uris: event_uris_irrelevant_due_to_querier.clone(),

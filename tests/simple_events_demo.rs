@@ -91,10 +91,10 @@ fn main() -> Result<(), anyhow::Error> {
         epoch_start: 1,
         epoch_end: 1, //test restricting the end epoch
         report_global_sensitivity: 0.1, /* Even 0.1 should be enough to go
-                                         * over the
-                                         * limit as the current budget left
-                                         * for
-                                         * epoch 1 is 0. */
+                       * over the
+                       * limit as the current budget left
+                       * for
+                       * epoch 1 is 0. */
         query_global_sensitivity: 5.0,
         requested_epsilon: 5.0,
         is_relevant_event: always_relevant_event,

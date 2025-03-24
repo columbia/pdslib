@@ -181,7 +181,7 @@ impl HistogramRequest for PpaHistogramRequest {
                 event.id
             );
         }
-        
+
         event.histogram_index
     }
 
@@ -204,7 +204,8 @@ impl HistogramRequest for PpaHistogramRequest {
             AttributionLogic::LastTouch => {
                 for relevant_events in relevant_events_per_epoch.values() {
                     if let Some(last_impression) = relevant_events.last() {
-                        if last_impression.histogram_index < self.histogram_size {
+                        if last_impression.histogram_index < self.histogram_size
+                        {
                             event_values.push((
                                 last_impression,
                                 self.per_event_attributable_value,

@@ -11,6 +11,10 @@ pub struct PpaEvent {
     pub epoch_number: usize,
     pub histogram_index: usize,
     pub uris: EventUris<String>,
+    // Note: Unlike Firefox's implementation which has explicit campaign_id or ad_id fields,
+    // the PPA spec uses filter_data as a more generic mechanism for filtering events.
+    // This field can contain bit-packed information about campaigns, ads, or other attributes
+    // that the relevant event selector can use to determine relevance.
     pub filter_data: u64,
 }
 

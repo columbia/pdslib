@@ -55,7 +55,20 @@ where
         Ok(entry.is_some())
     }
 
-    fn check_and_consume(
+    fn can_consume(
+        &self,
+        filter_id: &FID,
+        budget: &B,
+    ) -> Result<bool, Self::Error> {
+        let filter = self
+            .filters
+            .get(filter_id)
+            .context("Filter for epoch not initialized")?;
+
+        filter.can_consume(budget)
+    }
+
+    fn try_consume(
         &mut self,
         filter_id: &FID,
         budget: &B,
@@ -65,7 +78,7 @@ where
             .get_mut(filter_id)
             .context("Filter for epoch not initialized")?;
 
-        filter.check_and_consume(budget)
+        filter.try_consume(budget)
     }
 
     fn remaining_budget(
@@ -98,17 +111,17 @@ mod tests {
         let fid: FilterId<_, String> = FilterId::C(1);
         storage.new_filter(fid.clone())?;
         assert_eq!(
-            storage.check_and_consume(&fid, &PureDPBudget::Epsilon(10.0))?,
+            storage.try_consume(&fid, &PureDPBudget::Epsilon(10.0))?,
             FilterStatus::Continue
         );
         assert_eq!(
-            storage.check_and_consume(&fid, &PureDPBudget::Epsilon(11.0))?,
+            storage.try_consume(&fid, &PureDPBudget::Epsilon(11.0))?,
             FilterStatus::OutOfBudget
         );
 
         // Filter C(2) does not exist
         assert!(storage
-            .check_and_consume(&FilterId::C(2), &PureDPBudget::Epsilon(1.0))
+            .try_consume(&FilterId::C(2), &PureDPBudget::Epsilon(1.0))
             .is_err());
 
         Ok(())

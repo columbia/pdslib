@@ -40,7 +40,17 @@ impl Filter<PureDPBudget> for PureDPBudgetFilter {
         Ok(this)
     }
 
-    fn check_and_consume(
+    fn can_consume(&self, budget: &PureDPBudget) -> Result<bool, Self::Error> {
+        match (&self.remaining_budget, budget) {
+            (PureDPBudget::Infinite, _) => Ok(true),
+            (PureDPBudget::Epsilon(remaining), PureDPBudget::Epsilon(requested)) => {
+                Ok(requested <= remaining)
+            },
+            _ => Ok(false), // Finite budget, infinite request
+        }
+    }
+
+    fn try_consume(
         &mut self,
         budget: &PureDPBudget,
     ) -> Result<FilterStatus, Self::Error> {
@@ -86,11 +96,11 @@ mod tests {
     fn test_pure_dp_budget_filter() -> Result<(), anyhow::Error> {
         let mut filter = PureDPBudgetFilter::new(PureDPBudget::Epsilon(1.0))?;
         assert_eq!(
-            filter.check_and_consume(&PureDPBudget::Epsilon(0.5))?,
+            filter.try_consume(&PureDPBudget::Epsilon(0.5))?,
             FilterStatus::Continue
         );
         assert_eq!(
-            filter.check_and_consume(&PureDPBudget::Epsilon(0.6))?,
+            filter.try_consume(&PureDPBudget::Epsilon(0.6))?,
             FilterStatus::OutOfBudget
         );
 

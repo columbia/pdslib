@@ -12,10 +12,15 @@ pub trait Filter<T: Budget> {
     where
         Self: Sized;
 
+    /// Checks if the filter has enough budget without consuming
+    fn can_consume(&self, budget: &T) -> Result<bool, Self::Error>;
+
+    /// Attempts to consume the budget if sufficient.
+    /// TODO(https://github.com/columbia/pdslib/issues/39): Simplify the logic, as OOB event should not happen within this function now.
     /// Tries to consume a given budget from the filter.
     /// In the formalism from https://arxiv.org/abs/1605.08294,
     /// Continue corresponds to CONTINUE, and OutOfBudget corresponds to HALT.
-    fn check_and_consume(
+    fn try_consume(
         &mut self,
         budget: &T,
     ) -> Result<FilterStatus, Self::Error>;
@@ -70,14 +75,34 @@ pub trait FilterStorage {
         filter_id: &Self::FilterId,
     ) -> Result<bool, Self::Error>;
 
+    /// Check if budget can be consumed without modifying state
+    fn can_consume(&self, filter_id: &Self::FilterId, budget: &Self::Budget) 
+        -> Result<bool, Self::Error>;
+
+    /// Attempts to consume the budget if sufficient.
+    /// TODO(https://github.com/columbia/pdslib/issues/39): Simplify the logic, as OOB event should not happen within this function now.
     /// Tries to consume a given budget from the filter with ID `filter_id`.
     /// Returns an error if the filter does not exist, the caller can then
     /// decide to create a new filter.
-    fn check_and_consume(
+    fn try_consume(&mut self, filter_id: &Self::FilterId, budget: &Self::Budget) 
+        -> Result<FilterStatus, Self::Error>;
+
+    /// Convenience function that routes to either can_consume or try_consume
+    fn maybe_consume(
         &mut self,
         filter_id: &Self::FilterId,
         budget: &Self::Budget,
-    ) -> Result<FilterStatus, Self::Error>;
+        dry_run: bool,
+    ) -> Result<FilterStatus, Self::Error> {
+        if dry_run {
+            match self.can_consume(filter_id, budget)? {
+                true => Ok(FilterStatus::Continue),
+                false => Ok(FilterStatus::OutOfBudget),
+            }
+        } else {
+            self.try_consume(filter_id, budget)
+        }
+    }
 
     /// Gets the remaining budget for a filter.
     fn remaining_budget(

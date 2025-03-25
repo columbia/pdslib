@@ -1,6 +1,6 @@
 //! [Experimental] ARA-style requests, that mirror https://github.com/WICG/attribution-reporting-api/blob/main/AGGREGATE.md
 
-use std::{collections::HashMap, vec};
+use std::{collections::HashMap, sync::Arc, vec};
 
 use crate::{
     events::{
@@ -10,12 +10,20 @@ use crate::{
     queries::{histogram::HistogramRequest, traits::ReportRequestUris},
 };
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct PpaRelevantEventSelector {
     // TODO(https://github.com/columbia/pdslib/issues/8): add this if we drop events without the right source key
     // source_key: String,
     pub report_request_uris: ReportRequestUris<String>,
-    pub is_matching_event: fn(u64) -> bool,
+    pub is_matching_event: Arc<dyn Fn(u64) -> bool>,
+}
+
+impl std::fmt::Debug for PpaRelevantEventSelector {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PpaRelevantEventSelector")
+            .field("report_request_uris", &self.report_request_uris)
+            .finish_non_exhaustive()
+    }
 }
 
 #[derive(Debug, Clone)]

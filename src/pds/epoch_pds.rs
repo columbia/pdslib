@@ -393,7 +393,7 @@ where
         }
 
         // PHASE 1: Check if all filters have enough budget
-        // Check regular filters
+        // Check regular filters - NC, QTrigger, and C filters
         for filter_id in &filters_to_consume {
             // Use remaining_budget to check without consuming
             let remaining = self.filter_storage.remaining_budget(filter_id)?;
@@ -432,7 +432,7 @@ where
 
         // PHASE 2: All filters have enough budget, so consume budget from each
 
-        // Process regular filters - this part is nearly identical to the original
+        // Process regular filters - NC, QTrigger, and C filters
         for filter_id in filters_to_consume {
             match self.filter_storage.check_and_consume(&filter_id, loss)? {
                 FilterStatus::Continue => {
@@ -446,6 +446,7 @@ where
             }
         }
 
+        // Process source filters
         for (source, loss) in source_losses {
             let fid = FilterId::QSource(epoch_id.clone(), source.clone());
 

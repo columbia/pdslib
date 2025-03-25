@@ -3,7 +3,7 @@ use std::{collections::HashMap, marker::PhantomData};
 use anyhow::Context;
 
 use crate::budget::traits::{
-    Budget, Filter, FilterCapacities, FilterStatus, FilterStorage,
+    Budget, Filter, FilterCapacities, FilterType, FilterStatus, FilterStorage,
 };
 
 /// Simple implementation of FilterStorage using a HashMap.
@@ -17,7 +17,7 @@ pub struct HashMapFilterStorage<FID, F, B, C> {
 
 impl<FID, F, B, C> FilterStorage for HashMapFilterStorage<FID, F, B, C>
 where
-    FID: Clone + Eq + std::hash::Hash,
+    FID: Clone + Eq + std::hash::Hash + std::fmt::Debug,
     F: Filter<B, Error = anyhow::Error>,
     B: Budget,
     C: FilterCapacities<FilterId = FID, Budget = B, Error = anyhow::Error>,
@@ -71,6 +71,7 @@ where
     fn try_consume(
         &mut self,
         filter_id: &FID,
+        filter_type: FilterType,
         budget: &B,
     ) -> Result<FilterStatus, Self::Error> {
         let filter = self
@@ -78,7 +79,7 @@ where
             .get_mut(filter_id)
             .context("Filter for epoch not initialized")?;
 
-        filter.try_consume(budget)
+        filter.try_consume(format!("{:?}", filter_id), filter_type, budget)
     }
 
     fn remaining_budget(
@@ -111,17 +112,20 @@ mod tests {
         let fid: FilterId<_, String> = FilterId::C(1);
         storage.new_filter(fid.clone())?;
         assert_eq!(
-            storage.try_consume(&fid, &PureDPBudget::Epsilon(10.0))?,
+            storage.try_consume(&fid, FilterType::Collusion, &PureDPBudget::Epsilon(10.0))?,
             FilterStatus::Continue
         );
         assert_eq!(
-            storage.try_consume(&fid, &PureDPBudget::Epsilon(11.0))?,
-            FilterStatus::OutOfBudget
+            storage.try_consume(&fid, FilterType::Collusion, &PureDPBudget::Epsilon(11.0))?,
+            FilterStatus::OutOfBudget { 
+                filter_type: FilterType::Collusion,
+                filter_id: "C(1)".to_string()
+            }
         );
 
         // Filter C(2) does not exist
         assert!(storage
-            .try_consume(&FilterId::C(2), &PureDPBudget::Epsilon(1.0))
+            .try_consume(&FilterId::C(2), FilterType::Collusion, &PureDPBudget::Epsilon(1.0))
             .is_err());
 
         Ok(())

@@ -5,7 +5,7 @@ use log::info;
 use crate::{
     budget::{
         pure_dp_filter::PureDPBudget,
-        traits::{Budget, FilterCapacities, FilterStatus, FilterStorage},
+        traits::{Budget, FilterCapacities, FilterType, FilterStatus, FilterStorage},
     },
     events::traits::{
         EpochEvents, EpochId, Event, EventStorage, RelevantEventSelector,
@@ -115,7 +115,7 @@ pub struct PdsReport<Q: ReportRequest> {
 /// TODO(https://github.com/columbia/pdslib/issues/22): simplify trait bounds?
 impl<U, EI, E, EE, RES, FS, ES, Q, ERR> EpochPrivateDataService<FS, ES, Q, ERR>
 where
-    U: Uri,
+    U: Uri + Debug,
     EI: EpochId,
     E: Event<EpochId = EI, Uri = U> + Clone,
     EE: EpochEvents,
@@ -133,7 +133,7 @@ where
         RelevantEventSelector = RES,
         Uri = U,
     >,
-    ERR: From<FS::Error> + From<ES::Error>,
+    ERR: From<FS::Error> + From<ES::Error> + From<anyhow::Error>,
 {
     /// Registers a new event.
     pub fn register_event(&mut self, event: E) -> Result<(), ERR> {
@@ -233,9 +233,24 @@ where
                     request.report_uris(),
                     false, // actually consume
                 )?;
-                // This should never happen due to our check, but handle it anyway.
-                if consume_status == FilterStatus::OutOfBudget {
-                    relevant_events_per_epoch.remove(&epoch_id);
+                match consume_status {
+                    FilterStatus::Continue => {
+                        // Success case - continue processing
+                    },
+                    FilterStatus::OutOfBudget { filter_type, filter_id } => {
+                        // This is the "impossible" case we discussed
+                        log::error!(
+                            "Phase 2 failed unexpectedly on filter type {:?} with ID {} after phase 1 succeeded", 
+                            filter_type, 
+                            filter_id
+                        );
+                        
+                        return Err(anyhow::anyhow!(
+                            "ERR: Phase 2 failed unexpectedly on filter type {:?} with ID {} after phase 1 succeeded", 
+                            filter_type, 
+                            filter_id
+                        ).into());
+                    }
                 }
             } else {
                 // Not enough budget, drop events without any filter consumption
@@ -274,8 +289,11 @@ where
                 request.uris.clone(),
                 false,
             )?;
-            if budget_res == FilterStatus::OutOfBudget {
-                return Ok(FilterStatus::OutOfBudget);
+            if let FilterStatus::OutOfBudget { filter_type, filter_id } = budget_res {
+                return Ok(FilterStatus::OutOfBudget { 
+                    filter_type, 
+                    filter_id 
+                });
             }
 
             // TODO(https://github.com/columbia/pdslib/issues/16): semantics are still unclear, for now we ignore the request if
@@ -398,18 +416,36 @@ where
 
         // Process all filters
         for filter_id in &filters_to_consume {
-            match self.filter_storage.maybe_consume(filter_id, loss, dry_run)? {
+            // Map FilterId to FilterType
+            let filter_type = match filter_id {
+                FilterId::Nc(_, _) => FilterType::NonCollusion,
+                FilterId::C(_) => FilterType::Collusion,
+                FilterId::QTrigger(_, _) => FilterType::QuotaTrigger,
+                _ => FilterType::QuotaSource,
+            };
+
+            match self.filter_storage.maybe_consume(filter_id, filter_type, loss, dry_run)? {
                 FilterStatus::Continue => {},
-                FilterStatus::OutOfBudget => return Ok(FilterStatus::OutOfBudget),
+                FilterStatus::OutOfBudget { filter_type, filter_id } => {
+                    return Ok(FilterStatus::OutOfBudget {
+                        filter_type,
+                        filter_id: format!("{:?}", filter_id),
+                    });
+                }
             }
         }
 
         // Process source filters
         for (source, loss) in source_losses {
             let fid = QSource(epoch_id.clone(), source.clone());
-            match self.filter_storage.maybe_consume(&fid, loss, dry_run)? {
+            match self.filter_storage.maybe_consume(&fid, FilterType::QuotaSource, loss, dry_run)? {
                 FilterStatus::Continue => {},
-                FilterStatus::OutOfBudget => return Ok(FilterStatus::OutOfBudget),
+                FilterStatus::OutOfBudget { .. } => {
+                    return Ok(FilterStatus::OutOfBudget {
+                        filter_type: FilterType::QuotaSource,
+                        filter_id: format!("{:?}", fid),
+                    });
+                }
             }
         }
 
@@ -543,7 +579,10 @@ mod tests {
             uris: uris.clone(),
         };
         let result = pds.account_for_passive_privacy_loss(request)?;
-        assert_eq!(result, FilterStatus::OutOfBudget);
+        assert!(matches!(result, FilterStatus::OutOfBudget { 
+            filter_type: FilterType::NonCollusion, 
+            filter_id 
+        } if filter_id.contains("Nc(2,")));
 
         // Consume from just one epoch.
         let request = PassivePrivacyLossRequest {
@@ -653,7 +692,8 @@ mod tests {
         // Make the NC filter for querier1 have only 0.5 epsilon left
         pds.filter_storage.try_consume(
             &FilterId::Nc(epoch_id, uris.querier_uris[0].clone()),
-            &PureDPBudget::Epsilon(0.5)
+            FilterType::NonCollusion,
+            &PureDPBudget::Epsilon(0.5),
         )?;
         
         // Now attempt a deduction that requires 0.7 epsilon
@@ -665,7 +705,11 @@ mod tests {
         };
         
         let result = pds.account_for_passive_privacy_loss(request)?;
-        assert_eq!(result, FilterStatus::OutOfBudget, "Expected request to be out of budget");
+        assert!(matches!(result, FilterStatus::OutOfBudget { 
+            filter_type: FilterType::NonCollusion, 
+            filter_id 
+        } if filter_id.contains("Nc(1, \\\"querier1.example.com\\\")")), 
+            "Expected request to be out of budget due to querier1's NC filter");
         
         // Check that all other filters were not modified
         // First verify that querier1's NC filter still has 0.5 epsilon

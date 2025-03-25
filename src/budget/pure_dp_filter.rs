@@ -1,6 +1,6 @@
 use log::info;
 
-use crate::budget::traits::{Budget, Filter, FilterStatus};
+use crate::budget::traits::{Budget, Filter, FilterType, FilterStatus};
 
 /// A simple floating-point budget for pure differential privacy, with support
 /// for infinite budget
@@ -52,6 +52,8 @@ impl Filter<PureDPBudget> for PureDPBudgetFilter {
 
     fn try_consume(
         &mut self,
+        filter_id: String,
+        filter_type: FilterType,
         budget: &PureDPBudget,
     ) -> Result<FilterStatus, Self::Error> {
         info!("The budget that remains in this epoch is {:?}, and we need to consume this much budget {:?}", self.remaining_budget, budget);
@@ -72,11 +74,18 @@ impl Filter<PureDPBudget> for PureDPBudgetFilter {
                         );
                         FilterStatus::Continue
                     } else {
-                        FilterStatus::OutOfBudget
+                        // Use the provided filter_id and filter_type as debug info
+                        FilterStatus::OutOfBudget { 
+                            filter_type, 
+                            filter_id 
+                        }
                     }
                 }
                 // Infinite requests on finite filters are always rejected
-                _ => FilterStatus::OutOfBudget,
+                _ => FilterStatus::OutOfBudget { 
+                    filter_type,
+                    filter_id
+                },
             },
         };
 
@@ -96,12 +105,15 @@ mod tests {
     fn test_pure_dp_budget_filter() -> Result<(), anyhow::Error> {
         let mut filter = PureDPBudgetFilter::new(PureDPBudget::Epsilon(1.0))?;
         assert_eq!(
-            filter.try_consume(&PureDPBudget::Epsilon(0.5))?,
+            filter.try_consume("test_filter".to_string(), FilterType::Collusion, &PureDPBudget::Epsilon(0.5))?,
             FilterStatus::Continue
         );
         assert_eq!(
-            filter.try_consume(&PureDPBudget::Epsilon(0.6))?,
-            FilterStatus::OutOfBudget
+            filter.try_consume("test_filter".to_string(), FilterType::Collusion, &PureDPBudget::Epsilon(0.6))?,
+            FilterStatus::OutOfBudget {
+                filter_type: FilterType::Collusion,
+                filter_id: "test_filter".to_string()
+            }
         );
 
         Ok(())

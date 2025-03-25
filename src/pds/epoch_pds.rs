@@ -375,39 +375,87 @@ where
     ) -> Result<FilterStatus, ERR> {
         use FilterId::*;
         let mut filters_to_consume = vec![];
-
+    
         for query_uri in uris.querier_uris {
-            filters_to_consume.push(Nc(epoch_id.clone(), query_uri));
+            filters_to_consume.push(Nc(epoch_id.clone(), query_uri.clone()));
         }
-        filters_to_consume.push(QTrigger(epoch_id.clone(), uris.trigger_uri));
+        filters_to_consume.push(QTrigger(epoch_id.clone(), uris.trigger_uri.clone()));
         filters_to_consume.push(C(epoch_id.clone()));
-        for filter_id in filters_to_consume {
-            self.initialize_filter_if_necessary(filter_id.clone())?;
 
+        // Initialize all filters first (moved this outside the consumption loop)
+        for filter_id in &filters_to_consume {
+            self.initialize_filter_if_necessary(filter_id.clone())?;
+        }
+
+        for (source, _) in source_losses {
+            let fid = QSource(epoch_id.clone(), source.clone());
+            self.initialize_filter_if_necessary(fid)?;
+        }
+
+        // PHASE 1: Check if all filters have enough budget
+        // Check regular filters
+        for filter_id in &filters_to_consume {
+            // Use remaining_budget to check without consuming
+            let remaining = self.filter_storage.remaining_budget(filter_id)?;
+            
+            let has_enough_budget = match (&remaining, loss) {
+                (PureDPBudget::Infinite, _) => true,
+                (PureDPBudget::Epsilon(remaining_epsilon), PureDPBudget::Epsilon(requested_epsilon)) => {
+                    remaining_epsilon >= requested_epsilon
+                },
+                _ => false, // Finite filter, infinite budget request
+            };
+            
+            if !has_enough_budget {
+                return Ok(FilterStatus::OutOfBudget);
+            }
+        }
+
+        // Check source filters
+        for (source, loss) in source_losses {
+            let fid = QSource(epoch_id.clone(), source.clone());
+            
+            let remaining = self.filter_storage.remaining_budget(&fid)?;
+
+            let has_enough_budget = match (&remaining, loss) {
+                (PureDPBudget::Infinite, _) => true,
+                (PureDPBudget::Epsilon(remaining_epsilon), PureDPBudget::Epsilon(requested_epsilon)) => {
+                    remaining_epsilon >= requested_epsilon
+                },
+                _ => false,
+            };
+
+            if !has_enough_budget {
+                return Ok(FilterStatus::OutOfBudget);
+            }
+        }
+
+        // PHASE 2: All filters have enough budget, so consume budget from each
+
+        // Process regular filters - this part is nearly identical to the original
+        for filter_id in filters_to_consume {
             match self.filter_storage.check_and_consume(&filter_id, loss)? {
                 FilterStatus::Continue => {
                     // The budget is not depleted, keep going.
                 }
                 FilterStatus::OutOfBudget => {
-                    // The budget is depleted, stop deducting from filters.
+                    // TODO(https://github.com/columbia/pdslib/issues/39): Delete once confirmed.
+                    // This shouldn't happen since we pre-checked, but handle it anyway
                     return Ok(FilterStatus::OutOfBudget);
-                    // TODO(https://github.com/columbia/pdslib/issues/39)
-                    // need to implement transaction rollbacks for previous
-                    // filter deductions.
                 }
             }
         }
 
         for (source, loss) in source_losses {
             let fid = FilterId::QSource(epoch_id.clone(), source.clone());
-            self.initialize_filter_if_necessary(fid.clone())?;
 
             match self.filter_storage.check_and_consume(&fid, loss)? {
                 FilterStatus::Continue => {
                     // The budget is not depleted, keep going.
                 }
                 FilterStatus::OutOfBudget => {
-                    // The budget is depleted, stop deducting from filters.
+                    // TODO(https://github.com/columbia/pdslib/issues/39): Delete once confirmed.
+                    // This shouldn't happen since we pre-checked, but handle it anyway
                     return Ok(FilterStatus::OutOfBudget);
                 }
             }
@@ -592,6 +640,107 @@ mod tests {
                 filter_id
             );
         }
+        Ok(())
+    }
+
+    #[test]
+    fn test_budget_rollback_on_depletion() -> Result<(), anyhow::Error> {
+        // PDS with several filters
+        let capacities: StaticCapacities<FilterId<usize, String>, PureDPBudget> = 
+            StaticCapacities::new(
+                PureDPBudget::Epsilon(1.0),  // nc
+                PureDPBudget::Epsilon(20.0),  // c
+                PureDPBudget::Epsilon(2.0),  // q-trigger
+                PureDPBudget::Epsilon(5.0),  // q-source
+            );
+        
+        let filters: HashMapFilterStorage<_, PureDPBudgetFilter, _, _> = 
+            HashMapFilterStorage::new(capacities)?;
+            
+        let events = HashMapEventStorage::new();
+        
+        let mut pds = EpochPrivateDataService {
+            filter_storage: filters,
+            event_storage: events,
+            epoch_capacity: PureDPBudget::Epsilon(3.0),
+            _phantom_request: std::marker::PhantomData::<SimpleLastTouchHistogramRequest>,
+            _phantom_error: std::marker::PhantomData::<anyhow::Error>,
+        };
+        
+        // Create a sample request uris with multiple queriers
+        let mut uris = ReportRequestUris::mock();
+        uris.querier_uris = vec![
+            "querier1.example.com".to_string(),
+            "querier2.example.com".to_string(),
+        ];
+        
+        // Initialize all filters for epoch 1
+        let epoch_id = 1;
+        let filter_ids = vec![
+            FilterId::C(epoch_id),
+            FilterId::Nc(epoch_id, uris.querier_uris[0].clone()),
+            FilterId::Nc(epoch_id, uris.querier_uris[1].clone()),
+            FilterId::QTrigger(epoch_id, uris.trigger_uri.clone()),
+            FilterId::QSource(epoch_id, uris.source_uris[0].clone()),
+        ];
+        
+        for filter_id in &filter_ids {
+            pds.filter_storage.new_filter(filter_id.clone())?;
+        }
+        
+        // Record initial budgets
+        let mut initial_budgets = HashMap::new();
+        for filter_id in &filter_ids {
+            initial_budgets.insert(
+                filter_id.clone(), 
+                pds.filter_storage.remaining_budget(filter_id)?
+            );
+        }
+        
+        // Set up a request that will succeed for most filters but fail for one
+        // Make the NC filter for querier1 have only 0.5 epsilon left
+        pds.filter_storage.check_and_consume(
+            &FilterId::Nc(epoch_id, uris.querier_uris[0].clone()),
+            &PureDPBudget::Epsilon(0.5)
+        )?;
+        
+        // Now attempt a deduction that requires 0.7 epsilon
+        // This should fail because querier1's NC filter only has 0.5 left
+        let request = PassivePrivacyLossRequest {
+            epoch_ids: vec![epoch_id],
+            privacy_budget: PureDPBudget::Epsilon(0.7),
+            uris: uris.clone(),
+        };
+        
+        let result = pds.account_for_passive_privacy_loss(request)?;
+        assert_eq!(result, FilterStatus::OutOfBudget, "Expected request to be out of budget");
+        
+        // Check that all other filters were not modified
+        // First verify that querier1's NC filter still has 0.5 epsilon
+        assert_eq!(
+            pds.filter_storage.remaining_budget(&FilterId::Nc(epoch_id, uris.querier_uris[0].clone()))?,
+            PureDPBudget::Epsilon(0.5),
+            "Filter that was insufficient should still have its partial budget"
+        );
+        
+        // Then verify the other filters still have their original budgets
+        for filter_id in &filter_ids {
+            // Skip the querier1 NC filter we already checked
+            if matches!(filter_id, FilterId::Nc(_, uri) if uri == &uris.querier_uris[0]) {
+                continue;
+            }
+            
+            let current_budget = pds.filter_storage.remaining_budget(filter_id)?;
+            let initial_budget = initial_budgets.get(filter_id).unwrap();
+            
+            assert_eq!(
+                current_budget, 
+                *initial_budget,
+                "Filter {:?} budget changed when it shouldn't have", 
+                filter_id
+            );
+        }
+        
         Ok(())
     }
 }

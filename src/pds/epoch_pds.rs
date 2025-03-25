@@ -387,7 +387,7 @@ where
             self.initialize_filter_if_necessary(filter_id.clone())?;
         }
 
-        for (source, _) in source_losses {
+        for source in source_losses.keys() {
             let fid = QSource(epoch_id.clone(), source.clone());
             self.initialize_filter_if_necessary(fid)?;
         }

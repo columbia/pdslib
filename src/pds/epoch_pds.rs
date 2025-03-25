@@ -375,11 +375,11 @@ where
     ) -> Result<FilterStatus, ERR> {
         use FilterId::*;
         let mut filters_to_consume = vec![];
-    
+
         for query_uri in uris.querier_uris {
-            filters_to_consume.push(Nc(epoch_id.clone(), query_uri.clone()));
+            filters_to_consume.push(Nc(epoch_id.clone(), query_uri));
         }
-        filters_to_consume.push(QTrigger(epoch_id.clone(), uris.trigger_uri.clone()));
+        filters_to_consume.push(QTrigger(epoch_id.clone(), uris.trigger_uri));
         filters_to_consume.push(C(epoch_id.clone()));
 
         // Initialize all filters first (moved this outside the consumption loop)

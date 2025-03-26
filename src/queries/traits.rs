@@ -1,13 +1,12 @@
-use std::{collections::HashMap, fmt::Debug};
+use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
 use crate::{
     events::traits::{EpochEvents, EpochId, Event, RelevantEventSelector},
     mechanisms::{NoiseScale, NormType},
-    util::shared_types::Uri,
 };
 
 #[derive(Debug, Clone)]
-pub struct ReportRequestUris<U: Uri> {
+pub struct ReportRequestUris<U> {
     /// URI that triggered the report
     pub trigger_uri: U,
 
@@ -33,7 +32,7 @@ pub trait EpochReportRequest: Debug {
     type RelevantEventSelector: RelevantEventSelector<Event = Self::Event>;
     type PrivacyBudget;
     type Report: Report;
-    type Uri: Uri;
+    type Uri: Clone + Eq + Hash;
 
     fn report_uris(&self) -> ReportRequestUris<Self::Uri>;
 
@@ -76,7 +75,7 @@ pub trait EpochReportRequest: Debug {
 
 /// Type for passive privacy loss accounting. Uniform over all epochs for now.
 #[derive(Debug)]
-pub struct PassivePrivacyLossRequest<EI: EpochId, U: Uri, PrivacyBudget> {
+pub struct PassivePrivacyLossRequest<EI: EpochId, U, PrivacyBudget> {
     pub epoch_ids: Vec<EI>,
     pub privacy_budget: PrivacyBudget,
     pub uris: ReportRequestUris<U>,

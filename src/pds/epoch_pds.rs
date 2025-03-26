@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Debug};
+use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
 use log::info;
 
@@ -14,7 +14,6 @@ use crate::{
     queries::traits::{
         EpochReportRequest, PassivePrivacyLossRequest, ReportRequestUris,
     },
-    util::shared_types::Uri,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -114,7 +113,7 @@ pub struct PdsReport<Q: EpochReportRequest> {
 /// TODO(https://github.com/columbia/pdslib/issues/22): simplify trait bounds?
 impl<U, EI, E, EE, RES, FS, ES, Q, ERR> EpochPrivateDataService<FS, ES, Q, ERR>
 where
-    U: Uri,
+    U: Clone + Eq + Hash,
     EI: EpochId,
     E: Event<EpochId = EI, Uri = U> + Clone,
     EE: EpochEvents,

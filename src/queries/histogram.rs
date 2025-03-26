@@ -4,9 +4,7 @@ use crate::{
     budget::pure_dp_filter::PureDPBudget,
     events::traits::{EpochEvents, EpochId, Event, RelevantEventSelector},
     mechanisms::{NoiseScale, NormType},
-    queries::traits::{
-        EpochReportRequest, Report, ReportRequest, ReportRequestUris,
-    },
+    queries::traits::{EpochReportRequest, Report, ReportRequestUris},
 };
 
 #[derive(Debug, Clone)]
@@ -85,15 +83,6 @@ pub trait HistogramRequest: Debug {
     fn report_uris(&self) -> ReportRequestUris<String>;
 }
 
-impl<H: HistogramRequest> ReportRequest for H {
-    type Report = HistogramReport<<H as HistogramRequest>::BucketKey>;
-    type Uri = String;
-
-    fn report_uris(&self) -> ReportRequestUris<String> {
-        self.report_uris()
-    }
-}
-
 /// We implement the EpochReportRequest trait, so any type that implements
 /// HistogramRequest can be used as an EpochReportRequest.
 impl<H: HistogramRequest> EpochReportRequest for H {
@@ -101,8 +90,13 @@ impl<H: HistogramRequest> EpochReportRequest for H {
     type Event = H::Event;
     type EpochEvents = H::EpochEvents;
     type PrivacyBudget = PureDPBudget;
-    type ReportGlobalSensitivity = f64;
     type RelevantEventSelector = H::RelevantEventSelector; // Use the full request as the selector.
+    type Report = HistogramReport<<H as HistogramRequest>::BucketKey>;
+    type Uri = String;
+
+    fn report_uris(&self) -> ReportRequestUris<String> {
+        self.report_uris()
+    }
 
     /// Re-expose some methods
     ///

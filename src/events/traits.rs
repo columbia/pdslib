@@ -25,7 +25,8 @@ pub struct EventUris<U: Uri> {
 }
 
 /// Event with an associated epoch.
-pub trait Event: Debug {
+/// TODO(https://github.com/columbia/pdslib/issues/61): investigate clone.
+pub trait Event: Debug + Clone {
     type EpochId: EpochId;
     type Uri: Uri;
     // TODO(https://github.com/columbia/pdslib/issues/18): add source/trigger information for Big Bird / Level 2.

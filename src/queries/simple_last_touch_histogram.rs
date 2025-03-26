@@ -7,9 +7,7 @@ use crate::{
         traits::RelevantEventSelector,
     },
     mechanisms::{NoiseScale, NormType},
-    queries::traits::{
-        EpochReportRequest, Report, ReportRequest, ReportRequestUris,
-    },
+    queries::traits::{EpochReportRequest, Report, ReportRequestUris},
 };
 
 #[derive(Debug)]
@@ -46,22 +44,18 @@ pub struct SimpleLastTouchHistogramReport {
 
 impl Report for SimpleLastTouchHistogramReport {}
 
-impl ReportRequest for SimpleLastTouchHistogramRequest {
+impl EpochReportRequest for SimpleLastTouchHistogramRequest {
+    type EpochId = usize;
+    type Event = SimpleEvent;
+    type EpochEvents = VecEpochEvents<SimpleEvent>;
+    type PrivacyBudget = PureDPBudget;
+    type RelevantEventSelector = SimpleRelevantEventSelector;
     type Report = SimpleLastTouchHistogramReport;
     type Uri = String;
 
     fn report_uris(&self) -> ReportRequestUris<String> {
         self.report_uris.clone()
     }
-}
-
-impl EpochReportRequest for SimpleLastTouchHistogramRequest {
-    type EpochId = usize;
-    type Event = SimpleEvent;
-    type EpochEvents = VecEpochEvents<SimpleEvent>;
-    type PrivacyBudget = PureDPBudget;
-    type ReportGlobalSensitivity = f64;
-    type RelevantEventSelector = SimpleRelevantEventSelector;
 
     fn epoch_ids(&self) -> Vec<Self::EpochId> {
         let range = self.epoch_start..=self.epoch_end;

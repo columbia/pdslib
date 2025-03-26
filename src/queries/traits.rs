@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fmt::Debug};
 
 use crate::{
-    events::traits::{EpochEvents, EpochId, Event},
+    events::traits::{EpochEvents, EpochId, Event, RelevantEventSelector},
     mechanisms::{NoiseScale, NormType},
     util::shared_types::Uri,
 };
@@ -21,27 +21,21 @@ pub struct ReportRequestUris<U: Uri> {
 /// Trait for report types returned by a device (in plaintext). Must implement a
 /// default variant for null reports, so devices with errors or no budget
 /// left are still sending something (and are thus indistinguishable from other
-/// devices once reports are encrypted).  
-///
-/// TODO(https://github.com/columbia/pdslib/issues/20): marker trait for now, might add aggregation methods later.
+/// devices once reports are encrypted). Aggregation methods can be defined by
+/// callers.
 pub trait Report: Debug + Default {}
 
-/// Trait for a generic query.
-pub trait ReportRequest: Debug {
+/// Trait for an epoch-based query.
+pub trait EpochReportRequest: Debug {
+    type EpochId: EpochId;
+    type Event: Event;
+    type EpochEvents: EpochEvents;
+    type RelevantEventSelector: RelevantEventSelector<Event = Self::Event>;
+    type PrivacyBudget;
     type Report: Report;
     type Uri: Uri;
 
     fn report_uris(&self) -> ReportRequestUris<Self::Uri>;
-}
-
-/// Trait for an epoch-based query.
-pub trait EpochReportRequest: ReportRequest {
-    type EpochId: EpochId;
-    type Event: Event;
-    type EpochEvents: EpochEvents;
-    type RelevantEventSelector;
-    type PrivacyBudget;
-    type ReportGlobalSensitivity;
 
     /// Returns the list of requested epoch IDs, in the order the attribution
     /// should run.

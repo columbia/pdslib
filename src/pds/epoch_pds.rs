@@ -12,8 +12,7 @@ use crate::{
     },
     mechanisms::{NoiseScale, NormType},
     queries::traits::{
-        EpochReportRequest, PassivePrivacyLossRequest, ReportRequest,
-        ReportRequestUris,
+        EpochReportRequest, PassivePrivacyLossRequest, ReportRequestUris,
     },
     util::shared_types::Uri,
 };
@@ -104,9 +103,9 @@ pub struct EpochPrivateDataService<
 /// Report returned by Pds, potentially augmented with debugging information
 /// TODO: add more detailed information about which filters/quotas kicked in.
 #[derive(Default, Debug)]
-pub struct PdsReport<Q: ReportRequest> {
-    pub filtered_report: <Q as ReportRequest>::Report,
-    pub unfiltered_report: <Q as ReportRequest>::Report,
+pub struct PdsReport<Q: EpochReportRequest> {
+    pub filtered_report: Q::Report,
+    pub unfiltered_report: Q::Report,
 }
 
 /// API for the epoch-based PDS.
@@ -304,7 +303,7 @@ where
         &self,
         request: &Q,
         relevant_events_per_epoch_source: Option<&HashMap<U, EE>>,
-        computed_attribution: &<Q as ReportRequest>::Report,
+        computed_attribution: &Q::Report,
         num_epochs: usize,
     ) -> HashMap<U, PureDPBudget> {
         let mut per_source_losses = HashMap::new();
@@ -424,7 +423,7 @@ where
         &self,
         request: &Q,
         epoch_relevant_events: Option<&EE>,
-        computed_attribution: &<Q as ReportRequest>::Report,
+        computed_attribution: &Q::Report,
         num_epochs: usize,
     ) -> PureDPBudget {
         // Case 1: Epoch with no relevant events

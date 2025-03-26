@@ -216,7 +216,8 @@ where
             );
 
             // Step 4. Try to consume budget from current epoch, drop events if OOB.
-            // Dry run.
+            // Two phase commit.
+            // Phase 1: dry run.
             let check_status = self.deduct_budget(
                 &epoch_id,
                 &individual_privacy_loss,
@@ -224,37 +225,40 @@ where
                 request.report_uris(),
                 true, // dry run
             )?;
-            if check_status == FilterStatus::Continue {
-                // Second phase: Consume the budget
-                let consume_status = self.deduct_budget(
-                    &epoch_id,
-                    &individual_privacy_loss,
-                    &source_losses,
-                    request.report_uris(),
-                    false, // actually consume
-                )?;
-                match consume_status {
-                    FilterStatus::Continue => {
-                        // Success case - continue processing
-                    },
-                    FilterStatus::OutOfBudget { filter_type, filter_id } => {
-                        // This is the "impossible" case we discussed
-                        log::error!(
-                            "Phase 2 failed unexpectedly on filter type {:?} with ID {} after phase 1 succeeded", 
-                            filter_type, 
-                            filter_id
-                        );
-                        
-                        return Err(anyhow::anyhow!(
-                            "ERR: Phase 2 failed unexpectedly on filter type {:?} with ID {} after phase 1 succeeded", 
-                            filter_type, 
-                            filter_id
-                        ).into());
+            match check_status {
+                FilterStatus::Continue => {
+                    // Phase 2: Consume the budget
+                    let consume_status = self.deduct_budget(
+                        &epoch_id,
+                        &individual_privacy_loss,
+                        &source_losses,
+                        request.report_uris(),
+                        false, // actually consume
+                    )?;
+                    match consume_status {
+                        FilterStatus::Continue => {
+                            // Success case - continue processing
+                        },
+                        FilterStatus::OutOfBudget { filter_type, filter_id } => {
+                            // This is the "impossible" case we discussed
+                            log::error!(
+                                "Phase 2 failed unexpectedly on filter type {:?} with ID {} after phase 1 succeeded", 
+                                filter_type, 
+                                filter_id
+                            );
+                            
+                            return Err(anyhow::anyhow!(
+                                "ERR: Phase 2 failed unexpectedly on filter type {:?} with ID {} after phase 1 succeeded", 
+                                filter_type, 
+                                filter_id
+                            ).into());
+                        }
                     }
+                },
+                FilterStatus::OutOfBudget { filter_type: _, filter_id: _ } => {
+                    // Not enough budget, drop events without any filter consumption
+                    relevant_events_per_epoch.remove(&epoch_id);
                 }
-            } else {
-                // Not enough budget, drop events without any filter consumption
-                relevant_events_per_epoch.remove(&epoch_id);
             }
         }
 

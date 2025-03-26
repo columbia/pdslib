@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
-use log::info;
+use log::debug;
 
 use crate::{
     budget::{
@@ -135,7 +135,7 @@ where
 {
     /// Registers a new event.
     pub fn register_event(&mut self, event: E) -> Result<(), ERR> {
-        info!("Registering event {:?}", event);
+        debug!("Registering event {:?}", event);
         self.event_storage.add_event(event)?;
         Ok(())
     }
@@ -144,7 +144,7 @@ where
     /// This function follows `compute_attribution_report` from the Cookie
     /// Monster Algorithm (https://arxiv.org/pdf/2405.16719, Code Listing 1)
     pub fn compute_report(&mut self, request: &Q) -> Result<PdsReport<Q>, ERR> {
-        info!("Computing report for request {:?}", request);
+        debug!("Computing report for request {:?}", request);
 
         // Collect events from event storage by epoch. If an epoch has no
         // relevant events, don't add it to the mapping.

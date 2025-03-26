@@ -1,4 +1,4 @@
-use log::info;
+use log::debug;
 
 use crate::budget::traits::{Budget, Filter, FilterStatus};
 
@@ -44,7 +44,7 @@ impl Filter<PureDPBudget> for PureDPBudgetFilter {
         &mut self,
         budget: &PureDPBudget,
     ) -> Result<FilterStatus, Self::Error> {
-        info!("The budget that remains in this epoch is {:?}, and we need to consume this much budget {:?}", self.remaining_budget, budget);
+        debug!("The budget that remains in this epoch is {:?}, and we need to consume this much budget {:?}", self.remaining_budget, budget);
 
         // Check that we have enough budget and if yes, deduct in place.
         // We check `Infinite` manually instead of implementing `PartialOrd` and

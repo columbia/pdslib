@@ -73,6 +73,48 @@ impl<B: Budget, E, U> FilterCapacities for StaticCapacities<FilterId<E, U>, B> {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FilterType {
+    NonCollusion,
+    Collusion,
+    QuotaTrigger,
+    QuotaSource,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PdsFilterStatus<FID> {
+    pub filter_id: Option<FID>, // `Some(filter_id)` if `filter_status = FilterStatus::OutOfBudget` 
+    pub filter_type: Option<FilterType>, // `Some(filter_type)` if `filter_status = FilterStatus::OutOfBudget`
+    pub filter_status: FilterStatus,
+}
+
+/// Convenient util functions associated with the enriched PdsFilterStatus struct.
+impl<FID> PdsFilterStatus<FID> {
+    pub fn continue_status() -> Self {
+        Self {
+            filter_id: None,
+            filter_type: None,
+            filter_status: FilterStatus::Continue,
+        }
+    }
+
+    pub fn out_of_budget(filter_id: FID, filter_type: FilterType) -> Self {
+        Self {
+            filter_id: Some(filter_id),
+            filter_type: Some(filter_type),
+            filter_status: FilterStatus::OutOfBudget,
+        }
+    }
+
+    pub fn is_continue(&self) -> bool {
+        matches!(self.filter_status, FilterStatus::Continue)
+    }
+
+    pub fn is_out_of_budget(&self) -> bool {
+        matches!(self.filter_status, FilterStatus::OutOfBudget)
+    }
+}
+
 /// Epoch-based private data service, using generic filter
 /// storage and event storage interfaces.
 ///
@@ -115,7 +157,7 @@ pub struct PdsReport<Q: ReportRequest> {
 /// TODO(https://github.com/columbia/pdslib/issues/22): simplify trait bounds?
 impl<U, EI, E, EE, RES, FS, ES, Q, ERR> EpochPrivateDataService<FS, ES, Q, ERR>
 where
-    U: Uri,
+    U: Uri + Debug,
     EI: EpochId,
     E: Event<EpochId = EI, Uri = U> + Clone,
     EE: EpochEvents,
@@ -133,7 +175,7 @@ where
         RelevantEventSelector = RES,
         Uri = U,
     >,
-    ERR: From<FS::Error> + From<ES::Error>,
+    ERR: From<FS::Error> + From<ES::Error> + From<anyhow::Error>,
 {
     /// Registers a new event.
     pub fn register_event(&mut self, event: E) -> Result<(), ERR> {
@@ -207,7 +249,7 @@ where
             let epoch_source_relevant_events =
                 relevant_events_per_epoch_source.get(&epoch_id);
 
-            // Step 3. Compute device-epoch-source losses.
+            // Step 4. Compute device-epoch-source losses.
             let source_losses = self.compute_epoch_source_losses(
                 request,
                 epoch_source_relevant_events,
@@ -215,28 +257,57 @@ where
                 num_epochs,
             );
 
-            // Step 4. Try to consume budget from current epoch, drop events if
-            // OOB.
-            let deduct_res = self.deduct_budget(
+            // Step 5. Try to consume budget from current epoch, drop events if OOB.
+            // Two phase commit.
+            // Phase 1: dry run.
+            let check_status = self.deduct_budget(
                 &epoch_id,
                 &individual_privacy_loss,
                 &source_losses,
                 request.report_uris(),
-            );
-            match deduct_res {
-                Ok(FilterStatus::Continue) => {
-                    // The budget is not depleted, keep events.
-                }
-                Ok(FilterStatus::OutOfBudget) => {
-                    // The budget is depleted, drop events.
+                true, // dry run
+            )?;
+            match check_status {
+                PdsFilterStatus { filter_status: FilterStatus::Continue, .. } => {
+                    // Phase 2: Consume the budget
+                    let consume_status = self.deduct_budget(
+                        &epoch_id,
+                        &individual_privacy_loss,
+                        &source_losses,
+                        request.report_uris(),
+                        false, // actually consume
+                    )?;
+                    match consume_status {
+                        PdsFilterStatus { filter_status: FilterStatus::Continue, .. } => {
+                            // Success case - continue processing
+                        },
+                        PdsFilterStatus { 
+                            filter_status: FilterStatus::OutOfBudget, 
+                            filter_type: Some(filter_type), 
+                            filter_id: Some(filter_id) 
+                        } => {
+                            // This is the "impossible" case we discussed
+                            log::error!(
+                                "Phase 2 failed unexpectedly on filter type {:?} with ID {:?} after phase 1 succeeded", 
+                                filter_type, 
+                                filter_id
+                            );
+                            
+                            return Err(anyhow::anyhow!(
+                                "ERR: Phase 2 failed unexpectedly on filter type {:?} with ID {:?} after phase 1 succeeded", 
+                                filter_type, 
+                                filter_id
+                            ).into());
+                        },
+                        _ => {
+                            // This should never happen - OutOfBudget with missing type or ID
+                            return Err(anyhow::anyhow!("Unexpected state: OutOfBudget with missing metadata").into());
+                        }
+                    }
+                },
+                PdsFilterStatus { filter_status: FilterStatus::OutOfBudget, .. } => {
+                    // Not enough budget, drop events without any filter consumption
                     relevant_events_per_epoch.remove(&epoch_id);
-                }
-                Err(_) => {
-                    // Return default report if anything else goes wrong.
-                    return Ok(PdsReport {
-                        filtered_report: Default::default(),
-                        unfiltered_report,
-                    });
                 }
             }
         }
@@ -259,7 +330,7 @@ where
     pub fn account_for_passive_privacy_loss(
         &mut self,
         request: PassivePrivacyLossRequest<EI, U, PureDPBudget>,
-    ) -> Result<FilterStatus, ERR> {
+    ) -> Result<PdsFilterStatus<FilterId<EI, U>>, ERR> {
         let source_losses = HashMap::new(); // Dummy.
 
         // For each epoch, try to consume the privacy budget.
@@ -270,15 +341,16 @@ where
                 &request.privacy_budget,
                 &source_losses,
                 request.uris.clone(),
+                false,
             )?;
-            if budget_res == FilterStatus::OutOfBudget {
-                return Ok(FilterStatus::OutOfBudget);
+            if budget_res.is_out_of_budget() {
+                return Ok(budget_res);
             }
 
             // TODO(https://github.com/columbia/pdslib/issues/16): semantics are still unclear, for now we ignore the request if
             // it would exhaust the filter.
         }
-        Ok(FilterStatus::Continue)
+        Ok(PdsFilterStatus::continue_status())
     }
 
     fn initialize_filter_if_necessary(
@@ -372,7 +444,8 @@ where
         loss: &FS::Budget,
         source_losses: &HashMap<U, FS::Budget>,
         uris: ReportRequestUris<U>,
-    ) -> Result<FilterStatus, ERR> {
+        dry_run: bool,
+    ) -> Result<PdsFilterStatus<FilterId<EI, U>>, ERR> {
         use FilterId::*;
         let mut filters_to_consume = vec![];
 
@@ -381,39 +454,47 @@ where
         }
         filters_to_consume.push(QTrigger(epoch_id.clone(), uris.trigger_uri));
         filters_to_consume.push(C(epoch_id.clone()));
-        for filter_id in filters_to_consume {
+
+        // Initialize all filters first
+        for filter_id in &filters_to_consume {
             self.initialize_filter_if_necessary(filter_id.clone())?;
+        }
 
-            match self.filter_storage.check_and_consume(&filter_id, loss)? {
-                FilterStatus::Continue => {
-                    // The budget is not depleted, keep going.
-                }
+        for source in source_losses.keys() {
+            let fid = QSource(epoch_id.clone(), source.clone());
+            self.initialize_filter_if_necessary(fid)?;
+        }
+
+        // Process all filters
+        for filter_id in &filters_to_consume {
+            // Get filter type for error reporting, but don't pass to the budget module
+            let filter_type = match filter_id {
+                FilterId::Nc(_, _) => FilterType::NonCollusion,
+                FilterId::C(_) => FilterType::Collusion,
+                FilterId::QTrigger(_, _) => FilterType::QuotaTrigger,
+                _ => FilterType::QuotaSource,
+            };
+
+            match self.filter_storage.maybe_consume(filter_id, loss, dry_run)? {
+                FilterStatus::Continue => {},
                 FilterStatus::OutOfBudget => {
-                    // The budget is depleted, stop deducting from filters.
-                    return Ok(FilterStatus::OutOfBudget);
-                    // TODO(https://github.com/columbia/pdslib/issues/39)
-                    // need to implement transaction rollbacks for previous
-                    // filter deductions.
+                    return Ok(PdsFilterStatus::out_of_budget(filter_id.clone(), filter_type));
                 }
             }
         }
 
+        // Process source filters
         for (source, loss) in source_losses {
-            let fid = FilterId::QSource(epoch_id.clone(), source.clone());
-            self.initialize_filter_if_necessary(fid.clone())?;
-
-            match self.filter_storage.check_and_consume(&fid, loss)? {
-                FilterStatus::Continue => {
-                    // The budget is not depleted, keep going.
-                }
+            let fid = QSource(epoch_id.clone(), source.clone());
+            match self.filter_storage.maybe_consume(&fid, loss, dry_run)? {
+                FilterStatus::Continue => {},
                 FilterStatus::OutOfBudget => {
-                    // The budget is depleted, stop deducting from filters.
-                    return Ok(FilterStatus::OutOfBudget);
+                    return Ok(PdsFilterStatus::out_of_budget(fid, FilterType::QuotaSource));
                 }
             }
         }
 
-        Ok(FilterStatus::Continue)
+        Ok(PdsFilterStatus::continue_status())
     }
 
     /// Pure DP individual privacy loss, following
@@ -513,7 +594,7 @@ mod tests {
             uris: uris.clone(),
         };
         let result = pds.account_for_passive_privacy_loss(request)?;
-        assert_eq!(result, FilterStatus::Continue);
+        assert_eq!(result, PdsFilterStatus::continue_status());
 
         // Second request with same budget should succeed (2.0 total)
         let request = PassivePrivacyLossRequest {
@@ -522,7 +603,7 @@ mod tests {
             uris: uris.clone(),
         };
         let result = pds.account_for_passive_privacy_loss(request)?;
-        assert_eq!(result, FilterStatus::Continue);
+        assert_eq!(result, PdsFilterStatus::continue_status());
 
         // Verify remaining budgets
         for epoch_id in 1..=3 {
@@ -543,7 +624,10 @@ mod tests {
             uris: uris.clone(),
         };
         let result = pds.account_for_passive_privacy_loss(request)?;
-        assert_eq!(result, FilterStatus::OutOfBudget);
+        assert!(result.is_out_of_budget());
+        assert_eq!(result.filter_type, Some(FilterType::NonCollusion));
+        assert!(matches!(result.filter_id, Some(ref id) if format!("{:?}", id).contains("Nc(2,")));
+
 
         // Consume from just one epoch.
         let request = PassivePrivacyLossRequest {
@@ -552,7 +636,7 @@ mod tests {
             uris: uris.clone(),
         };
         let result = pds.account_for_passive_privacy_loss(request)?;
-        assert_eq!(result, FilterStatus::Continue);
+        assert_eq!(result, PdsFilterStatus::continue_status());
 
         // Verify remaining budgets
         use FilterId::*;
@@ -592,6 +676,110 @@ mod tests {
                 filter_id
             );
         }
+        Ok(())
+    }
+
+    #[test]
+    fn test_budget_rollback_on_depletion() -> Result<(), anyhow::Error> {
+        // PDS with several filters
+        let capacities: StaticCapacities<FilterId<usize, String>, PureDPBudget> = 
+            StaticCapacities::new(
+                PureDPBudget::Epsilon(1.0),  // nc
+                PureDPBudget::Epsilon(20.0),  // c
+                PureDPBudget::Epsilon(2.0),  // q-trigger
+                PureDPBudget::Epsilon(5.0),  // q-source
+            );
+        
+        let filters: HashMapFilterStorage<_, PureDPBudgetFilter, _, _> = 
+            HashMapFilterStorage::new(capacities)?;
+            
+        let events = HashMapEventStorage::new();
+        
+        let mut pds = EpochPrivateDataService {
+            filter_storage: filters,
+            event_storage: events,
+            epoch_capacity: PureDPBudget::Epsilon(3.0),
+            _phantom_request: std::marker::PhantomData::<SimpleLastTouchHistogramRequest>,
+            _phantom_error: std::marker::PhantomData::<anyhow::Error>,
+        };
+        
+        // Create a sample request uris with multiple queriers
+        let mut uris = ReportRequestUris::mock();
+        uris.querier_uris = vec![
+            "querier1.example.com".to_string(),
+            "querier2.example.com".to_string(),
+        ];
+        
+        // Initialize all filters for epoch 1
+        let epoch_id = 1;
+        let filter_ids = vec![
+            FilterId::C(epoch_id),
+            FilterId::Nc(epoch_id, uris.querier_uris[0].clone()),
+            FilterId::Nc(epoch_id, uris.querier_uris[1].clone()),
+            FilterId::QTrigger(epoch_id, uris.trigger_uri.clone()),
+            FilterId::QSource(epoch_id, uris.source_uris[0].clone()),
+        ];
+        
+        for filter_id in &filter_ids {
+            pds.filter_storage.new_filter(filter_id.clone())?;
+        }
+        
+        // Record initial budgets
+        let mut initial_budgets = HashMap::new();
+        for filter_id in &filter_ids {
+            initial_budgets.insert(
+                filter_id.clone(), 
+                pds.filter_storage.remaining_budget(filter_id)?
+            );
+        }
+        
+        // Set up a request that will succeed for most filters but fail for one
+        // Make the NC filter for querier1 have only 0.5 epsilon left
+        pds.filter_storage.try_consume(
+            &FilterId::Nc(epoch_id, uris.querier_uris[0].clone()),
+            &PureDPBudget::Epsilon(0.5),
+        )?;
+        
+        // Now attempt a deduction that requires 0.7 epsilon
+        // This should fail because querier1's NC filter only has 0.5 left
+        let request = PassivePrivacyLossRequest {
+            epoch_ids: vec![epoch_id],
+            privacy_budget: PureDPBudget::Epsilon(0.7),
+            uris: uris.clone(),
+        };
+        
+        let result = pds.account_for_passive_privacy_loss(request)?;
+        assert!(result.is_out_of_budget());
+        assert_eq!(result.filter_type, Some(FilterType::NonCollusion));
+        assert!(matches!(result.filter_id, Some(ref id) if format!("{:?}", id).contains("Nc(1, \"querier1.example.com\")")), 
+            "Expected request to be out of budget due to querier1's NC filter");
+        
+        // Check that all other filters were not modified
+        // First verify that querier1's NC filter still has 0.5 epsilon
+        assert_eq!(
+            pds.filter_storage.remaining_budget(&FilterId::Nc(epoch_id, uris.querier_uris[0].clone()))?,
+            PureDPBudget::Epsilon(0.5),
+            "Filter that was insufficient should still have its partial budget"
+        );
+        
+        // Then verify the other filters still have their original budgets
+        for filter_id in &filter_ids {
+            // Skip the querier1 NC filter we already checked
+            if matches!(filter_id, FilterId::Nc(_, uri) if uri == &uris.querier_uris[0]) {
+                continue;
+            }
+            
+            let current_budget = pds.filter_storage.remaining_budget(filter_id)?;
+            let initial_budget = initial_budgets.get(filter_id).unwrap();
+            
+            assert_eq!(
+                current_budget, 
+                *initial_budget,
+                "Filter {:?} budget changed when it shouldn't have", 
+                filter_id
+            );
+        }
+        
         Ok(())
     }
 }

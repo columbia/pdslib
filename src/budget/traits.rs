@@ -20,11 +20,7 @@ pub trait Filter<T: Budget> {
     /// Tries to consume a given budget from the filter.
     /// In the formalism from https://arxiv.org/abs/1605.08294,
     /// Continue corresponds to CONTINUE, and OutOfBudget corresponds to HALT.
-    fn try_consume(
-        &mut self,
-        filter_id: String,
-        budget: &T,
-    ) -> Result<FilterStatus, Self::Error>;
+    fn try_consume(&mut self, budget: &T) -> Result<FilterStatus, Self::Error>;
 
     /// [Experimental] Gets the remaining budget for this filter.
     /// WARNING: this method is for local visualization only.
@@ -35,9 +31,7 @@ pub trait Filter<T: Budget> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FilterStatus {
     Continue,
-    OutOfBudget {
-        filter_id: String,
-    },
+    OutOfBudget,
 }
 
 pub trait FilterCapacities {
@@ -100,9 +94,7 @@ pub trait FilterStorage {
         if dry_run {
             match self.can_consume(filter_id, budget)? {
                 true => Ok(FilterStatus::Continue),
-                false => Ok(FilterStatus::OutOfBudget {
-                    filter_id: format!("{:?}", filter_id),
-                }),
+                false => Ok(FilterStatus::OutOfBudget),
             }
         } else {
             self.try_consume(filter_id, budget)

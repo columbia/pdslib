@@ -78,7 +78,7 @@ where
             .get_mut(filter_id)
             .context("Filter for epoch not initialized")?;
 
-        filter.try_consume(format!("{:?}", filter_id), budget)
+        filter.try_consume(budget)
     }
 
     fn remaining_budget(
@@ -116,9 +116,7 @@ mod tests {
         );
         assert_eq!(
             storage.try_consume(&fid, &PureDPBudget::Epsilon(11.0))?,
-            FilterStatus::OutOfBudget {
-                filter_id: "C(1)".to_string()
-            }
+            FilterStatus::OutOfBudget,
         );
 
         // Filter C(2) does not exist

@@ -23,7 +23,6 @@ pub trait Filter<T: Budget> {
     fn try_consume(
         &mut self,
         filter_id: String,
-        filter_type: FilterType,
         budget: &T,
     ) -> Result<FilterStatus, Self::Error>;
 
@@ -37,17 +36,8 @@ pub trait Filter<T: Budget> {
 pub enum FilterStatus {
     Continue,
     OutOfBudget {
-        filter_type: FilterType,
         filter_id: String,
     },
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FilterType {
-    NonCollusion,
-    Collusion,
-    QuotaTrigger,
-    QuotaSource,
 }
 
 pub trait FilterCapacities {
@@ -97,14 +87,13 @@ pub trait FilterStorage {
     /// Tries to consume a given budget from the filter with ID `filter_id`.
     /// Returns an error if the filter does not exist, the caller can then
     /// decide to create a new filter.
-    fn try_consume(&mut self, filter_id: &Self::FilterId, filter_type: FilterType, budget: &Self::Budget) 
+    fn try_consume(&mut self, filter_id: &Self::FilterId, budget: &Self::Budget) 
         -> Result<FilterStatus, Self::Error>;
 
     /// Convenience function that routes to either can_consume or try_consume
     fn maybe_consume(
         &mut self,
         filter_id: &Self::FilterId,
-        filter_type: FilterType,
         budget: &Self::Budget,
         dry_run: bool,
     ) -> Result<FilterStatus, Self::Error> {
@@ -112,12 +101,11 @@ pub trait FilterStorage {
             match self.can_consume(filter_id, budget)? {
                 true => Ok(FilterStatus::Continue),
                 false => Ok(FilterStatus::OutOfBudget {
-                    filter_type,
                     filter_id: format!("{:?}", filter_id),
                 }),
             }
         } else {
-            self.try_consume(filter_id, filter_type, budget)
+            self.try_consume(filter_id, budget)
         }
     }
 

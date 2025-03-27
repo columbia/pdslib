@@ -13,7 +13,7 @@ use pdslib::{
     },
     pds::epoch_pds::{EpochPrivateDataService, StaticCapacities},
     queries::{
-        simple_last_touch_histogram::SimpleLastTouchHistogramRequest,
+        simple_last_touch_histogram::{SimpleLastTouchHistogramRequest, SimpleRelevantEventSelector},
         traits::ReportRequestUris,
     },
 };
@@ -68,7 +68,9 @@ fn main() -> Result<(), anyhow::Error> {
 
     // Relevant event filter, e.g. only attribute to an ad for Nike if event_key
     // is the advertiser ID + some campaign information.
-    let is_relevant_event = |e: &SimpleEvent| e.event_key > 1;
+    let is_relevant_event = SimpleRelevantEventSelector {
+        lambda: |e: &SimpleEvent| e.event_key > 1
+    };
 
     // Create a request to measure a conversion (report request).
     let report_request = SimpleLastTouchHistogramRequest {

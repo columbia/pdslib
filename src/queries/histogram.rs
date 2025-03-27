@@ -65,7 +65,7 @@ pub trait HistogramRequest: Debug {
     /// Returns a selector object, that can be passed to the event storage to
     /// retrieve relevant events. The selector can also output a boolean
     /// indicating whether a single event is relevant.
-    fn relevant_event_selector(&self) -> Self::RelevantEventSelector;
+    fn relevant_event_selector(&self) -> &Self::RelevantEventSelector;
 
     /// Returns the histogram bucket key (bin) for a given event.
     fn bucket_key(&self, event: &Self::Event) -> Self::BucketKey;
@@ -111,7 +111,7 @@ impl<H: HistogramRequest> EpochReportRequest for H {
         self.epochs_ids()
     }
 
-    fn relevant_event_selector(&self) -> H::RelevantEventSelector {
+    fn relevant_event_selector(&self) -> &H::RelevantEventSelector {
         self.relevant_event_selector()
     }
 

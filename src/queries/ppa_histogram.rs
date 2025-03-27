@@ -10,12 +10,19 @@ use crate::{
     queries::{histogram::HistogramRequest, traits::ReportRequestUris},
 };
 
-#[derive(Debug, Clone)]
 pub struct PpaRelevantEventSelector {
     // TODO(https://github.com/columbia/pdslib/issues/8): add this if we drop events without the right source key
     // source_key: String,
     pub report_request_uris: ReportRequestUris<String>,
-    pub is_matching_event: fn(u64) -> bool,
+    pub is_matching_event: Box<dyn Fn(u64) -> bool>,
+}
+
+impl std::fmt::Debug for PpaRelevantEventSelector {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PpaRelevantEventSelector")
+            .field("report_request_uris", &self.report_request_uris)
+            .finish_non_exhaustive()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -159,12 +166,8 @@ impl HistogramRequest for PpaHistogramRequest {
         self.report_global_sensitivity
     }
 
-    #[allow(clippy::clone_on_copy)]
-    fn relevant_event_selector(&self) -> Self::RelevantEventSelector {
-        Self::RelevantEventSelector {
-            report_request_uris: self.filters.report_request_uris.clone(),
-            is_matching_event: self.filters.is_matching_event.clone(),
-        }
+    fn relevant_event_selector(&self) -> &Self::RelevantEventSelector {
+        &self.filters
     }
 
     // fn attribution_logic(&self) -> Self::AttributionLogic {

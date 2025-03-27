@@ -19,10 +19,11 @@ pub struct SimpleLastTouchHistogramRequest {
     pub report_global_sensitivity: f64,
     pub query_global_sensitivity: f64,
     pub requested_epsilon: f64,
-    pub is_relevant_event: fn(&SimpleEvent) -> bool,
+    pub is_relevant_event: SimpleRelevantEventSelector,
     pub report_uris: ReportRequestUris<String>,
 }
 
+#[derive(Clone, Copy)]
 pub struct SimpleRelevantEventSelector {
     pub lambda: fn(&SimpleEvent) -> bool,
 }
@@ -32,6 +33,13 @@ impl RelevantEventSelector for SimpleRelevantEventSelector {
 
     fn is_relevant_event(&self, event: &SimpleEvent) -> bool {
         (self.lambda)(event)
+    }
+}
+
+impl std::fmt::Debug for SimpleRelevantEventSelector {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SimpleRelevantEventSelector")
+            .finish_non_exhaustive()
     }
 }
 
@@ -68,10 +76,8 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
         range.rev().collect()
     }
 
-    fn relevant_event_selector(&self) -> Self::RelevantEventSelector {
-        SimpleRelevantEventSelector {
-            lambda: self.is_relevant_event,
-        }
+    fn relevant_event_selector(&self) -> &Self::RelevantEventSelector {
+        &self.is_relevant_event
     }
 
     fn compute_report(

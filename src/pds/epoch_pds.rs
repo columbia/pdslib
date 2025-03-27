@@ -197,7 +197,7 @@ where
         for epoch_id in request.epoch_ids() {
             let epoch_relevant_events = self
                 .event_storage
-                .relevant_epoch_events(&epoch_id, &relevant_event_selector)?;
+                .relevant_epoch_events(&epoch_id, relevant_event_selector)?;
 
             if let Some(epoch_relevant_events) = epoch_relevant_events {
                 relevant_events_per_epoch
@@ -214,7 +214,7 @@ where
             let epoch_source_relevant_events =
                 self.event_storage.relevant_epoch_source_events(
                     &epoch_id,
-                    &relevant_event_selector,
+                    relevant_event_selector,
                 )?;
 
             if let Some(epoch_source_relevant_events) =

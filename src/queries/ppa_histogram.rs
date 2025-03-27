@@ -1,6 +1,6 @@
 //! [Experimental] ARA-style requests, that mirror https://github.com/WICG/attribution-reporting-api/blob/main/AGGREGATE.md
 
-use std::{collections::HashMap, sync::Arc, vec};
+use std::{collections::HashMap, vec};
 
 use crate::{
     events::{

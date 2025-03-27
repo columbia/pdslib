@@ -1,7 +1,5 @@
 mod common;
 
-use std::sync::Arc;
-
 use common::logging;
 use log::info;
 use pdslib::{
@@ -112,7 +110,9 @@ fn main() -> Result<(), anyhow::Error> {
         2048,
         PpaRelevantEventSelector {
             report_request_uris: sample_report_request_uris.clone(),
-            is_matching_event: Box::new(|event_filter_data: u64| event_filter_data == 1),
+            is_matching_event: Box::new(|event_filter_data: u64| {
+                event_filter_data == 1
+            }),
         }, // Not filtering yet.
         AttributionLogic::LastTouch,
     )
@@ -139,7 +139,9 @@ fn main() -> Result<(), anyhow::Error> {
         2048,
         PpaRelevantEventSelector {
             report_request_uris: sample_report_request_uris.clone(),
-            is_matching_event: Box::new(|event_filter_data: u64| event_filter_data == 1),
+            is_matching_event: Box::new(|event_filter_data: u64| {
+                event_filter_data == 1
+            }),
         }, // Not filtering yet.
         AttributionLogic::LastTouch,
     );
@@ -156,7 +158,9 @@ fn main() -> Result<(), anyhow::Error> {
         2048,
         PpaRelevantEventSelector {
             report_request_uris: sample_report_request_uris.clone(),
-            is_matching_event: Box::new(|event_filter_data: u64| event_filter_data != 1),
+            is_matching_event: Box::new(|event_filter_data: u64| {
+                event_filter_data != 1
+            }),
         }, // Not filtering yet.
         AttributionLogic::LastTouch,
     )

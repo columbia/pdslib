@@ -1,5 +1,3 @@
-//! [Experimental] ARA-style requests, that mirror https://github.com/WICG/attribution-reporting-api/blob/main/AGGREGATE.md
-
 use std::{collections::HashMap, vec};
 
 use crate::{
@@ -11,8 +9,6 @@ use crate::{
 };
 
 pub struct PpaRelevantEventSelector {
-    // TODO(https://github.com/columbia/pdslib/issues/8): add this if we drop events without the right source key
-    // source_key: String,
     pub report_request_uris: ReportRequestUris<String>,
     pub is_matching_event: Box<dyn Fn(u64) -> bool>,
 }
@@ -30,15 +26,6 @@ pub enum AttributionLogic {
     LastTouch,
 }
 
-/// Select events using ARA-style filters.
-/// See https://github.com/WICG/attribution-reporting-api/blob/main/EVENT.md#optional-attribution-filters
-///
-/// TODO: But additionally we might also want to filter based on metadata. Right
-/// now, any event that matches all the 3 URiIs is deemed relevant. But what
-/// about a query that only cares about impressions for product_a? This is what
-/// filterData is about in PPA. We will need to find out how it works exactly. A
-/// simple example has been implemented, where we pass a lambda function, e.g.
-/// to keep events with a certain value of event_key.
 impl RelevantEventSelector for PpaRelevantEventSelector {
     type Event = PpaEvent;
 
@@ -74,20 +61,12 @@ impl RelevantEventSelector for PpaRelevantEventSelector {
     }
 }
 
-/// An instantiation of HistogramRequest that mimics ARA's types.
-/// The request corresponds to a trigger event in ARA.
-/// For now, each event is mapped to a single bucket, unlike ARA which supports
-/// packed queries (which can be emulated by running multiple queries).
-///
-/// TODO(https://github.com/columbia/pdslib/issues/8): what is "nonMatchingKeyIdsIgnored"?
 #[derive(Debug)]
 pub struct PpaHistogramRequest {
     start_epoch: usize,
     end_epoch: usize,
-    per_event_attributable_value: f64, /* ARA can attribute to multiple
-                                        * events */
-    report_global_sensitivity: f64, /* E.g. 2^16 in ARA, with scaling as
-                                     * post-processing */
+    per_event_attributable_value: f64,
+    report_global_sensitivity: f64,
     query_global_sensitivity: f64,
     requested_epsilon: f64,
     histogram_size: usize,
@@ -138,7 +117,6 @@ impl PpaHistogramRequest {
     }
 }
 
-/// See https://github.com/WICG/attribution-reporting-api/blob/main/AGGREGATE.md#attribution-trigger-registration.
 impl HistogramRequest for PpaHistogramRequest {
     type EpochId = usize;
     type EpochEvents = VecEpochEvents<PpaEvent>;
@@ -170,10 +148,6 @@ impl HistogramRequest for PpaHistogramRequest {
         &self.filters
     }
 
-    // fn attribution_logic(&self) -> Self::AttributionLogic {
-    //     self.logic.clone()
-    // }
-
     fn bucket_key(&self, event: &PpaEvent) -> Self::BucketKey {
         // Bucket key validation.
         if event.histogram_index >= self.histogram_size {
@@ -188,12 +162,6 @@ impl HistogramRequest for PpaHistogramRequest {
         event.histogram_index
     }
 
-    /// Returns the same value for each relevant event. Will be capped by
-    /// `compute_report`. An alternative would be to pick one event, or
-    /// split the attribution cap uniformly.
-    ///
-    /// TODO(https://github.com/columbia/pdslib/issues/8): Double check with
-    /// Chromium logic.
     fn event_values<'a>(
         &self,
         relevant_events_per_epoch: &'a HashMap<

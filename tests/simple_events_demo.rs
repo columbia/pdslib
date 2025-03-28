@@ -37,7 +37,6 @@ fn main() -> Result<(), anyhow::Error> {
     let mut pds = EpochPrivateDataService {
         filter_storage: filters,
         event_storage: events,
-        epoch_capacity: PureDPBudget::Epsilon(3.0),
         _phantom_request: std::marker::PhantomData::<
             SimpleLastTouchHistogramRequest,
         >,

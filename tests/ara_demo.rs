@@ -5,8 +5,7 @@ use log::info;
 use pdslib::{
     budget::{
         hashmap_filter_storage::HashMapFilterStorage,
-        pure_dp_filter::{PureDPBudget, PureDPBudgetFilter},
-        traits::FilterStorage,
+        pure_dp_filter::PureDPBudgetFilter, traits::FilterStorage,
     },
     events::{
         hashmap_event_storage::HashMapEventStorage, ppa_event::PpaEvent,
@@ -33,7 +32,6 @@ fn main() -> Result<(), anyhow::Error> {
     let mut pds = EpochPrivateDataService {
         filter_storage: filters,
         event_storage: events,
-        epoch_capacity: PureDPBudget::Epsilon(3.0),
         _phantom_request: std::marker::PhantomData::<PpaHistogramRequest>,
         _phantom_error: std::marker::PhantomData::<anyhow::Error>,
     };

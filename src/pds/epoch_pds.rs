@@ -135,9 +135,6 @@ pub struct EpochPrivateDataService<
     /// Event storage interface.
     pub event_storage: ES,
 
-    /// Default capacity that will be used for all new epochs
-    pub epoch_capacity: FS::Budget,
-
     /// Type of accepted queries.
     pub _phantom_request: std::marker::PhantomData<Q>,
 
@@ -595,7 +592,6 @@ mod tests {
         let mut pds = EpochPrivateDataService {
             filter_storage: filters,
             event_storage: events,
-            epoch_capacity: PureDPBudget::Epsilon(3.0),
             _phantom_request: std::marker::PhantomData::<
                 SimpleLastTouchHistogramRequest,
             >,
@@ -718,7 +714,6 @@ mod tests {
         let mut pds = EpochPrivateDataService {
             filter_storage: filters,
             event_storage: events,
-            epoch_capacity: PureDPBudget::Epsilon(3.0),
             _phantom_request: std::marker::PhantomData::<
                 SimpleLastTouchHistogramRequest,
             >,

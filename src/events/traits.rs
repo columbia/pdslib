@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
 /// Marker trait with bounds for epoch identifiers.
-pub trait EpochId: Hash + std::cmp::Eq + Clone + Debug {}
+pub trait EpochId: Hash + Eq + Clone + Debug {}
 
 /// Default EpochId
 impl EpochId for usize {}
@@ -26,7 +26,7 @@ pub struct EventUris<U> {
 /// TODO(https://github.com/columbia/pdslib/issues/61): investigate clone.
 pub trait Event: Debug + Clone {
     type EpochId: EpochId;
-    type Uri: Clone + Eq + Hash;
+    type Uri: Clone + Eq + Hash + Debug;
     // TODO(https://github.com/columbia/pdslib/issues/18): add source/trigger information for Big Bird / Level 2.
 
     fn epoch_id(&self) -> Self::EpochId;

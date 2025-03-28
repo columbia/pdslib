@@ -32,7 +32,7 @@ pub trait EpochReportRequest: Debug {
     type RelevantEventSelector: RelevantEventSelector<Event = Self::Event>;
     type PrivacyBudget;
     type Report: Report;
-    type Uri: Clone + Eq + Hash;
+    type Uri: Clone + Eq + Hash + Debug;
 
     fn report_uris(&self) -> ReportRequestUris<Self::Uri>;
 

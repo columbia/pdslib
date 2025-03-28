@@ -1,4 +1,4 @@
-use log::info;
+use log::debug;
 
 use crate::budget::traits::{Budget, Filter, FilterStatus};
 
@@ -43,9 +43,10 @@ impl Filter<PureDPBudget> for PureDPBudgetFilter {
     fn can_consume(&self, budget: &PureDPBudget) -> Result<bool, Self::Error> {
         match (&self.remaining_budget, budget) {
             (PureDPBudget::Infinite, _) => Ok(true),
-            (PureDPBudget::Epsilon(remaining), PureDPBudget::Epsilon(requested)) => {
-                Ok(requested <= remaining)
-            },
+            (
+                PureDPBudget::Epsilon(remaining),
+                PureDPBudget::Epsilon(requested),
+            ) => Ok(requested <= remaining),
             _ => Ok(false), // Finite budget, infinite request
         }
     }
@@ -54,7 +55,7 @@ impl Filter<PureDPBudget> for PureDPBudgetFilter {
         &mut self,
         budget: &PureDPBudget,
     ) -> Result<FilterStatus, Self::Error> {
-        info!("The budget that remains in this epoch is {:?}, and we need to consume this much budget {:?}", self.remaining_budget, budget);
+        debug!("The budget that remains in this epoch is {:?}, and we need to consume this much budget {:?}", self.remaining_budget, budget);
 
         // Check that we have enough budget and if yes, deduct in place.
         // We check `Infinite` manually instead of implementing `PartialOrd` and
@@ -72,7 +73,8 @@ impl Filter<PureDPBudget> for PureDPBudgetFilter {
                         );
                         FilterStatus::Continue
                     } else {
-                        // Use the provided filter_id and filter_type as debug info
+                        // Use the provided filter_id and filter_type as debug
+                        // info
                         FilterStatus::OutOfBudget
                     }
                 }
@@ -97,7 +99,7 @@ mod tests {
     fn test_pure_dp_budget_filter() -> Result<(), anyhow::Error> {
         let mut filter = PureDPBudgetFilter::new(PureDPBudget::Epsilon(1.0))?;
         assert_eq!(
-            filter.try_consume( &PureDPBudget::Epsilon(0.5))?,
+            filter.try_consume(&PureDPBudget::Epsilon(0.5))?,
             FilterStatus::Continue
         );
         assert_eq!(

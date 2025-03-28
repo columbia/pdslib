@@ -73,16 +73,22 @@ pub trait FilterStorage {
     ) -> Result<bool, Self::Error>;
 
     /// Check if budget can be consumed without modifying state
-    fn can_consume(&self, filter_id: &Self::FilterId, budget: &Self::Budget) 
-        -> Result<bool, Self::Error>;
+    fn can_consume(
+        &self,
+        filter_id: &Self::FilterId,
+        budget: &Self::Budget,
+    ) -> Result<bool, Self::Error>;
 
     /// Attempts to consume the budget if sufficient.
     /// TODO(https://github.com/columbia/pdslib/issues/39): Simplify the logic, as OOB event should not happen within this function now.
     /// Tries to consume a given budget from the filter with ID `filter_id`.
     /// Returns an error if the filter does not exist, the caller can then
     /// decide to create a new filter.
-    fn try_consume(&mut self, filter_id: &Self::FilterId, budget: &Self::Budget) 
-        -> Result<FilterStatus, Self::Error>;
+    fn try_consume(
+        &mut self,
+        filter_id: &Self::FilterId,
+        budget: &Self::Budget,
+    ) -> Result<FilterStatus, Self::Error>;
 
     /// Convenience function that routes to either can_consume or try_consume
     fn maybe_consume(

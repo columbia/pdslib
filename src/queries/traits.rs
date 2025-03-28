@@ -1,13 +1,12 @@
-use std::{collections::HashMap, fmt::Debug};
+use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
 use crate::{
-    events::traits::{EpochEvents, EpochId, Event},
+    events::traits::{EpochEvents, EpochId, Event, RelevantEventSelector},
     mechanisms::{NoiseScale, NormType},
-    util::shared_types::Uri,
 };
 
 #[derive(Debug, Clone)]
-pub struct ReportRequestUris<U: Uri> {
+pub struct ReportRequestUris<U> {
     /// URI that triggered the report
     pub trigger_uri: U,
 
@@ -21,27 +20,21 @@ pub struct ReportRequestUris<U: Uri> {
 /// Trait for report types returned by a device (in plaintext). Must implement a
 /// default variant for null reports, so devices with errors or no budget
 /// left are still sending something (and are thus indistinguishable from other
-/// devices once reports are encrypted).  
-///
-/// TODO(https://github.com/columbia/pdslib/issues/20): marker trait for now, might add aggregation methods later.
+/// devices once reports are encrypted). Aggregation methods can be defined by
+/// callers.
 pub trait Report: Debug + Default {}
 
-/// Trait for a generic query.
-pub trait ReportRequest: Debug {
-    type Report: Report;
-    type Uri: Uri;
-
-    fn report_uris(&self) -> ReportRequestUris<Self::Uri>;
-}
-
 /// Trait for an epoch-based query.
-pub trait EpochReportRequest: ReportRequest {
+pub trait EpochReportRequest: Debug {
     type EpochId: EpochId;
     type Event: Event;
     type EpochEvents: EpochEvents;
-    type RelevantEventSelector;
+    type RelevantEventSelector: RelevantEventSelector<Event = Self::Event>;
     type PrivacyBudget;
-    type ReportGlobalSensitivity;
+    type Report: Report;
+    type Uri: Clone + Eq + Hash;
+
+    fn report_uris(&self) -> ReportRequestUris<Self::Uri>;
 
     /// Returns the list of requested epoch IDs, in the order the attribution
     /// should run.
@@ -82,7 +75,7 @@ pub trait EpochReportRequest: ReportRequest {
 
 /// Type for passive privacy loss accounting. Uniform over all epochs for now.
 #[derive(Debug)]
-pub struct PassivePrivacyLossRequest<EI: EpochId, U: Uri, PrivacyBudget> {
+pub struct PassivePrivacyLossRequest<EI: EpochId, U, PrivacyBudget> {
     pub epoch_ids: Vec<EI>,
     pub privacy_budget: PrivacyBudget,
     pub uris: ReportRequestUris<U>,

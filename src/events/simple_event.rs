@@ -1,9 +1,4 @@
-use crate::{
-    events::traits::{Event, EventUris},
-    util::shared_types::Uri,
-};
-
-impl Uri for String {}
+use crate::events::traits::{Event, EventUris};
 
 /// A barebones event type for testing and demo purposes. See ara_event for a
 /// richer type.

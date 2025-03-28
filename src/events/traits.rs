@@ -1,7 +1,5 @@
 use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
-use crate::util::shared_types::Uri;
-
 /// Marker trait with bounds for epoch identifiers.
 pub trait EpochId: Hash + std::cmp::Eq + Clone + Debug {}
 
@@ -13,7 +11,7 @@ pub type EpochSourceEventsResult<U, E, Err> =
     Result<Option<EpochEventsMap<U, E>>, Err>;
 
 #[derive(Debug, Clone)]
-pub struct EventUris<U: Uri> {
+pub struct EventUris<U> {
     /// URI of the entity that registered this event.
     pub source_uri: U,
 
@@ -25,9 +23,10 @@ pub struct EventUris<U: Uri> {
 }
 
 /// Event with an associated epoch.
-pub trait Event: Debug {
+/// TODO(https://github.com/columbia/pdslib/issues/61): investigate clone.
+pub trait Event: Debug + Clone {
     type EpochId: EpochId;
-    type Uri: Uri;
+    type Uri: Clone + Eq + Hash;
     // TODO(https://github.com/columbia/pdslib/issues/18): add source/trigger information for Big Bird / Level 2.
 
     fn epoch_id(&self) -> Self::EpochId;
@@ -59,7 +58,7 @@ pub trait RelevantEventSelector {
 
 /// Interface to store events and retrieve them by epoch.
 pub trait EventStorage {
-    type Uri: Uri;
+    type Uri;
     type Event: Event<Uri = Self::Uri>;
     type EpochEvents: EpochEvents;
     type RelevantEventSelector: RelevantEventSelector<Event = Self::Event>;

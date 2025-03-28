@@ -13,7 +13,9 @@ use pdslib::{
     },
     pds::epoch_pds::{EpochPrivateDataService, StaticCapacities},
     queries::{
-        simple_last_touch_histogram::SimpleLastTouchHistogramRequest,
+        simple_last_touch_histogram::{
+            SimpleLastTouchHistogramRequest, SimpleRelevantEventSelector,
+        },
         traits::ReportRequestUris,
     },
 };
@@ -70,6 +72,10 @@ fn main() -> Result<(), anyhow::Error> {
         uris: sample_event_uris.clone(),
     };
 
+    let always_relevant_event_selector = SimpleRelevantEventSelector {
+        lambda: always_relevant_event,
+    };
+
     pds.register_event(event.clone())?;
     let report_request = SimpleLastTouchHistogramRequest {
         epoch_start: 1,
@@ -77,7 +83,7 @@ fn main() -> Result<(), anyhow::Error> {
         report_global_sensitivity: 3.0,
         query_global_sensitivity: 5.0,
         requested_epsilon: 5.0,
-        is_relevant_event: always_relevant_event,
+        is_relevant_event: always_relevant_event_selector,
         report_uris: sample_report_uris.clone(),
     };
     let report = pds.compute_report(&report_request)?;
@@ -97,7 +103,7 @@ fn main() -> Result<(), anyhow::Error> {
                        * epoch 1 is 0. */
         query_global_sensitivity: 5.0,
         requested_epsilon: 5.0,
-        is_relevant_event: always_relevant_event,
+        is_relevant_event: always_relevant_event_selector,
         report_uris: sample_report_uris.clone(),
     };
     let report2 = pds.compute_report(&report_request2)?;
@@ -112,7 +118,7 @@ fn main() -> Result<(), anyhow::Error> {
         report_global_sensitivity: 3.0,
         query_global_sensitivity: 5.0,
         requested_epsilon: 5.0,
-        is_relevant_event: always_relevant_event,
+        is_relevant_event: always_relevant_event_selector,
         report_uris: sample_report_uris.clone(),
     };
     let report2 = pds.compute_report(&report_request2)?;
@@ -126,7 +132,7 @@ fn main() -> Result<(), anyhow::Error> {
         report_global_sensitivity: 0.0,
         query_global_sensitivity: 5.0,
         requested_epsilon: 5.0,
-        is_relevant_event: always_relevant_event,
+        is_relevant_event: always_relevant_event_selector,
         report_uris: sample_report_uris.clone(),
     };
     let report3_empty = pds.compute_report(&report_request3_empty)?;
@@ -140,7 +146,7 @@ fn main() -> Result<(), anyhow::Error> {
         report_global_sensitivity: 4.0,
         query_global_sensitivity: 5.0,
         requested_epsilon: 5.0,
-        is_relevant_event: always_relevant_event,
+        is_relevant_event: always_relevant_event_selector,
         report_uris: sample_report_uris.clone(),
     };
     let report3_over_budget =
@@ -155,7 +161,7 @@ fn main() -> Result<(), anyhow::Error> {
         report_global_sensitivity: 3.0,
         query_global_sensitivity: 5.0,
         requested_epsilon: 5.0,
-        is_relevant_event: always_relevant_event,
+        is_relevant_event: always_relevant_event_selector,
         report_uris: sample_report_uris.clone(),
     };
     let report3 = pds.compute_report(&report_request3)?;
@@ -169,7 +175,9 @@ fn main() -> Result<(), anyhow::Error> {
         report_global_sensitivity: 3.0,
         query_global_sensitivity: 5.0,
         requested_epsilon: 5.0,
-        is_relevant_event: |e: &SimpleEvent| e.event_key == 1,
+        is_relevant_event: SimpleRelevantEventSelector {
+            lambda: |e: &SimpleEvent| e.event_key == 1,
+        },
         report_uris: sample_report_uris.clone(),
     };
     let report4 = pds.compute_report(&report_request4)?;

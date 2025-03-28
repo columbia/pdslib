@@ -42,7 +42,7 @@ pub trait EpochReportRequest: Debug {
 
     /// Returns the selector for relevant events for the query. The selector
     /// can be passed to the event storage to retrieve only the relevant events.
-    fn relevant_event_selector(&self) -> Self::RelevantEventSelector;
+    fn relevant_event_selector(&self) -> &Self::RelevantEventSelector;
 
     /// Computes the report for the given request and epoch events.
     fn compute_report(

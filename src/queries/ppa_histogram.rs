@@ -65,7 +65,6 @@ impl RelevantEventSelector for PpaRelevantEventSelector {
 pub struct PpaHistogramRequest {
     start_epoch: usize,
     end_epoch: usize,
-    per_event_attributable_value: f64,
     report_global_sensitivity: f64,
     query_global_sensitivity: f64,
     requested_epsilon: f64,
@@ -77,27 +76,21 @@ pub struct PpaHistogramRequest {
 impl PpaHistogramRequest {
     /// Constructs a new `PpaHistogramRequest`, validating that:
     /// - `requested_epsilon` is > 0.
-    /// - `per_event_attributable_value`, `report_global_sensitivity` and
-    ///   `query_global_sensitivity` are non-negative.
-    #[allow(clippy::too_many_arguments)]
+    /// - `report_global_sensitivity` and `query_global_sensitivity` are
+    ///   non-negative.
     pub fn new(
         start_epoch: usize,
         end_epoch: usize,
-        per_event_attributable_value: f64,
         report_global_sensitivity: f64,
         query_global_sensitivity: f64,
         requested_epsilon: f64,
         histogram_size: usize,
         filters: PpaRelevantEventSelector,
-        logic: AttributionLogic,
     ) -> Result<Self, &'static str> {
         if requested_epsilon <= 0.0 {
             return Err("requested_epsilon must be greater than 0");
         }
-        if per_event_attributable_value < 0.0
-            || report_global_sensitivity < 0.0
-            || query_global_sensitivity < 0.0
-        {
+        if report_global_sensitivity < 0.0 || query_global_sensitivity < 0.0 {
             return Err("sensitivity values must be non-negative");
         }
         if histogram_size == 0 {
@@ -106,13 +99,12 @@ impl PpaHistogramRequest {
         Ok(Self {
             start_epoch,
             end_epoch,
-            per_event_attributable_value,
             report_global_sensitivity,
             query_global_sensitivity,
             requested_epsilon,
             histogram_size,
             filters,
-            logic,
+            logic: AttributionLogic::LastTouch,
         })
     }
 }
@@ -179,7 +171,7 @@ impl HistogramRequest for PpaHistogramRequest {
                         {
                             event_values.push((
                                 last_impression,
-                                self.per_event_attributable_value,
+                                self.report_global_sensitivity,
                             ));
                         } else {
                             // Log error for dropped events

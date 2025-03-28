@@ -13,9 +13,7 @@ use pdslib::{
     },
     pds::epoch_pds::{EpochPrivateDataService, StaticCapacities},
     queries::{
-        ppa_histogram::{
-            AttributionLogic, PpaHistogramRequest, PpaRelevantEventSelector,
-        },
+        ppa_histogram::{PpaHistogramRequest, PpaRelevantEventSelector},
         traits::ReportRequestUris,
     },
 };
@@ -103,7 +101,6 @@ fn main() -> Result<(), anyhow::Error> {
         2,
         32768.0,
         65536.0,
-        65536.0,
         1.0,
         2048,
         PpaRelevantEventSelector {
@@ -112,7 +109,6 @@ fn main() -> Result<(), anyhow::Error> {
                 event_filter_data == 1
             }),
         }, // Not filtering yet.
-        AttributionLogic::LastTouch,
     )
     .unwrap();
 
@@ -132,7 +128,6 @@ fn main() -> Result<(), anyhow::Error> {
         2,
         32768.0,
         65536.0,
-        65536.0,
         0.0, // This should fail.
         2048,
         PpaRelevantEventSelector {
@@ -141,7 +136,6 @@ fn main() -> Result<(), anyhow::Error> {
                 event_filter_data == 1
             }),
         }, // Not filtering yet.
-        AttributionLogic::LastTouch,
     );
     assert!(request2.is_err());
 
@@ -151,7 +145,6 @@ fn main() -> Result<(), anyhow::Error> {
         2,
         32768.0,
         65536.0,
-        65536.0,
         1.0,
         2048,
         PpaRelevantEventSelector {
@@ -160,7 +153,6 @@ fn main() -> Result<(), anyhow::Error> {
                 event_filter_data != 1
             }),
         }, // Not filtering yet.
-        AttributionLogic::LastTouch,
     )
     .unwrap();
 

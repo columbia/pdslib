@@ -89,6 +89,16 @@ pub struct PdsFilterStatus<FID> {
     pub filter_status: FilterStatus,
 }
 
+impl<FID> Default for PdsFilterStatus<FID> {
+    fn default() -> Self {
+        Self {
+            filter_id: None,
+            filter_type: None,
+            filter_status: FilterStatus::Continue,
+        }
+    }
+}
+
 /// Convenient util functions associated with the enriched PdsFilterStatus
 /// struct.
 impl<FID> PdsFilterStatus<FID> {
@@ -148,6 +158,7 @@ pub struct EpochPrivateDataService<
 pub struct PdsReport<Q: EpochReportRequest> {
     pub filtered_report: Q::Report,
     pub unfiltered_report: Q::Report,
+    // pub filter_status: PdsFilterStatus<FilterId<Q::EpochId, Q::Uri>>,
 }
 
 /// API for the epoch-based PDS.
@@ -450,59 +461,37 @@ where
         uris: ReportRequestUris<U>,
         dry_run: bool,
     ) -> Result<PdsFilterStatus<FilterId<EI, U>>, ERR> {
-        use FilterId::*;
-        let mut filters_to_consume = vec![];
-
+        // Build the filter IDs for NC, C and QTrigger
+        let mut device_epoch_filter_ids = Vec::new();
         for query_uri in uris.querier_uris {
-            filters_to_consume.push(Nc(epoch_id.clone(), query_uri));
+            device_epoch_filter_ids
+                .push(FilterId::Nc(epoch_id.clone(), query_uri));
         }
-        filters_to_consume.push(QTrigger(epoch_id.clone(), uris.trigger_uri));
-        filters_to_consume.push(C(epoch_id.clone()));
+        device_epoch_filter_ids
+            .push(FilterId::QTrigger(epoch_id.clone(), uris.trigger_uri));
+        device_epoch_filter_ids.push(FilterId::C(epoch_id.clone()));
 
-        // Initialize all filters first
-        for filter_id in &filters_to_consume {
-            self.initialize_filter_if_necessary(filter_id.clone())?;
-        }
-
-        for source in source_losses.keys() {
-            let fid = QSource(epoch_id.clone(), source.clone());
-            self.initialize_filter_if_necessary(fid)?;
+        // NC, C and QTrigger all have the same device-epoch level loss
+        let mut filters_to_consume = HashMap::new();
+        for filter_id in device_epoch_filter_ids {
+            filters_to_consume.insert(filter_id, loss);
         }
 
-        // Process all filters
-        for filter_id in &filters_to_consume {
-            // Get filter type for error reporting, but don't pass to the budget
-            // module
-            let filter_type = match filter_id {
-                FilterId::Nc(_, _) => FilterType::NonCollusion,
-                FilterId::C(_) => FilterType::Collusion,
-                FilterId::QTrigger(_, _) => FilterType::QuotaTrigger,
-                _ => FilterType::QuotaSource,
-            };
-
-            match self
-                .filter_storage
-                .maybe_consume(filter_id, loss, dry_run)?
-            {
-                FilterStatus::Continue => {}
-                FilterStatus::OutOfBudget => {
-                    return Ok(PdsFilterStatus::out_of_budget(
-                        filter_id.clone(),
-                        filter_type,
-                    ));
-                }
-            }
-        }
-
-        // Process source filters
+        // Add the QSource filters with their own device-epoch-source level loss
         for (source, loss) in source_losses {
-            let fid = QSource(epoch_id.clone(), source.clone());
+            let fid = FilterId::QSource(epoch_id.clone(), source.clone());
+            filters_to_consume.insert(fid, loss);
+        }
+
+        // Try to consume the privacy loss from the filters
+        for (fid, loss) in filters_to_consume {
+            self.initialize_filter_if_necessary(fid.clone())?;
             match self.filter_storage.maybe_consume(&fid, loss, dry_run)? {
                 FilterStatus::Continue => {}
                 FilterStatus::OutOfBudget => {
                     return Ok(PdsFilterStatus::out_of_budget(
                         fid,
-                        FilterType::QuotaSource,
+                        FilterType::QuotaSource, // TODO: refactor PdsFilterStatus
                     ));
                 }
             }

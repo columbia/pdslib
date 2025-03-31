@@ -71,21 +71,15 @@ impl<B: Budget, E, U> FilterCapacities for StaticCapacities<FilterId<E, U>, B> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FilterType {
-    NonCollusion,
-    Collusion,
-    QuotaTrigger,
-    QuotaSource,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PdsFilterStatus<FID> {
     /// No filter was out budget, the atomic check passed for this epoch
     Continue,
 
-    /// At least one filter was out of budget, the atomic check failed for this epoch. The ids of out-of-budget filters are stored in a vector if they are known.
-    /// If an unspecified error causes the atomic check to fail, the vector can be empty.
+    /// At least one filter was out of budget, the atomic check failed for this
+    /// epoch. The ids of out-of-budget filters are stored in a vector if they
+    /// are known. If an unspecified error causes the atomic check to fail,
+    /// the vector can be empty.
     OutOfBudget(Vec<FID>),
 }
 
@@ -126,7 +120,10 @@ pub struct EpochPrivateDataService<
 pub struct PdsReport<Q: EpochReportRequest> {
     pub filtered_report: Q::Report,
     pub unfiltered_report: Q::Report,
-    // pub filter_status: PdsFilterStatus<FilterId<Q::EpochId, Q::Uri>>,
+
+    /// Store a list of the filter IDs that were out-of-budget in the atomic
+    /// check for any epoch in the attribution window.
+    pub oob_filters: Vec<FilterId<Q::EpochId, Q::Uri>>,
 }
 
 /// API for the epoch-based PDS.
@@ -209,6 +206,7 @@ where
             request.compute_report(&relevant_events_per_epoch);
 
         // Browse epochs in the attribution window
+        let mut oob_filters = vec![];
         for epoch_id in request.epoch_ids() {
             // Step 1. Get relevant events for the current epoch `epoch_id`.
             let epoch_relevant_events =
@@ -265,10 +263,13 @@ where
                         ).into());
                     }
                 }
-                PdsFilterStatus::OutOfBudget(_) => {
+                PdsFilterStatus::OutOfBudget(mut filters) => {
                     // Not enough budget, drop events without any filter
                     // consumption
                     relevant_events_per_epoch.remove(&epoch_id);
+
+                    // Keep track of why we dropped this epoch
+                    oob_filters.append(&mut filters);
                 }
             }
         }
@@ -279,6 +280,7 @@ where
         Ok(PdsReport {
             filtered_report,
             unfiltered_report,
+            oob_filters,
         })
     }
 
@@ -456,7 +458,8 @@ where
             }
         }
 
-        // If any filter was out of budget, the whole operation is marked as out of budget.
+        // If any filter was out of budget, the whole operation is marked as out
+        // of budget.
         if !oob_filters.is_empty() {
             return Ok(PdsFilterStatus::OutOfBudget(oob_filters));
         }
@@ -645,7 +648,8 @@ mod tests {
         Ok(())
     }
 
-    /// TODO: test this on the real `compute_report`, not just passive privacy loss.
+    /// TODO: test this on the real `compute_report`, not just passive privacy
+    /// loss.
     #[test]
     fn test_budget_rollback_on_depletion() -> Result<(), anyhow::Error> {
         // PDS with several filters

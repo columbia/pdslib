@@ -3,16 +3,21 @@ use std::{collections::HashMap, marker::PhantomData};
 
 use anyhow::Context;
 
-use crate::budget::traits::{
-    Budget, Filter, FilterCapacities, FilterStatus, FilterStorage,
+use crate::{
+    budget::traits::{
+        Budget, Filter, FilterCapacities, FilterStatus, FilterStorage,
+    },
+    pds::epoch_pds::StaticCapacities,
 };
 
 /// Simple implementation of FilterStorage using a HashMap.
 /// Works for any Filter that implements the Filter trait.
-#[derive(Debug, Default, Serialize)]
+#[derive(Debug, Default)]
 pub struct HashMapFilterStorage<FID, F, B, C> {
     capacities: C,
-    filters: HashMap<FID, F>,
+
+    /// TODO: make this field private again eventually. MAde it public for hacky serialization.
+    pub filters: HashMap<FID, F>,
     _marker: PhantomData<B>,
 }
 

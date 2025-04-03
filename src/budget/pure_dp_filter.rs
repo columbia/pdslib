@@ -1,4 +1,7 @@
+use core::f64;
+
 use log::debug;
+use serde::Serialize;
 
 use crate::budget::traits::{Budget, Filter, FilterStatus};
 
@@ -22,12 +25,35 @@ pub enum PureDPBudget {
     Epsilon(f64),
 }
 
+impl Serialize for PureDPBudget {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            PureDPBudget::Infinite => serializer.serialize_f64(f64::NAN),
+            PureDPBudget::Epsilon(epsilon) => {
+                serializer.serialize_f64(*epsilon)
+            }
+        }
+    }
+}
+
 impl Budget for PureDPBudget {}
 
 /// A filter for pure differential privacy.
 #[derive(Debug)]
 pub struct PureDPBudgetFilter {
     pub remaining_budget: PureDPBudget,
+}
+
+impl Serialize for PureDPBudgetFilter {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.remaining_budget.serialize(serializer)
+    }
 }
 
 impl Filter<PureDPBudget> for PureDPBudgetFilter {

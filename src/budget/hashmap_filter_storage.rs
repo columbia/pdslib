@@ -1,3 +1,4 @@
+use serde::Serialize;
 use std::{collections::HashMap, marker::PhantomData};
 
 use anyhow::Context;
@@ -8,7 +9,7 @@ use crate::budget::traits::{
 
 /// Simple implementation of FilterStorage using a HashMap.
 /// Works for any Filter that implements the Filter trait.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize)]
 pub struct HashMapFilterStorage<FID, F, B, C> {
     capacities: C,
     filters: HashMap<FID, F>,

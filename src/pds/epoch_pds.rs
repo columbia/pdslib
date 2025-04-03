@@ -1,6 +1,7 @@
 use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
 use log::debug;
+use serde::Serialize;
 
 use crate::{
     budget::{
@@ -16,7 +17,7 @@ use crate::{
     },
 };
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
 pub enum FilterId<
     E, // Epoch ID
     U, // URI
@@ -32,7 +33,7 @@ pub enum FilterId<
 }
 
 /// Struct containing the default capacity for each type of filter.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct StaticCapacities<FID, B> {
     pub nc: B,
     pub c: B,

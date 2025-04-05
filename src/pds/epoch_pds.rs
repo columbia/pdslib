@@ -80,6 +80,8 @@ pub struct StaticCapacities<FID, B> {
     pub c: B,
     pub qtrigger: B,
     pub qsource: B,
+
+    #[serde(skip_serializing)]
     _phantom: std::marker::PhantomData<FID>,
 }
 

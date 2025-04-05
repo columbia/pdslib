@@ -1,13 +1,9 @@
-use serde::Serialize;
 use std::{collections::HashMap, marker::PhantomData};
 
 use anyhow::Context;
 
-use crate::{
-    budget::traits::{
-        Budget, Filter, FilterCapacities, FilterStatus, FilterStorage,
-    },
-    pds::epoch_pds::StaticCapacities,
+use crate::budget::traits::{
+    Budget, Filter, FilterCapacities, FilterStatus, FilterStorage,
 };
 
 /// Simple implementation of FilterStorage using a HashMap.
@@ -16,7 +12,8 @@ use crate::{
 pub struct HashMapFilterStorage<FID, F, B, C> {
     capacities: C,
 
-    /// TODO: make this field private again eventually. MAde it public for hacky serialization.
+    /// TODO: make this field private again eventually. MAde it public for
+    /// hacky serialization.
     pub filters: HashMap<FID, F>,
     _marker: PhantomData<B>,
 }

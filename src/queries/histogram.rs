@@ -85,7 +85,7 @@ pub trait HistogramRequest: Debug {
 
 /// We implement the EpochReportRequest trait, so any type that implements
 /// HistogramRequest can be used as an EpochReportRequest.
-impl<H: HistogramRequest> EpochReportRequest for H {
+impl<H: HistogramRequest + 'static> EpochReportRequest for H {
     type EpochId = H::EpochId;
     type Event = H::Event;
     type EpochEvents = H::EpochEvents;
@@ -93,6 +93,7 @@ impl<H: HistogramRequest> EpochReportRequest for H {
     type RelevantEventSelector = H::RelevantEventSelector; // Use the full request as the selector.
     type Report = HistogramReport<<H as HistogramRequest>::BucketKey>;
     type Uri = String;
+    type BucketKey = usize;
 
     fn report_uris(&self) -> ReportRequestUris<String> {
         self.report_uris()
@@ -186,5 +187,30 @@ impl<H: HistogramRequest> EpochReportRequest for H {
         // similar to `SimpleLastTouchHistogramReport` with Option<BucketKey,
         // f64>.
         2.0 * self.report_global_sensitivity()
+    }
+
+    /// TODO(https://github.com/columbia/pdslib/issues/55): For now, assume no optimization queries for simple
+    /// last touch histogram queries, so default to the respective Null implementation.
+
+    /// Returns whether this is an optimization query.
+    /// Default implementation returns false.
+    fn is_optimization_query(&self) -> bool {
+        false
+    }
+
+    /// Returns the mapping from querier URIs to their respective bucket mappings.
+    /// Default implementation returns None.
+    fn get_querier_bucket_mapping(&self) -> Option<&HashMap<Self::Uri, HashMap<Self::BucketKey, Vec<Self::BucketKey>>>> {
+        None
+    }
+
+    /// Filters the report for a specific querier.
+    /// Default implementation returns None.
+    fn filter_report_for_querier(
+        &self,
+        _: &Self::Report,
+        _: &Self::Uri,
+    ) -> Option<Self::Report> {
+        None
     }
 }

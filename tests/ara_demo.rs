@@ -11,12 +11,13 @@ use pdslib::{
         hashmap_event_storage::HashMapEventStorage, ppa_event::PpaEvent,
         traits::EventUris,
     },
-    pds::epoch_pds::{EpochPrivateDataService, StaticCapacities},
+    pds::epoch_pds::{EpochPrivateDataService, StaticCapacities, PdsReportResult},
     queries::{
         ppa_histogram::{PpaHistogramRequest, PpaRelevantEventSelector},
         traits::ReportRequestUris,
     },
 };
+use std::collections::HashMap;
 
 #[test]
 fn main() -> Result<(), anyhow::Error> {
@@ -108,19 +109,30 @@ fn main() -> Result<(), anyhow::Error> {
             is_matching_event: Box::new(|event_filter_data: u64| {
                 event_filter_data == 1
             }),
+            querier_bucket_mapping: HashMap::new(),
         }, // Not filtering yet.
+        false,
     )
     .unwrap();
 
     let report1 = pds.compute_report(&request1).unwrap();
-    info!("Report1: {:?}", report1);
-    let bin_values1 = &report1.filtered_report.bin_values;
+    match report1 {
+        PdsReportResult::Regular(pds_report) => {
+            info!("Report1: {:?}", pds_report);
+            let bin_values1 = &pds_report.filtered_report.bin_values;
 
-    // One event attributed to the binary OR of the source keypiece and trigger
-    // keypiece = 0x159 | 0x400
-    assert!(bin_values1.contains_key(&0x559));
-    println!("Report1: {:?}", bin_values1.len());
-    assert_eq!(bin_values1.get(&0x559), Some(&32768.0));
+            // One event attributed to the binary OR of the source keypiece and trigger
+            // keypiece = 0x159 | 0x400
+            assert!(bin_values1.contains_key(&0x559));
+            println!("Report1: {:?}", bin_values1.len());
+            assert_eq!(bin_values1.get(&0x559), Some(&32768.0));
+        },
+        PdsReportResult::Optimization(_) => {
+            // Handle the Optimization case if needed
+            println!("This should never happen because we are not using optimization queries here.");
+            assert!(false);
+        }
+    }
 
     // Test error case when requested_epsilon is 0.
     let request2 = PpaHistogramRequest::new(
@@ -135,7 +147,9 @@ fn main() -> Result<(), anyhow::Error> {
             is_matching_event: Box::new(|event_filter_data: u64| {
                 event_filter_data == 1
             }),
+            querier_bucket_mapping: HashMap::new(),
         }, // Not filtering yet.
+        false,
     );
     assert!(request2.is_err());
 
@@ -152,16 +166,27 @@ fn main() -> Result<(), anyhow::Error> {
             is_matching_event: Box::new(|event_filter_data: u64| {
                 event_filter_data != 1
             }),
+            querier_bucket_mapping: HashMap::new(),
         }, // Not filtering yet.
+        false,
     )
     .unwrap();
 
     let report3 = pds.compute_report(&request3).unwrap();
-    info!("Report3: {:?}", report3);
-
-    // No event attributed because the lambda logic filters out the only
-    // qualified event.
-    assert_eq!(report3.filtered_report.bin_values.len(), 0);
+    match report3 {
+        PdsReportResult::Regular(pds_report) => {
+            info!("Report: {:?}", pds_report);
+            
+            // No event attributed because the lambda logic filters out the only
+            // qualified event.
+            assert_eq!(pds_report.filtered_report.bin_values.len(), 0);
+        },
+        PdsReportResult::Optimization(_) => {
+            // Handle the Optimization case if needed
+            println!("This should never happen because we are not using optimization queries here.");
+            assert!(false);
+        }
+    }
 
     // TODO(https://github.com/columbia/pdslib/issues/8): add more tests when we have multiple events
 

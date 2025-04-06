@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Debug, hash::Hash};
+use std::{collections::HashMap, fmt::Debug, hash::Hash, any::Any};
 
 use crate::{
     events::traits::{EpochEvents, EpochId, Event, RelevantEventSelector},
@@ -25,14 +25,15 @@ pub struct ReportRequestUris<U> {
 pub trait Report: Debug + Default {}
 
 /// Trait for an epoch-based query.
-pub trait EpochReportRequest: Debug {
+pub trait EpochReportRequest: Debug + Any + 'static {
     type EpochId: EpochId;
     type Event: Event;
     type EpochEvents: EpochEvents;
     type RelevantEventSelector: RelevantEventSelector<Event = Self::Event>;
     type PrivacyBudget;
-    type Report: Report;
+    type Report: Debug + Default;
     type Uri: Clone + Eq + Hash + Debug;
+    type BucketKey: Hash + Eq + Clone;
 
     fn report_uris(&self) -> ReportRequestUris<Self::Uri>;
 
@@ -71,6 +72,18 @@ pub trait EpochReportRequest: Debug {
 
     /// Retrieves the scale of the noise that will be added by the aggregator.
     fn noise_scale(&self) -> NoiseScale;
+
+    /// Returns whether this is an optimization query.
+    /// Default implementation returns false.
+    fn is_optimization_query(&self) -> bool;
+
+    /// Returns the mapping from querier URIs to their respective bucket.
+    /// Default implementation returns None.
+    fn get_querier_bucket_mapping(&self) -> Option<&HashMap<Self::Uri, HashMap<Self::BucketKey, Vec<Self::BucketKey>>>>;
+
+    /// Filters the report for a specific querier.
+    /// Default implementation returns None.
+    fn filter_report_for_querier(&self, report: &Self::Report, querier_uri: &Self::Uri) -> Option<Self::Report>;
 }
 
 /// Type for passive privacy loss accounting. Uniform over all epochs for now.

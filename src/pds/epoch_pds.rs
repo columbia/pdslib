@@ -114,6 +114,11 @@ pub struct EpochPrivateDataService<
     pub _phantom_error: std::marker::PhantomData<ERR>,
 }
 
+pub enum PdsReportResult<Q: EpochReportRequest> {
+    Regular(PdsReport<Q>),
+    Optimization(HashMap<Q::Uri, PdsReport<Q>>),
+}
+
 /// Report returned by Pds, potentially augmented with debugging information
 /// TODO: add more detailed information about which filters/quotas kicked in.
 #[derive(Default, Debug)]
@@ -149,6 +154,7 @@ where
         EpochEvents = EE,
         RelevantEventSelector = RES,
         Uri = U,
+        Report: Clone,
     >,
     ERR: From<FS::Error> + From<ES::Error> + From<anyhow::Error>,
 {
@@ -162,7 +168,7 @@ where
     /// Computes a report for the given report request.
     /// This function follows `compute_attribution_report` from the Cookie
     /// Monster Algorithm (https://arxiv.org/pdf/2405.16719, Code Listing 1)
-    pub fn compute_report(&mut self, request: &Q) -> Result<PdsReport<Q>, ERR> {
+    pub fn compute_report(&mut self, request: &Q) -> Result<PdsReportResult<Q>, ERR> {
         debug!("Computing report for request {:?}", request);
 
         // Collect events from event storage by epoch. If an epoch has no
@@ -277,11 +283,48 @@ where
         // Now that we've dropped OOB epochs, we can compute the final report.
         let filtered_report =
             request.compute_report(&relevant_events_per_epoch);
-        Ok(PdsReport {
+        let main_report = PdsReport {
             filtered_report,
             unfiltered_report,
             oob_filters,
-        })
+        };
+
+        // Step 6 (Only happens for optimization queries).
+        // It returns a hash map keyed by querier URIs with the filtered report for the corresponding querier as the value; if querier reports have no meaningful elements, returns the main report.
+        if request.is_optimization_query() {
+            if let Some(querier_bucket_mapping) = request.get_querier_bucket_mapping() {
+                let querier_uris = request.report_uris().querier_uris.clone();
+                let mut querier_reports = HashMap::new();
+                
+                for querier_uri in querier_uris {
+                    // Create a querier-specific report if this querier has bucket mappings
+                    if querier_bucket_mapping.contains_key(&querier_uri) {
+                        // Create a filtered report for this querier
+                        if let Some(querier_filtered_report) = request.filter_report_for_querier(
+                            &main_report.filtered_report, 
+                            &querier_uri
+                        ) {
+                            // Create a PDS report for this querier
+                            let querier_pds_report = PdsReport {
+                                filtered_report: querier_filtered_report.clone(),
+                                // The unfiltered report is the same as the filtered report for this querier
+                                unfiltered_report: querier_filtered_report,
+                                oob_filters: main_report.oob_filters.clone(),
+                            };
+                            
+                            querier_reports.insert(querier_uri, querier_pds_report);
+                        }
+                    }
+                }
+                
+                if !querier_reports.is_empty() {
+                    return Ok(PdsReportResult::Optimization(querier_reports));
+                }
+            }
+        }
+
+        // For regular requests or optimization queries without mappings, just return the main report
+        Ok(PdsReportResult::Regular(main_report))
     }
 
     /// [Experimental] Accounts for passive privacy loss. Can fail if the

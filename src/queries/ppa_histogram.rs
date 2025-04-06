@@ -1,4 +1,4 @@
-use std::{collections::HashMap, vec};
+use std::{collections::{HashMap, HashSet}, vec};
 
 use crate::{
     events::{
@@ -11,12 +11,14 @@ use crate::{
 pub struct PpaRelevantEventSelector {
     pub report_request_uris: ReportRequestUris<String>,
     pub is_matching_event: Box<dyn Fn(u64) -> bool>,
+    pub querier_bucket_mapping: HashMap<String, HashSet<usize>>,
 }
 
 impl std::fmt::Debug for PpaRelevantEventSelector {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PpaRelevantEventSelector")
             .field("report_request_uris", &self.report_request_uris)
+            .field("querier_bucket_mapping", &self.querier_bucket_mapping)
             .finish_non_exhaustive()
     }
 }
@@ -71,6 +73,7 @@ pub struct PpaHistogramRequest {
     histogram_size: usize,
     filters: PpaRelevantEventSelector,
     logic: AttributionLogic,
+    is_optimization_query: bool,
 }
 
 impl PpaHistogramRequest {
@@ -86,6 +89,7 @@ impl PpaHistogramRequest {
         requested_epsilon: f64,
         histogram_size: usize,
         filters: PpaRelevantEventSelector,
+        is_optimization_query: bool,
     ) -> Result<Self, &'static str> {
         if requested_epsilon <= 0.0 {
             return Err("requested_epsilon must be greater than 0");
@@ -105,8 +109,54 @@ impl PpaHistogramRequest {
             histogram_size,
             filters,
             logic: AttributionLogic::LastTouch,
+            is_optimization_query,
         })
     }
+
+    // Helper method to check if a bucket is for a specific querier
+    pub fn is_bucket_for_querier(&self, bucket_key: usize, querier_uri: &str) -> bool {
+        match self.filters.querier_bucket_mapping.get(querier_uri) {
+            Some(bucket_set) => bucket_set.contains(&bucket_key),
+            None => false,
+        }
+    }
+    
+    // Helper method to check if this is an optimization query
+    pub fn is_optimization_query(&self) -> bool {
+        self.is_optimization_query
+    }
+    
+    // Helper method to get querier bucket mapping
+    pub fn get_querier_bucket_mapping(&self) -> &HashMap<String, HashSet<usize>> {
+        &self.filters.querier_bucket_mapping
+    }
+}
+
+// Util function to create querier bucket mapping
+pub fn create_querier_bucket_mapping(
+    mappings: Vec<(String, Vec<usize>)>,
+) -> HashMap<String, HashSet<usize>> {
+    mappings
+        .into_iter()
+        .map(|(uri, buckets)| (uri, buckets.into_iter().collect()))
+        .collect()
+}
+
+// Util function to filter histogram reports for specific queriers
+pub fn filter_histogram_for_querier<BK: std::hash::Hash + Eq + Clone>(
+    full_histogram: &HashMap<BK, f64>,
+    querier_buckets: &HashSet<BK>,
+) -> HashMap<BK, f64> {
+    full_histogram
+        .iter()
+        .filter_map(|(key, value)| {
+            if querier_buckets.contains(key) {
+                Some((key.clone(), *value))
+            } else {
+                None
+            }
+        })
+        .collect()
 }
 
 impl HistogramRequest for PpaHistogramRequest {
@@ -167,12 +217,20 @@ impl HistogramRequest for PpaHistogramRequest {
             AttributionLogic::LastTouch => {
                 for relevant_events in relevant_events_per_epoch.values() {
                     if let Some(last_impression) = relevant_events.last() {
-                        if last_impression.histogram_index < self.histogram_size
-                        {
-                            event_values.push((
-                                last_impression,
-                                self.report_global_sensitivity,
-                            ));
+                        if last_impression.histogram_index < self.histogram_size {
+                            // For optimization queries, check if the bucket belongs to any querier
+                            // For regular queries, include all buckets
+                            let include_bucket = !self.is_optimization_query || 
+                                self.filters.report_request_uris.querier_uris.iter().any(|uri| 
+                                    self.is_bucket_for_querier(last_impression.histogram_index, uri)
+                                );
+                                
+                            if include_bucket {
+                                event_values.push((
+                                    last_impression,
+                                    self.report_global_sensitivity,
+                                ));
+                            }
                         } else {
                             // Log error for dropped events
                             log::error!(
@@ -191,5 +249,53 @@ impl HistogramRequest for PpaHistogramRequest {
 
     fn report_uris(&self) -> ReportRequestUris<String> {
         self.filters.report_request_uris.clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_querier_bucket_mapping() {
+        let mappings = vec![
+            ("meta.ex".to_string(), vec![0, 1]),
+            ("google.ex".to_string(), vec![1, 2]),
+        ];
+
+        let mapping = create_querier_bucket_mapping(mappings);
+        
+        assert!(mapping.get("meta.ex").unwrap().contains(&0));
+        assert!(mapping.get("meta.ex").unwrap().contains(&1));
+        assert!(!mapping.get("meta.ex").unwrap().contains(&2));
+
+        assert!(!mapping.get("google.ex").unwrap().contains(&0));
+        assert!(mapping.get("google.ex").unwrap().contains(&1));
+        assert!(mapping.get("google.ex").unwrap().contains(&2));
+    }
+    
+    #[test]
+    fn test_filter_histogram_for_querier() {
+        let full_histogram: HashMap<usize, f64> = [
+            (0, 10.0),
+            (1, 20.0),
+            (2, 30.0),
+        ].iter().cloned().collect();
+
+        let meta_buckets: HashSet<usize> = [0, 1].iter().cloned().collect();
+        let google_buckets: HashSet<usize> = [1, 2].iter().cloned().collect();
+
+        let meta_histogram = filter_histogram_for_querier(&full_histogram, &meta_buckets);
+        let google_histogram = filter_histogram_for_querier(&full_histogram, &google_buckets);
+
+        assert_eq!(meta_histogram.len(), 2);
+        assert_eq!(meta_histogram.get(&0), Some(&10.0));
+        assert_eq!(meta_histogram.get(&1), Some(&20.0));
+        assert_eq!(meta_histogram.get(&2), None);
+
+        assert_eq!(google_histogram.len(), 2);
+        assert_eq!(google_histogram.get(&0), None);
+        assert_eq!(google_histogram.get(&1), Some(&20.0));
+        assert_eq!(google_histogram.get(&2), Some(&30.0));
     }
 }

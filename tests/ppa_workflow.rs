@@ -10,7 +10,7 @@ use pdslib::{
         hashmap_event_storage::HashMapEventStorage, simple_event::SimpleEvent,
         traits::EventUris,
     },
-    pds::epoch_pds::{EpochPrivateDataService, StaticCapacities},
+    pds::epoch_pds::{EpochPrivateDataService, StaticCapacities, PdsReportResult},
     queries::{
         simple_last_touch_histogram::{
             SimpleLastTouchHistogramRequest, SimpleRelevantEventSelector,
@@ -18,6 +18,25 @@ use pdslib::{
         traits::ReportRequestUris,
     },
 };
+
+use std::fmt;
+
+#[derive(Debug)]
+enum PpaWorkflowErrorType {
+    UnexpectedOptimizationVariant,
+}
+
+impl fmt::Display for PpaWorkflowErrorType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PpaWorkflowErrorType::UnexpectedOptimizationVariant => {
+                write!(f, "Unexpected Optimization Variant")
+            }
+        }
+    }
+}
+
+impl std::error::Error for PpaWorkflowErrorType {}
 
 #[test]
 fn main() -> Result<(), anyhow::Error> {
@@ -87,9 +106,19 @@ fn main() -> Result<(), anyhow::Error> {
     let report = pds.compute_report(&report_request)?;
 
     // Look at the histogram stored in the report (unencrypted here).
-    assert_eq!(
-        report.filtered_report.bin_value,
-        Some((event.event_key, 70.0))
-    );
-    Ok(())
+    match report {
+        PdsReportResult::Regular(pds_report) => {
+            assert_eq!(
+                pds_report.filtered_report.bin_value,
+                Some((event.event_key, 70.0))
+            );
+            Ok(())
+        },
+        PdsReportResult::Optimization(_) => {
+            // Handle the Optimization case if needed
+            println!("This is an Optimization variant, not Regular");
+            Err(anyhow::Error::from(PpaWorkflowErrorType::
+                UnexpectedOptimizationVariant))
+        }
+    }
 }

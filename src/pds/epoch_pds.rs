@@ -285,7 +285,7 @@ where
             request.compute_report(&relevant_events_per_epoch);
         let main_report = PdsReport {
             filtered_report,
-            unfiltered_report,
+            unfiltered_report: unfiltered_report.clone(),
             oob_filters,
         };
 
@@ -296,13 +296,47 @@ where
                 let querier_uris = request.report_uris().querier_uris.clone();
                 let mut querier_reports = HashMap::new();
                 
+                // Calculate site-level privacy budgets needed for filtering
+                let mut epoch_site_privacy_losses = HashMap::new();
+
+                // Process each epoch individually
+                for epoch_id in request.epoch_ids() {
+                    // Get the source events for this epoch (or skip if none)
+                    if let Some(source_events) = relevant_events_per_epoch_source.get(&epoch_id) {
+                        // Calculate losses for this epoch
+                        let epoch_losses = self.compute_epoch_source_losses(
+                            request,
+                            Some(source_events),  // Pass the correct Option<&HashMap> type
+                            &unfiltered_report,
+                            num_epochs
+                        );
+                        
+                        // Add to the site-level privacy losses map
+                        for (site, loss) in epoch_losses {
+                            epoch_site_privacy_losses.insert(site, loss);
+                        }
+                    }
+                }
+                
+                // Get available site budgets (from privacy filters)
+                let mut available_site_budgets = HashMap::new();
+                for (site, _) in &epoch_site_privacy_losses {
+                    // In a real implementation, get this from the q-imp filters
+                    // For now, use a reasonable default (infinite for demonstration)
+                    // TODO(https://github.com/columbia/pdslib/issues/55): get site-level budgets from q-imp filters
+                    available_site_budgets.insert(site.clone(), PureDPBudget::Infinite);
+                }
+                
                 for querier_uri in querier_uris {
                     // Create a querier-specific report if this querier has bucket mappings
                     if querier_bucket_mapping.contains_key(&querier_uri) {
                         // Create a filtered report for this querier
                         if let Some(querier_filtered_report) = request.filter_report_for_querier(
                             &main_report.filtered_report, 
-                            &querier_uri
+                            &querier_uri,
+                            &relevant_events_per_epoch,
+                            Some(&epoch_site_privacy_losses),
+                            Some(&available_site_budgets)
                         ) {
                             // Create a PDS report for this querier
                             let querier_pds_report = PdsReport {

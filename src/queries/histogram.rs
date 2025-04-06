@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Debug, hash::Hash};
+use std::{collections::{HashMap, HashSet}, fmt::Debug, hash::Hash};
 
 use crate::{
     budget::pure_dp_filter::PureDPBudget,
@@ -13,7 +13,7 @@ pub struct HistogramReport<BucketKey> {
 }
 
 /// Trait for bucket keys.
-pub trait BucketKey: Debug + Hash + Eq {}
+pub trait BucketKey: Debug + Hash + Eq + Clone {}
 
 /// Default type for bucket keys.
 impl BucketKey for usize {}
@@ -81,6 +81,33 @@ pub trait HistogramRequest: Debug {
     ) -> Vec<(&'a Self::Event, f64)>;
 
     fn report_uris(&self) -> ReportRequestUris<String>;
+
+    /// Returns whether this is an optimization query (has split reports)
+    fn is_optimization_query(&self) -> bool {
+        false // Default implementation returns false
+    }
+    
+    /// Gets the querier bucket mapping for filtering histograms
+    fn get_histogram_querier_bucket_mapping(&self) -> Option<&HashMap<String, HashSet<Self::BucketKey>>> {
+        None // Default implementation returns None
+    }
+
+    /// Returns the mapping from bucket keys to their respective site URIs.
+    fn get_bucket_site_mapping<'a>(&self, 
+        relevant_events_per_epoch: &'a HashMap<Self::EpochId, Self::EpochEvents>
+    ) -> HashMap<usize, String>;
+    
+    /// Filter a histogram for a specific querier
+    fn filter_histogram_for_querier(
+        &self,
+        _: &HashMap<Self::BucketKey, f64>,
+        _: &String,
+        _: &HashMap<Self::EpochId, Self::EpochEvents>,
+        _: Option<&HashMap<String, PureDPBudget>>,
+        _: Option<&HashMap<String, PureDPBudget>>,
+    ) -> Option<HashMap<Self::BucketKey, f64>> {
+        None // Default implementation returns None
+    }
 }
 
 /// We implement the EpochReportRequest trait, so any type that implements
@@ -93,7 +120,7 @@ impl<H: HistogramRequest + 'static> EpochReportRequest for H {
     type RelevantEventSelector = H::RelevantEventSelector; // Use the full request as the selector.
     type Report = HistogramReport<<H as HistogramRequest>::BucketKey>;
     type Uri = String;
-    type BucketKey = usize;
+    type BucketKey = H::BucketKey;
 
     fn report_uris(&self) -> ReportRequestUris<String> {
         self.report_uris()
@@ -195,7 +222,7 @@ impl<H: HistogramRequest + 'static> EpochReportRequest for H {
     /// Returns whether this is an optimization query.
     /// Default implementation returns false.
     fn is_optimization_query(&self) -> bool {
-        false
+        self.is_optimization_query()
     }
 
     /// Returns the mapping from querier URIs to their respective bucket mappings.
@@ -208,9 +235,23 @@ impl<H: HistogramRequest + 'static> EpochReportRequest for H {
     /// Default implementation returns None.
     fn filter_report_for_querier(
         &self,
-        _: &Self::Report,
-        _: &Self::Uri,
+        report: &Self::Report,
+        querier_uri: &Self::Uri,
+        relevant_events_per_epoch: &HashMap<Self::EpochId, Self::EpochEvents>,
+        epoch_site_privacy_losses: Option<&HashMap<Self::Uri, PureDPBudget>>, // Privacy loss per site
+        site_bucket_map: Option<&HashMap<Self::Uri, PureDPBudget>>, // Event source site to bucket mapping
     ) -> Option<Self::Report> {
-        None
+        // Delegate to the HistogramRequest implementation
+        self.filter_histogram_for_querier(
+            &report.bin_values,
+            querier_uri,
+            relevant_events_per_epoch,
+            epoch_site_privacy_losses,
+            site_bucket_map,
+        )
+        .map(|
+            filtered_bins
+        | HistogramReport { bin_values: filtered_bins }
+        )
     }
 }

@@ -161,6 +161,9 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
         &self,
         _: &Self::Report,
         _: &Self::Uri,
+        _: &HashMap<Self::EpochId, Self::EpochEvents>,
+        _: Option<&HashMap<Self::Uri, PureDPBudget>>,
+        _: Option<&HashMap<Self::Uri, PureDPBudget>>,
     ) -> Option<Self::Report> {
         None
     }

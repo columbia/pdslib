@@ -6,12 +6,19 @@ use crate::{
         traits::RelevantEventSelector,
     },
     queries::{histogram::HistogramRequest, traits::ReportRequestUris},
+    budget::pure_dp_filter::PureDPBudget,
 };
 
 pub struct PpaRelevantEventSelector {
     pub report_request_uris: ReportRequestUris<String>,
     pub is_matching_event: Box<dyn Fn(u64) -> bool>,
     pub querier_bucket_mapping: HashMap<String, HashSet<usize>>,
+}
+
+/// Struct for bucket event source site mapping.
+pub struct BucketSiteMapping {
+    // Maps bucket keys to impression site URIs
+    pub bucket_to_site: HashMap<usize, String>,
 }
 
 impl std::fmt::Debug for PpaRelevantEventSelector {
@@ -130,6 +137,21 @@ impl PpaHistogramRequest {
     pub fn get_querier_bucket_mapping(&self) -> &HashMap<String, HashSet<usize>> {
         &self.filters.querier_bucket_mapping
     }
+
+    pub fn create_bucket_site_mapping(&self, events: &[PpaEvent]) -> BucketSiteMapping {
+        let mut mapping = HashMap::new();
+        
+        for event in events {
+            mapping.insert(
+                event.histogram_index, 
+                event.uris.source_uri.clone()
+            );
+        }
+        
+        BucketSiteMapping {
+            bucket_to_site: mapping
+        }
+    }
 }
 
 // Util function to create querier bucket mapping
@@ -224,7 +246,7 @@ impl HistogramRequest for PpaHistogramRequest {
                                 self.filters.report_request_uris.querier_uris.iter().any(|uri| 
                                     self.is_bucket_for_querier(last_impression.histogram_index, uri)
                                 );
-                                
+
                             if include_bucket {
                                 event_values.push((
                                     last_impression,
@@ -241,7 +263,7 @@ impl HistogramRequest for PpaHistogramRequest {
                         }
                     }
                 }
-            } // Other attribution logic not supported yet.
+            }
         }
 
         event_values
@@ -249,6 +271,115 @@ impl HistogramRequest for PpaHistogramRequest {
 
     fn report_uris(&self) -> ReportRequestUris<String> {
         self.filters.report_request_uris.clone()
+    }
+
+    fn is_optimization_query(&self) -> bool {
+        self.is_optimization_query
+    }
+
+    fn get_histogram_querier_bucket_mapping(&self) -> Option<&HashMap<String, HashSet<Self::BucketKey>>> {
+        Some(&self.filters.querier_bucket_mapping)
+    }
+
+    // Get a mapping from bucket IDs to site URIs
+    fn get_bucket_site_mapping<'a>(&self, 
+        relevant_events_per_epoch: &'a HashMap<Self::EpochId, Self::EpochEvents>
+    ) -> HashMap<usize, String> {
+        let mut mapping = HashMap::new();
+        
+        // For each relevant site-level event, get the bucket ID to source site URI mapping.
+        for events in relevant_events_per_epoch.values() {
+            for event in events.iter() {
+                mapping.insert(
+                    event.histogram_index, 
+                    event.uris.source_uri.clone()
+                );
+            }
+        }
+        
+        mapping
+    }
+
+    fn filter_histogram_for_querier(
+        &self,
+        bin_values: &HashMap<Self::BucketKey, f64>,
+        querier_uri: &String,
+        relevant_events_per_epoch: &HashMap<Self::EpochId, Self::EpochEvents>,
+        epoch_site_privacy_losses: Option<&HashMap<String, PureDPBudget>>,
+        available_site_budgets: Option<&HashMap<String, PureDPBudget>>,
+    ) -> Option<HashMap<Self::BucketKey, f64>> {
+        // If no epoch site privacy losses or available site budgets are provided,
+        // we can just filter by the querier bucket mapping
+        if let (
+            Some(epoch_site_privacy_losses_map),
+            Some(available_site_budgets_map)
+        ) = (
+            epoch_site_privacy_losses,
+            available_site_budgets
+        ) {
+            // Get the buckets for this querier
+            let querier_buckets =
+                match self.filters.querier_bucket_mapping.get(querier_uri) {
+                    Some(buckets) => buckets,
+                    None => return None
+                };
+            
+            // Start by filtering based on bucket mapping
+            let mut filtered_bins = HashMap::new();
+            
+            // We need a bucket-to-site mapping.
+            let bucket_site_mapping = self.get_bucket_site_mapping(relevant_events_per_epoch);
+            
+            // Filter by both bucket mapping and site-level privacy budgets
+            for (bucket, value) in bin_values {
+                // Check if this bucket is assigned to this querier. Continue if not
+                if !querier_buckets.contains(bucket) {
+                    continue;
+                }
+                
+                // Check if the corresponding site is within budget
+                if let Some(site_uri) = bucket_site_mapping.get(bucket) {
+                    if let (Some(required_budget), Some(available_budget)) = (
+                        epoch_site_privacy_losses_map.get(site_uri), 
+                        available_site_budgets_map.get(site_uri)
+                    ) {
+                        match (required_budget, available_budget) {
+                            // Check if the site has enough budget
+                            (PureDPBudget::Epsilon(req), PureDPBudget::Epsilon(avail)) => {
+                                if *req <= *avail {
+                                    filtered_bins.insert(*bucket, *value);
+                                }
+                            }
+                            (_, PureDPBudget::Infinite) => {
+                                // Infinite available budget, always include
+                                filtered_bins.insert(*bucket, *value);
+                            }
+                            (PureDPBudget::Infinite, _) => {
+                                // Infinite budget to consume, never include
+                            }
+                        }
+                    } else {
+                        // If we don't have budget information, include the bucket
+                        print!("Warning: No budget information for site {}. Including bucket {} in the report.", site_uri, bucket);
+                    }
+                } else {
+                    // If we don't know which site this bucket belongs to, include it
+                    print!("Warning: No site mapping for bucket {}. Including it in the report.", bucket);
+                }
+            }
+            
+            if filtered_bins.is_empty() {
+                None
+            } else {
+                Some(filtered_bins)
+            }
+        } else {
+            // Handle the case where either is None
+            return Some(filter_histogram_for_querier(
+                bin_values,
+                &self.filters.querier_bucket_mapping[querier_uri],
+            ));
+        }
     }
 }
 

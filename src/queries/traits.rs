@@ -1,6 +1,7 @@
 use std::{collections::HashMap, fmt::Debug, hash::Hash, any::Any};
 
 use crate::{
+    budget::pure_dp_filter::PureDPBudget,
     events::traits::{EpochEvents, EpochId, Event, RelevantEventSelector},
     mechanisms::{NoiseScale, NormType},
 };
@@ -83,7 +84,14 @@ pub trait EpochReportRequest: Debug + Any + 'static {
 
     /// Filters the report for a specific querier.
     /// Default implementation returns None.
-    fn filter_report_for_querier(&self, report: &Self::Report, querier_uri: &Self::Uri) -> Option<Self::Report>;
+    fn filter_report_for_querier(
+        &self,
+        report: &Self::Report,
+        querier_uri: &Self::Uri,
+        relevant_events_per_epoch: &HashMap<Self::EpochId, Self::EpochEvents>,
+        epoch_site_privacy_losses: Option<&HashMap<Self::Uri, PureDPBudget>>, // Privacy loss per site
+        site_bucket_map: Option<&HashMap<Self::Uri, PureDPBudget>>,
+    ) -> Option<Self::Report>;
 }
 
 /// Type for passive privacy loss accounting. Uniform over all epochs for now.

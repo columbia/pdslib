@@ -377,16 +377,10 @@ impl HistogramRequest for PpaHistogramRequest {
         } else {
             // Handle the case where either is None
             // First check if the querier URI exists in the mapping
-            match self.filters.querier_bucket_mapping.get(querier_uri) {
-                Some(querier_buckets) => {
-                    // Now use the helper function with the retrieved bucket set
-                    Some(filter_histogram_for_querier(
-                        bin_values,
-                        querier_buckets,
-                    ))
-                },
-                None => None
-            }
+            self.filters.querier_bucket_mapping.get(querier_uri).map(|querier_buckets| filter_histogram_for_querier(
+                bin_values,
+                querier_buckets,
+            ))
         }
     }
 }

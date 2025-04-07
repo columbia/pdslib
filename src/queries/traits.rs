@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Debug, hash::Hash, any::Any};
+use std::{collections::{HashMap, HashSet}, fmt::Debug, hash::Hash, any::Any};
 
 use crate::{
     budget::pure_dp_filter::PureDPBudget,
@@ -79,8 +79,7 @@ pub trait EpochReportRequest: Debug + Any + 'static {
     fn is_optimization_query(&self) -> bool;
 
     /// Returns the mapping from querier URIs to their respective bucket.
-    /// Default implementation returns None.
-    fn get_querier_bucket_mapping(&self) -> Option<&HashMap<Self::Uri, HashMap<Self::BucketKey, Vec<Self::BucketKey>>>>;
+    fn get_querier_bucket_mapping(&self) -> Option<&HashMap<Self::Uri, HashSet<Self::BucketKey>>>;
 
     /// Filters the report for a specific querier.
     /// Default implementation returns None.

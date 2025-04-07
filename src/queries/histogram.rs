@@ -227,8 +227,8 @@ impl<H: HistogramRequest + 'static> EpochReportRequest for H {
 
     /// Returns the mapping from querier URIs to their respective bucket mappings.
     /// Default implementation returns None.
-    fn get_querier_bucket_mapping(&self) -> Option<&HashMap<Self::Uri, HashMap<Self::BucketKey, Vec<Self::BucketKey>>>> {
-        None
+    fn get_querier_bucket_mapping(&self) -> Option<&HashMap<Self::Uri, HashSet<Self::BucketKey>>> {
+        self.get_histogram_querier_bucket_mapping()
     }
 
     /// Filters the report for a specific querier.

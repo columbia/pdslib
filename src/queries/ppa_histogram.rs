@@ -375,10 +375,17 @@ impl HistogramRequest for PpaHistogramRequest {
             }
         } else {
             // Handle the case where either is None
-            return Some(filter_histogram_for_querier(
-                bin_values,
-                &self.filters.querier_bucket_mapping[querier_uri],
-            ));
+            // First check if the querier URI exists in the mapping
+            match self.filters.querier_bucket_mapping.get(querier_uri) {
+                Some(querier_buckets) => {
+                    // Now use the helper function with the retrieved bucket set
+                    return Some(filter_histogram_for_querier(
+                        bin_values,
+                        querier_buckets,
+                    ));
+                },
+                None => return None
+            }
         }
     }
 }
@@ -386,6 +393,7 @@ impl HistogramRequest for PpaHistogramRequest {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::events::traits::EventUris;
 
     #[test]
     fn test_querier_bucket_mapping() {
@@ -404,29 +412,211 @@ mod tests {
         assert!(mapping.get("google.ex").unwrap().contains(&1));
         assert!(mapping.get("google.ex").unwrap().contains(&2));
     }
-    
+
     #[test]
-    fn test_filter_histogram_for_querier() {
-        let full_histogram: HashMap<usize, f64> = [
-            (0, 10.0),
-            (1, 20.0),
-            (2, 30.0),
+    fn test_filter_histogram_for_querier_basic() {
+        // Create a sample histogram
+        let histogram: HashMap<usize, f64> = [
+            (0, 10.0), // Meta bucket
+            (1, 20.0), // Shared bucket
+            (2, 30.0), // Google bucket
         ].iter().cloned().collect();
+        
+        // Create querier bucket mappings
+        let mappings = vec![
+            ("meta.ex".to_string(), vec![0, 1]),
+            ("google.ex".to_string(), vec![1, 2]),
+        ];
+        let mapping = create_querier_bucket_mapping(mappings);
+        
+        // Create a PPA histogram request with the mappings
+        let filter_data_matcher = Box::new(|_: u64| true); // Simple matcher that accepts all
+        let request = create_test_request(mapping.clone(), filter_data_matcher, true);
+        
+        // Test filtering for meta.ex
+        let filtered_meta = request.filter_histogram_for_querier(
+            &histogram,
+            &"meta.ex".to_string(),
+            &HashMap::new(), // Empty events map
+            None, // No privacy budgets
+            None, // No available budgets
+        );
+        
+        assert!(filtered_meta.is_some());
+        let filtered_meta = filtered_meta.unwrap();
+        assert_eq!(filtered_meta.len(), 2);
+        assert_eq!(filtered_meta.get(&0), Some(&10.0));
+        assert_eq!(filtered_meta.get(&1), Some(&20.0));
+        assert_eq!(filtered_meta.get(&2), None);
+        
+        // Test filtering for google.ex
+        let filtered_google = request.filter_histogram_for_querier(
+            &histogram,
+            &"google.ex".to_string(),
+            &HashMap::new(),
+            None,
+            None,
+        );
+        
+        assert!(filtered_google.is_some());
+        let filtered_google = filtered_google.unwrap();
+        assert_eq!(filtered_google.len(), 2);
+        assert_eq!(filtered_google.get(&0), None);
+        assert_eq!(filtered_google.get(&1), Some(&20.0));
+        assert_eq!(filtered_google.get(&2), Some(&30.0));
+    }
 
-        let meta_buckets: HashSet<usize> = [0, 1].iter().cloned().collect();
-        let google_buckets: HashSet<usize> = [1, 2].iter().cloned().collect();
+    #[test]
+    fn test_filter_histogram_for_querier_no_matching_buckets() {
+        // Create a sample histogram
+        let histogram: HashMap<usize, f64> = [
+            (3, 10.0),
+            (4, 20.0),
+            (5, 30.0),
+        ].iter().cloned().collect();
+        
+        // Create querier bucket mappings
+        let mappings = vec![
+            ("meta.ex".to_string(), vec![0, 1]),
+            ("google.ex".to_string(), vec![1, 2]),
+        ];
+        let mapping = create_querier_bucket_mapping(mappings);
+        
+        // Create a PPA histogram request with the mappings
+        let filter_data_matcher = Box::new(|_: u64| true);
+        let request = create_test_request(mapping.clone(), filter_data_matcher, true);
+        
+        // Test filtering for meta.ex - should return None since no buckets match
+        let filtered_meta = request.filter_histogram_for_querier(
+            &histogram,
+            &"meta.ex".to_string(),
+            &HashMap::new(),
+            None,
+            None,
+        );
 
-        let meta_histogram = filter_histogram_for_querier(&full_histogram, &meta_buckets);
-        let google_histogram = filter_histogram_for_querier(&full_histogram, &google_buckets);
+        assert!(filtered_meta.unwrap().len() == 0);
+        
+        // Test filtering for non-existent querier
+        let filtered_unknown = request.filter_histogram_for_querier(
+            &histogram,
+            &"unknown.ex".to_string(),
+            &HashMap::new(),
+            None,
+            None,
+        );
+        
+        assert!(filtered_unknown.is_none());
+    }
 
-        assert_eq!(meta_histogram.len(), 2);
-        assert_eq!(meta_histogram.get(&0), Some(&10.0));
-        assert_eq!(meta_histogram.get(&1), Some(&20.0));
-        assert_eq!(meta_histogram.get(&2), None);
+    #[test]
+    fn test_filter_histogram_for_querier_with_privacy_budgets() {
+        // Create a sample histogram
+        let histogram: HashMap<usize, f64> = [
+            (0, 10.0), // blog.ex bucket
+            (1, 20.0), // news.ex bucket (insufficient budget)
+            (2, 30.0), // social.ex bucket
+        ].iter().cloned().collect();
+        
+        // Create querier bucket mappings
+        let mappings = vec![
+            ("meta.ex".to_string(), vec![0, 1, 2]),
+        ];
+        let mapping = create_querier_bucket_mapping(mappings);
+        
+        // Create a PPA histogram request with the mappings
+        let filter_data_matcher = Box::new(|_: u64| true);
+        let request = create_test_request(mapping.clone(), filter_data_matcher, true);
+        
+        // Create epoch-source privacy losses
+        let mut site_privacy_losses = HashMap::new();
+        site_privacy_losses.insert("blog.ex".to_string(), PureDPBudget::Epsilon(0.5));
+        site_privacy_losses.insert("news.ex".to_string(), PureDPBudget::Epsilon(0.8));
+        site_privacy_losses.insert("social.ex".to_string(), PureDPBudget::Epsilon(0.2));
+        
+        // Create available site budgets - news.ex has insufficient budget
+        let mut available_budgets = HashMap::new();
+        available_budgets.insert("blog.ex".to_string(), PureDPBudget::Epsilon(1.0));
+        available_budgets.insert("news.ex".to_string(), PureDPBudget::Epsilon(0.5)); // Less than required 0.8
+        available_budgets.insert("social.ex".to_string(), PureDPBudget::Epsilon(1.0));
+        
+        // Create bucket_site_mapping
+        let mut bucket_site_mapping = HashMap::new();
+        bucket_site_mapping.insert(0, "blog.ex".to_string());
+        bucket_site_mapping.insert(1, "news.ex".to_string());
+        bucket_site_mapping.insert(2, "social.ex".to_string());
+        
+        // Create a relevant events map with the bucket_site_mapping
+        let mut events = PpaEvent {
+            id: 1,
+            timestamp: 0,
+            epoch_number: 1,
+            histogram_index: 0,
+            uris: EventUris {
+                source_uri: "blog.ex".to_string(),
+                trigger_uris: vec!["shoes.ex".to_string()],
+                querier_uris: vec!["meta.ex".to_string()],
+            },
+            filter_data: 1,
+        };
+        
+        let mut event_list = vec![events.clone()];
+        
+        events.histogram_index = 1;
+        events.uris.source_uri = "news.ex".to_string();
+        event_list.push(events.clone());
+        
+        events.histogram_index = 2;
+        events.uris.source_uri = "social.ex".to_string();
+        event_list.push(events.clone());
+        
+        let mut relevant_events_map = HashMap::new();
+        relevant_events_map.insert(1, event_list);
+        
+        // Test filtering with privacy budgets
+        let filtered = request.filter_histogram_for_querier(
+            &histogram,
+            &"meta.ex".to_string(),
+            &relevant_events_map,
+            Some(&site_privacy_losses),
+            Some(&available_budgets),
+        );
+        
+        assert!(filtered.is_some());
+        let filtered = filtered.unwrap();
+        
+        // news.ex bucket (1) should be excluded due to insufficient budget
+        assert_eq!(filtered.len(), 2);
+        assert_eq!(filtered.get(&0), Some(&10.0)); // blog.ex has sufficient budget
+        assert_eq!(filtered.get(&1), None);         // news.ex has insufficient budget
+        assert_eq!(filtered.get(&2), Some(&30.0)); // social.ex has sufficient budget
+    }
 
-        assert_eq!(google_histogram.len(), 2);
-        assert_eq!(google_histogram.get(&0), None);
-        assert_eq!(google_histogram.get(&1), Some(&20.0));
-        assert_eq!(google_histogram.get(&2), Some(&30.0));
+    // Util create a test request
+    fn create_test_request(
+        querier_bucket_mapping: HashMap<String, HashSet<usize>>,
+        filter_data_matcher: Box<dyn Fn(u64) -> bool>,
+        is_optimization_query: bool,
+    ) -> PpaHistogramRequest {
+        let report_request_uris = ReportRequestUris {
+            trigger_uri: "shoes.ex".to_string(),
+            source_uris: vec!["blog.ex".to_string(), "news.ex".to_string(), "social.ex".to_string()],
+            querier_uris: querier_bucket_mapping.keys().cloned().collect(),
+        };
+        
+        PpaHistogramRequest::new(
+            1,
+            2,
+            32768.0,
+            65536.0,
+            1.0,
+            2048,
+            PpaRelevantEventSelector {
+                report_request_uris,
+                is_matching_event: filter_data_matcher,
+                querier_bucket_mapping,
+            },
+            is_optimization_query,
+        ).unwrap()
     }
 }

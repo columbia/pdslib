@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::{
     budget::pure_dp_filter::PureDPBudget,
@@ -151,7 +151,7 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
 
     /// Returns the mapping from querier URIs to their respective bucket mappings.
     /// Default implementation returns None.
-    fn get_querier_bucket_mapping(&self) -> Option<&HashMap<Self::Uri, HashMap<Self::BucketKey, Vec<Self::BucketKey>>>> {
+    fn get_querier_bucket_mapping(&self) -> Option<&HashMap<Self::Uri, HashSet<Self::BucketKey>>> {
         None
     }
 

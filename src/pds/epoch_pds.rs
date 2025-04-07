@@ -114,6 +114,7 @@ pub struct EpochPrivateDataService<
     pub _phantom_error: std::marker::PhantomData<ERR>,
 }
 
+#[derive(Debug)]
 pub enum PdsReportResult<Q: EpochReportRequest> {
     Regular(PdsReport<Q>),
     Optimization(HashMap<Q::Uri, PdsReport<Q>>),
@@ -208,6 +209,7 @@ where
 
         // Compute the raw report, useful for debugging and accounting.
         let num_epochs: usize = relevant_events_per_epoch.len();
+        // TODO(https://github.com/columbia/pdslib/issues/55): Support more than just last_touch otherwise there will ever only be one event to be filtered out once any NC filter runs out.
         let unfiltered_report =
             request.compute_report(&relevant_events_per_epoch);
 
@@ -269,13 +271,23 @@ where
                         ).into());
                     }
                 }
-                PdsFilterStatus::OutOfBudget(mut filters) => {
-                    // Not enough budget, drop events without any filter
-                    // consumption
-                    relevant_events_per_epoch.remove(&epoch_id);
+                PdsFilterStatus::OutOfBudget(filters) => {
+                    // TODO(https://github.com/columbia/pdslib/issues/55): Maybe this is a better solution?
+                    // Because when NC filter is oob we should really only drop the corresponding report
+                    // on that querier in the optimization query case.
+                    // Check if any essential filters (C, QTrigger, QSource) are OOB
+                    let has_essential_oob = filters.iter().any(|f| match f {
+                        FilterId::C(_) | FilterId::QTrigger(_, _) | FilterId::QSource(_, _) => true,
+                        FilterId::Nc(_, _) => false,
+                    } ) || !request.is_optimization_query();  // Should not drop on NC filter oob if this is an optimization query.
+                    
+                    if has_essential_oob {
+                        // Essential filters are OOB, drop the epoch
+                        relevant_events_per_epoch.remove(&epoch_id);
+                    }
 
                     // Keep track of why we dropped this epoch
-                    oob_filters.append(&mut filters);
+                    oob_filters.extend(filters);
                 }
             }
         }
@@ -301,6 +313,11 @@ where
 
                 // Process each epoch individually
                 for epoch_id in request.epoch_ids() {
+                    // Skip epochs that were dropped due to OOB (or not relevant)
+                    if !relevant_events_per_epoch.contains_key(&epoch_id) {
+                        continue;
+                    }
+
                     // Get the source events for this epoch (or skip if none)
                     if let Some(source_events) = relevant_events_per_epoch_source.get(&epoch_id) {
                         // Calculate losses for this epoch
@@ -319,29 +336,108 @@ where
                 }
                 
                 // Get available site budgets (from privacy filters)
+                // TODO(https://github.com/columbia/pdslib/issues/55): Can maybe deprecate this, since events oob are already filtered before this optimization query step, so no need to check across these sites again.
                 let mut available_site_budgets = HashMap::new();
-                for (site, _) in &epoch_site_privacy_losses {
-                    // In a real implementation, get this from the q-imp filters
-                    // For now, use a reasonable default (infinite for demonstration)
-                    // TODO(https://github.com/columbia/pdslib/issues/55): get site-level budgets from q-imp filters
-                    available_site_budgets.insert(site.clone(), PureDPBudget::Infinite);
+                for site in epoch_site_privacy_losses.keys() {
+                    // Initialize with Infinite budget, to be reduced by the minimum across epochs
+                    let mut min_budget = PureDPBudget::Infinite;
+                    
+                    // Check budget for all epochs in the request
+                    for epoch_id in request.epoch_ids() {
+                        // Create the QSource filter ID for this epoch-site pair
+                        let filter_id = FilterId::QSource(epoch_id.clone(), site.clone());
+                        
+                        // Initialize the filter if necessary
+                        self.initialize_filter_if_necessary(filter_id.clone())?;
+                        
+                        // Get the remaining budget for this epoch-site
+                        match self.filter_storage.remaining_budget(&filter_id) {
+                            Ok(budget) => {
+                                // Update the minimum budget
+                                min_budget = match (min_budget, budget) {
+                                    (PureDPBudget::Infinite, other) => other,
+                                    (current, PureDPBudget::Infinite) => current,
+                                    (PureDPBudget::Epsilon(current), PureDPBudget::Epsilon(new)) => {
+                                        if new < current {
+                                            PureDPBudget::Epsilon(new)
+                                        } else {
+                                            PureDPBudget::Epsilon(current)
+                                        }
+                                    }
+                                };
+                            }
+                            Err(_) => {
+                                // If there's an error, assume no budget
+                                min_budget = PureDPBudget::Epsilon(0.0);
+                                break;
+                            }
+                        }
+                    }
+
+                    if min_budget == PureDPBudget::Infinite {
+                        // If the minimum budget is still Infinite, set it to 0
+                        min_budget = PureDPBudget::Epsilon(0.0);
+                    }
+                    
+                    // Use the minimum budget across all epochs for this site
+                    available_site_budgets.insert(site.clone(), min_budget);
                 }
                 
                 for querier_uri in querier_uris {
                     // Create a querier-specific report if this querier has bucket mappings
-                    if querier_bucket_mapping.contains_key(&querier_uri) {
-                        // Create a filtered report for this querier
-                        if let Some(querier_filtered_report) = request.filter_report_for_querier(
-                            &main_report.filtered_report, 
-                            &querier_uri,
-                            &relevant_events_per_epoch,
-                            Some(&epoch_site_privacy_losses),
-                            Some(&available_site_budgets)
-                        ) {
-                            // Create a PDS report for this querier
+                    if !querier_bucket_mapping.contains_key(&querier_uri) {
+                        continue;
+                    }
+                    // Create a filtered report for this querier
+                    if let Some(querier_filtered_report) = request.filter_report_for_querier(
+                        &main_report.filtered_report, 
+                        &querier_uri,
+                        &relevant_events_per_epoch,
+                        Some(&epoch_site_privacy_losses),
+                        Some(&available_site_budgets)
+                    ) {
+                        // Flag to track if any epoch is out of budget for this querier
+                        let mut has_oob_epoch = false;
+                        
+                        // Deduct privacy budget from this querier's NC filter
+                        for epoch_id in request.epoch_ids() {
+                            // Skip epochs that were dropped due to OOB
+                            if !relevant_events_per_epoch.contains_key(&epoch_id) {
+                                continue;
+                            }
+                            
+                            // NC filter ID for this querier and epoch
+                            let filter_id = FilterId::Nc(epoch_id.clone(), querier_uri.clone());
+                            
+                            // Initialize the filter if needed
+                            self.initialize_filter_if_necessary(filter_id.clone())?;
+                            
+                            // Compute individual loss for this querier's view
+                            let querier_individual_loss = self.compute_epoch_loss(
+                                request,
+                                relevant_events_per_epoch.get(&epoch_id),
+                                &querier_filtered_report,  // Use the filtered report for this querier
+                                num_epochs,
+                            );
+                            
+                            // Deduct from this querier's NC filter only
+                            if !self.filter_storage.can_consume(&filter_id, &querier_individual_loss)? {
+                                has_oob_epoch = true;
+                                break;
+                            }
+                            
+                            // Actually consume the budget
+                            let status = self.filter_storage.try_consume(&filter_id, &querier_individual_loss)?;
+                            if status == FilterStatus::OutOfBudget {
+                                has_oob_epoch = true;
+                                break;
+                            }
+                        }
+                        
+                        // Only include this querier if all epochs had sufficient budget
+                        if !has_oob_epoch {
                             let querier_pds_report = PdsReport {
                                 filtered_report: querier_filtered_report.clone(),
-                                // The unfiltered report is the same as the filtered report for this querier
                                 unfiltered_report: querier_filtered_report,
                                 oob_filters: main_report.oob_filters.clone(),
                             };
@@ -351,9 +447,8 @@ where
                     }
                 }
                 
-                if !querier_reports.is_empty() {
-                    return Ok(PdsReportResult::Optimization(querier_reports));
-                }
+                // If all queriers are out of NC filter budget, then this `querier_reports` will be empty.
+                return Ok(PdsReportResult::Optimization(querier_reports));
             }
         }
 
@@ -836,6 +931,294 @@ mod tests {
                 "Filter {:?} budget changed when it shouldn't have",
                 filter_id
             );
+        }
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod optimization_queries_tests {
+    use super::*;
+    use crate::{
+        budget::{
+            hashmap_filter_storage::HashMapFilterStorage,
+            pure_dp_filter::{PureDPBudget, PureDPBudgetFilter},
+        },
+        events::{
+            hashmap_event_storage::HashMapEventStorage,
+            ppa_event::PpaEvent,
+            traits::EventUris,
+        },
+        queries::{
+            ppa_histogram::{PpaHistogramRequest, PpaRelevantEventSelector, create_querier_bucket_mapping},
+            traits::ReportRequestUris,
+        },
+    };
+
+    // Tests for the optimization query functionality in compute_report
+    #[test]
+    fn test_compute_report_optimization_query() -> Result<(), anyhow::Error> {
+        // Create PDS with mock capacities
+        let events = HashMapEventStorage::<PpaEvent, PpaRelevantEventSelector>::new();
+        let capacities = StaticCapacities::mock();
+        let filters: HashMapFilterStorage<_, PureDPBudgetFilter, _, _> =
+            HashMapFilterStorage::new(capacities)?;
+
+        let mut pds = EpochPrivateDataService {
+            filter_storage: filters,
+            event_storage: events,
+            _phantom_request: std::marker::PhantomData::<PpaHistogramRequest>,
+            _phantom_error: std::marker::PhantomData::<anyhow::Error>,
+        };
+
+        // Create test URIs
+        let source_uri = "blog.example.com".to_string();
+        let trigger_uri = "shoes.example.com".to_string();
+        let querier_uri1 = "adtech1.example.com".to_string();
+        let querier_uri2 = "adtech2.example.com".to_string();
+
+        // Create event URIs with multiple queriers
+        let event_uris = EventUris {
+            source_uri: source_uri.clone(),
+            trigger_uris: vec![trigger_uri.clone()],
+            querier_uris: vec![querier_uri1.clone(), querier_uri2.clone()],
+        };
+
+        // Create report request URIs
+        let report_request_uris = ReportRequestUris {
+            trigger_uri: trigger_uri.clone(),
+            source_uris: vec![source_uri.clone()],
+            querier_uris: vec![querier_uri1.clone(), querier_uri2.clone()],
+        };
+
+        // Create and register test events with different histogram indices
+        // Event 1 - bucket 0 (for querier1)
+        let event1 = PpaEvent {
+            id: 1,
+            timestamp: 0,
+            epoch_number: 1,
+            histogram_index: 0,
+            uris: event_uris.clone(),
+            filter_data: 1,
+        };
+
+        // Event 2 - bucket 1 (for querier2)
+        let event2 = PpaEvent {
+            id: 2,
+            timestamp: 1,
+            epoch_number: 1,
+            histogram_index: 1,
+            uris: event_uris.clone(),
+            filter_data: 1,
+        };
+
+        // Event 3 - bucket 2 (shared by both queriers)
+        let event3 = PpaEvent {
+            id: 3,
+            timestamp: 2,
+            epoch_number: 1,
+            histogram_index: 2,
+            uris: event_uris.clone(),
+            filter_data: 1,
+        };
+
+        pds.register_event(event1.clone())?;
+        pds.register_event(event2.clone())?;
+        pds.register_event(event3.clone())?;
+
+        // Create querier bucket mapping
+        let querier_bucket_mapping = create_querier_bucket_mapping(vec![
+            (querier_uri1.clone(), vec![0, 2]),  // querier1 gets buckets 0 and 2
+            (querier_uri2.clone(), vec![1, 2]),  // querier2 gets buckets 1 and 2
+        ]);
+
+        // Create histogram request with optimization query flag set to true
+        let request = PpaHistogramRequest::new(
+            1,                  // start_epoch
+            1,                  // end_epoch
+            100.0,              // report_global_sensitivity
+            200.0,              // query_global_sensitivity
+            1.0,                // requested_epsilon
+            3,                  // histogram_size
+            PpaRelevantEventSelector {
+                report_request_uris: report_request_uris,
+                is_matching_event: Box::new(|event_filter_data: u64| event_filter_data == 1),
+                querier_bucket_mapping,
+            },
+            true,               // is_optimization_query
+        ).map_err(|_| anyhow::anyhow!("Failed to create request"))?;
+
+        // Process the request
+        let report_result = pds.compute_report(&request)?;
+
+        // Verify the result is an Optimization report
+        match report_result {
+            PdsReportResult::Optimization(querier_reports) => {
+                // Verify we have reports for both queriers
+                assert_eq!(querier_reports.len(), 2, "Expected reports for 2 queriers");
+                
+                // TODO(https://github.com/columbia/pdslib/issues/55): Maybe we wouldn't want just
+                // the last touch attribution logic anymore.
+                // IMPORTANT: With LastTouch attribution logic, only the last event in each epoch
+                // is considered for attribution. Since all three events are in epoch 1, and event3
+                // (with histogram_index 2) is the last one, only bucket 2 should appear in reports.
+                
+                // Verify querier1's report has only bucket 2 (the last event's bucket)
+                let querier1_report = querier_reports.get(&querier_uri1).expect("Missing report for querier1");
+                let querier1_bins = &querier1_report.filtered_report.bin_values;
+                assert_eq!(querier1_bins.len(), 1, "Expected 1 bucket for querier1 (LastTouch attribution)");
+                assert!(querier1_bins.contains_key(&2), "Expected bucket 2 for querier1");
+                assert!(!querier1_bins.contains_key(&0), "Unexpected bucket 0 for querier1 - only last event is used with LastTouch");
+                
+                // Verify querier2's report has only bucket 2 (the last event's bucket)
+                let querier2_report = querier_reports.get(&querier_uri2).expect("Missing report for querier2");
+                let querier2_bins = &querier2_report.filtered_report.bin_values;
+                assert_eq!(querier2_bins.len(), 1, "Expected 1 bucket for querier2 (LastTouch attribution)");
+                assert!(querier2_bins.contains_key(&2), "Expected bucket 2 for querier2");
+                assert!(!querier2_bins.contains_key(&1), "Unexpected bucket 1 for querier2 - only last event is used with LastTouch");
+                
+                // Verify each bucket has the expected value
+                assert_eq!(querier1_bins.get(&2), Some(&100.0), "Incorrect value for querier1 bucket 2");
+                assert_eq!(querier2_bins.get(&2), Some(&100.0), "Incorrect value for querier2 bucket 2");
+                
+                // Verify NC filters for each querier have been consumed
+                // Check remaining budget for querier1's NC filter
+                let querier1_filter_id = FilterId::Nc(1, querier_uri1.clone());
+                let querier1_remaining = pds.filter_storage.remaining_budget(&querier1_filter_id)?;
+                
+                // Check remaining budget for querier2's NC filter
+                let querier2_filter_id = FilterId::Nc(1, querier_uri2.clone());
+                let querier2_remaining = pds.filter_storage.remaining_budget(&querier2_filter_id)?;
+                
+                // Verify budget has been consumed from both queriers' NC filters
+                match (querier1_remaining, querier2_remaining) {
+                    (PureDPBudget::Epsilon(q1), PureDPBudget::Epsilon(q2)) => {
+                        assert!(q1 < 1.0, "Expected some budget to be consumed from querier1's NC filter");
+                        assert!(q2 < 1.0, "Expected some budget to be consumed from querier2's NC filter");
+                    },
+                    _ => panic!("Unexpected budget type")
+                }
+            },
+            PdsReportResult::Regular(_) => {
+                panic!("Expected Optimization report, got Regular report");
+            }
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_one_querier_out_of_budget_one_in_budget() -> Result<(), anyhow::Error> {
+        // NC filter capacities: NC=1.5 so that one querier has enough budget
+        let capacities = StaticCapacities::new(
+            PureDPBudget::Epsilon(1.5),  // NC capacity (increased TO 1.5)
+            PureDPBudget::Epsilon(9999.),
+            PureDPBudget::Epsilon(9999.),
+            PureDPBudget::Epsilon(9999.),
+        );
+        let filters = HashMapFilterStorage::<_, PureDPBudgetFilter, _, _>::new(capacities)?;
+        let events = HashMapEventStorage::new();
+        
+        let mut pds = EpochPrivateDataService {
+            filter_storage: filters,
+            event_storage: events,
+            _phantom_request: std::marker::PhantomData::<PpaHistogramRequest>,
+            _phantom_error: std::marker::PhantomData::<anyhow::Error>,
+        };
+
+        // Two queriers: querier1 will be in-budget, querier2 out-of-budget
+        let querier1 = "adtech1.example".to_string();
+        let querier2 = "adtech2.example".to_string();
+        let source_uri = "source.example".to_string();
+        let trigger_uri = "trigger.example".to_string();
+
+        // Create base event URIs
+        let event_uris = EventUris {
+            source_uri: source_uri.clone(),
+            trigger_uris: vec![trigger_uri.clone()],
+            querier_uris: vec![querier1.clone(), querier2.clone()],
+        };
+        
+        // Register events with particular histogram indices
+        let event = PpaEvent {
+            id: 123,
+            timestamp: 1001, // Later timestamp so it gets precedence with LastTouch
+            epoch_number: 1,
+            histogram_index: 1,
+            uris: event_uris.clone(),
+            filter_data: 1,
+        };
+        pds.register_event(event)?;
+
+        // Build a querier-bucket mapping
+        let querier_bucket_mapping = create_querier_bucket_mapping(vec![
+            (querier1.clone(), vec![1]),  // querier1 wants bucket 1
+            (querier2.clone(), vec![1]),  // querier2 wants bucket 1 too
+        ]);
+
+        // Create request with report_global_sensitivity = 1
+        let request_uris = ReportRequestUris {
+            trigger_uri: trigger_uri.clone(),
+            source_uris: vec![source_uri.clone()],
+            querier_uris: vec![querier1.clone(), querier2.clone()],
+        };
+
+        let request = PpaHistogramRequest::new(
+            1,
+            1,
+            0.4,
+            0.4,
+            1.0,  // requested_epsilon => noise_scale=1
+            3,  // histogram_size
+            PpaRelevantEventSelector {
+                report_request_uris: request_uris,
+                is_matching_event: Box::new(|val| val == 1),
+                querier_bucket_mapping,
+            },
+            true,
+        ).map_err(|_| anyhow::anyhow!("Failed to create request"))?;
+
+        // Pre-consume 1.0 from querier2's NC filter to deplete it below what's needed
+        let nc_filter_q2 = FilterId::Nc(1, querier2.clone());
+        pds.filter_storage.new_filter(nc_filter_q2.clone())?;
+        pds.filter_storage.try_consume(&nc_filter_q2, &PureDPBudget::Epsilon(1.0))?;
+
+        // Compute report and check results
+        let result = pds.compute_report(&request)?;
+        match result {
+            PdsReportResult::Optimization(filtered_result) => {
+                // print!("\n==Check overall filtered result==\n");
+                assert_eq!(
+                    filtered_result.len(),
+                    1,
+                    "We should have exactly one querier subreport"
+                );
+
+                // print!("\n==Check querier1 report==\n");
+                assert!(
+                    filtered_result.contains_key(&querier1),
+                    "querier1 should remain in-budget and appear in the result"
+                );
+                filtered_result.get(&querier1).map(|report| {
+                    assert_eq!(
+                        report.filtered_report.bin_values.len(),
+                        1,
+                        "querier1 should have one bucket in the report"
+                    );
+                    assert!(
+                        report.filtered_report.bin_values.get(&1) == Some(&0.4),
+                        "querier1 should have one bucket with bin value 0.4 in the report"
+                    );
+                });
+
+                // print!("\n==Ensure querier2 report is empty==\n");
+                assert!(
+                    !filtered_result.contains_key(&querier2),
+                    "querier2 is out-of-budget after pre-consumption"
+                );
+            },
+            other => panic!("Expected Optimization result, got {:?}", other),
         }
 
         Ok(())

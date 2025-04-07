@@ -951,7 +951,7 @@ mod optimization_queries_tests {
             traits::EventUris,
         },
         queries::{
-            ppa_histogram::{PpaHistogramRequest, PpaRelevantEventSelector, create_querier_bucket_mapping},
+            ppa_histogram::{PpaHistogramRequest, PpaRelevantEventSelector, PpaHistogramConfig, create_querier_bucket_mapping},
             traits::ReportRequestUris,
         },
     };
@@ -1034,19 +1034,22 @@ mod optimization_queries_tests {
         ]);
 
         // Create histogram request with optimization query flag set to true
+        let config = PpaHistogramConfig {
+            start_epoch: 1,
+            end_epoch: 1,
+            report_global_sensitivity: 100.0,
+            query_global_sensitivity: 200.0,
+            requested_epsilon: 1.0,
+            histogram_size: 3,
+            is_optimization_query: true,
+        };
         let request = PpaHistogramRequest::new(
-            1,                  // start_epoch
-            1,                  // end_epoch
-            100.0,              // report_global_sensitivity
-            200.0,              // query_global_sensitivity
-            1.0,                // requested_epsilon
-            3,                  // histogram_size
+            config,
             PpaRelevantEventSelector {
-                report_request_uris: report_request_uris,
+                report_request_uris,
                 is_matching_event: Box::new(|event_filter_data: u64| event_filter_data == 1),
                 querier_bucket_mapping,
             },
-            true,               // is_optimization_query
         ).map_err(|_| anyhow::anyhow!("Failed to create request"))?;
 
         // Process the request
@@ -1164,19 +1167,22 @@ mod optimization_queries_tests {
             querier_uris: vec![querier1.clone(), querier2.clone()],
         };
 
+        let config = PpaHistogramConfig {
+            start_epoch: 1,
+            end_epoch: 1,
+            report_global_sensitivity: 0.4,
+            query_global_sensitivity: 0.4,
+            requested_epsilon: 1.0, // NC filter capacity is 1.5
+            histogram_size: 3,
+            is_optimization_query: true,
+        };
         let request = PpaHistogramRequest::new(
-            1,
-            1,
-            0.4,
-            0.4,
-            1.0,  // requested_epsilon => noise_scale=1
-            3,  // histogram_size
+            config,
             PpaRelevantEventSelector {
                 report_request_uris: request_uris,
                 is_matching_event: Box::new(|val| val == 1),
                 querier_bucket_mapping,
             },
-            true,
         ).map_err(|_| anyhow::anyhow!("Failed to create request"))?;
 
         // Pre-consume 1.0 from querier2's NC filter to deplete it below what's needed
@@ -1200,7 +1206,7 @@ mod optimization_queries_tests {
                     filtered_result.contains_key(&querier1),
                     "querier1 should remain in-budget and appear in the result"
                 );
-                filtered_result.get(&querier1).map(|report| {
+                if let Some(report) = filtered_result.get(&querier1) {
                     assert_eq!(
                         report.filtered_report.bin_values.len(),
                         1,
@@ -1210,7 +1216,7 @@ mod optimization_queries_tests {
                         report.filtered_report.bin_values.get(&1) == Some(&0.4),
                         "querier1 should have one bucket with bin value 0.4 in the report"
                     );
-                });
+                }
 
                 // print!("\n==Ensure querier2 report is empty==\n");
                 assert!(

@@ -93,8 +93,8 @@ pub trait HistogramRequest: Debug {
     }
 
     /// Returns the mapping from bucket keys to their respective site URIs.
-    fn get_bucket_site_mapping<'a>(&self, 
-        relevant_events_per_epoch: &'a HashMap<Self::EpochId, Self::EpochEvents>
+    fn get_bucket_site_mapping(&self, 
+        relevant_events_per_epoch: &HashMap<Self::EpochId, Self::EpochEvents>
     ) -> HashMap<usize, String>;
     
     /// Filter a histogram for a specific querier
@@ -218,7 +218,7 @@ impl<H: HistogramRequest + 'static> EpochReportRequest for H {
 
     /// TODO(https://github.com/columbia/pdslib/issues/55): For now, assume no optimization queries for simple
     /// last touch histogram queries, so default to the respective Null implementation.
-
+    /// 
     /// Returns whether this is an optimization query.
     /// Default implementation returns false.
     fn is_optimization_query(&self) -> bool {

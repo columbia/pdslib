@@ -13,7 +13,7 @@ use pdslib::{
     },
     pds::epoch_pds::{EpochPrivateDataService, StaticCapacities, PdsReportResult},
     queries::{
-        ppa_histogram::{PpaHistogramRequest, PpaRelevantEventSelector},
+        ppa_histogram::{PpaHistogramRequest, PpaRelevantEventSelector, PpaHistogramConfig},
         traits::ReportRequestUris,
     },
 };
@@ -97,13 +97,17 @@ fn main() -> Result<(), anyhow::Error> {
     pds.register_event(event_irr_3.clone()).unwrap();
 
     // Test basic attribution
+    let config = PpaHistogramConfig {
+        start_epoch: 1,
+        end_epoch: 2,
+        report_global_sensitivity: 32768.0,
+        query_global_sensitivity: 65536.0,
+        requested_epsilon: 1.0,
+        histogram_size: 2048,
+        is_optimization_query: false
+    };
     let request1 = PpaHistogramRequest::new(
-        1,
-        2,
-        32768.0,
-        65536.0,
-        1.0,
-        2048,
+        config,
         PpaRelevantEventSelector {
             report_request_uris: sample_report_request_uris.clone(),
             is_matching_event: Box::new(|event_filter_data: u64| {
@@ -111,7 +115,6 @@ fn main() -> Result<(), anyhow::Error> {
             }),
             querier_bucket_mapping: HashMap::new(),
         }, // Not filtering yet.
-        false,
     )
     .unwrap();
 
@@ -135,13 +138,17 @@ fn main() -> Result<(), anyhow::Error> {
     }
 
     // Test error case when requested_epsilon is 0.
+    let config = PpaHistogramConfig {
+        start_epoch: 1,
+        end_epoch: 2,
+        report_global_sensitivity: 32768.0,
+        query_global_sensitivity: 65536.0,
+        requested_epsilon: 0.0, // This should fail.
+        histogram_size: 2048,
+        is_optimization_query: false
+    };
     let request2 = PpaHistogramRequest::new(
-        1,
-        2,
-        32768.0,
-        65536.0,
-        0.0, // This should fail.
-        2048,
+        config,
         PpaRelevantEventSelector {
             report_request_uris: sample_report_request_uris.clone(),
             is_matching_event: Box::new(|event_filter_data: u64| {
@@ -149,18 +156,21 @@ fn main() -> Result<(), anyhow::Error> {
             }),
             querier_bucket_mapping: HashMap::new(),
         }, // Not filtering yet.
-        false,
     );
     assert!(request2.is_err());
 
     // Test metadata relevant event logic check rejects.
+    let config = PpaHistogramConfig {
+        start_epoch: 1,
+        end_epoch: 2,
+        report_global_sensitivity: 32768.0,
+        query_global_sensitivity: 65536.0,
+        requested_epsilon: 1.0,
+        histogram_size: 2048,
+        is_optimization_query: false
+    };
     let request3 = PpaHistogramRequest::new(
-        1,
-        2,
-        32768.0,
-        65536.0,
-        1.0,
-        2048,
+        config,
         PpaRelevantEventSelector {
             report_request_uris: sample_report_request_uris.clone(),
             is_matching_event: Box::new(|event_filter_data: u64| {
@@ -168,7 +178,6 @@ fn main() -> Result<(), anyhow::Error> {
             }),
             querier_bucket_mapping: HashMap::new(),
         }, // Not filtering yet.
-        false,
     )
     .unwrap();
 

@@ -9,6 +9,16 @@ use crate::{
     budget::pure_dp_filter::PureDPBudget,
 };
 
+pub struct PpaHistogramConfig {
+    pub start_epoch: usize,
+    pub end_epoch: usize,
+    pub report_global_sensitivity: f64,
+    pub query_global_sensitivity: f64,
+    pub requested_epsilon: f64,
+    pub histogram_size: usize,
+    pub is_optimization_query: bool,
+}
+
 pub struct PpaRelevantEventSelector {
     pub report_request_uris: ReportRequestUris<String>,
     pub is_matching_event: Box<dyn Fn(u64) -> bool>,
@@ -89,34 +99,28 @@ impl PpaHistogramRequest {
     /// - `report_global_sensitivity` and `query_global_sensitivity` are
     ///   non-negative.
     pub fn new(
-        start_epoch: usize,
-        end_epoch: usize,
-        report_global_sensitivity: f64,
-        query_global_sensitivity: f64,
-        requested_epsilon: f64,
-        histogram_size: usize,
+        config: PpaHistogramConfig,
         filters: PpaRelevantEventSelector,
-        is_optimization_query: bool,
     ) -> Result<Self, &'static str> {
-        if requested_epsilon <= 0.0 {
+        if config.requested_epsilon <= 0.0 {
             return Err("requested_epsilon must be greater than 0");
         }
-        if report_global_sensitivity < 0.0 || query_global_sensitivity < 0.0 {
+        if config.report_global_sensitivity < 0.0 || config.query_global_sensitivity < 0.0 {
             return Err("sensitivity values must be non-negative");
         }
-        if histogram_size == 0 {
+        if config.histogram_size == 0 {
             return Err("histogram_size must be greater than 0");
         }
         Ok(Self {
-            start_epoch,
-            end_epoch,
-            report_global_sensitivity,
-            query_global_sensitivity,
-            requested_epsilon,
-            histogram_size,
+            start_epoch: config.start_epoch,
+            end_epoch: config.end_epoch,
+            report_global_sensitivity: config.report_global_sensitivity,
+            query_global_sensitivity: config.query_global_sensitivity,
+            requested_epsilon: config.requested_epsilon,
+            histogram_size: config.histogram_size,
             filters,
             logic: AttributionLogic::LastTouch,
-            is_optimization_query,
+            is_optimization_query: config.is_optimization_query,
         })
     }
 
@@ -282,8 +286,8 @@ impl HistogramRequest for PpaHistogramRequest {
     }
 
     // Get a mapping from bucket IDs to site URIs
-    fn get_bucket_site_mapping<'a>(&self, 
-        relevant_events_per_epoch: &'a HashMap<Self::EpochId, Self::EpochEvents>
+    fn get_bucket_site_mapping(&self, 
+        relevant_events_per_epoch: &HashMap<Self::EpochId, Self::EpochEvents>
     ) -> HashMap<usize, String> {
         let mut mapping = HashMap::new();
         
@@ -319,10 +323,7 @@ impl HistogramRequest for PpaHistogramRequest {
         ) {
             // Get the buckets for this querier
             let querier_buckets =
-                match self.filters.querier_bucket_mapping.get(querier_uri) {
-                    Some(buckets) => buckets,
-                    None => return None
-                };
+                self.filters.querier_bucket_mapping.get(querier_uri)?;
             
             // Start by filtering based on bucket mapping
             let mut filtered_bins = HashMap::new();
@@ -379,12 +380,12 @@ impl HistogramRequest for PpaHistogramRequest {
             match self.filters.querier_bucket_mapping.get(querier_uri) {
                 Some(querier_buckets) => {
                     // Now use the helper function with the retrieved bucket set
-                    return Some(filter_histogram_for_querier(
+                    Some(filter_histogram_for_querier(
                         bin_values,
                         querier_buckets,
-                    ));
+                    ))
                 },
-                None => return None
+                None => None
             }
         }
     }
@@ -495,7 +496,7 @@ mod tests {
             None,
         );
 
-        assert!(filtered_meta.unwrap().len() == 0);
+        assert!(filtered_meta.unwrap().is_empty());
         
         // Test filtering for non-existent querier
         let filtered_unknown = request.filter_histogram_for_querier(
@@ -604,19 +605,24 @@ mod tests {
             querier_uris: querier_bucket_mapping.keys().cloned().collect(),
         };
         
+        let config = PpaHistogramConfig {
+            start_epoch: 1,
+            end_epoch: 2,
+            report_global_sensitivity: 32768.0,
+            query_global_sensitivity: 65536.0,
+            requested_epsilon: 1.0,
+            histogram_size: 2048,
+            is_optimization_query,
+        };
+
         PpaHistogramRequest::new(
-            1,
-            2,
-            32768.0,
-            65536.0,
-            1.0,
-            2048,
+            config,
+            
             PpaRelevantEventSelector {
                 report_request_uris,
                 is_matching_event: filter_data_matcher,
                 querier_bucket_mapping,
             },
-            is_optimization_query,
         ).unwrap()
     }
 }

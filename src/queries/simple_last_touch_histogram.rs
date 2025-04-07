@@ -142,7 +142,7 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
 
     /// TODO(https://github.com/columbia/pdslib/issues/55): For now, assume no optimization queries for simple
     /// last touch histogram queries, so default to the respective Null implementation.
-
+    ///
     /// Returns whether this is an optimization query.
     /// Default implementation returns false.
     fn is_optimization_query(&self) -> bool {

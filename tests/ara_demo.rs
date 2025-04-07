@@ -132,8 +132,7 @@ fn main() -> Result<(), anyhow::Error> {
         },
         PdsReportResult::Optimization(_) => {
             // Handle the Optimization case if needed
-            println!("This should never happen because we are not using optimization queries here.");
-            assert!(false);
+            panic!("This should never happen because we are not using optimization queries here.");
         }
     }
 
@@ -192,8 +191,7 @@ fn main() -> Result<(), anyhow::Error> {
         },
         PdsReportResult::Optimization(_) => {
             // Handle the Optimization case if needed
-            println!("This should never happen because we are not using optimization queries here.");
-            assert!(false);
+            panic!("This should never happen because we are not using optimization queries here.");
         }
     }
 

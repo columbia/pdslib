@@ -9,6 +9,7 @@ use crate::{
     budget::pure_dp_filter::PureDPBudget,
 };
 
+#[derive(Debug, Clone)]
 pub struct PpaHistogramConfig {
     pub start_epoch: usize,
     pub end_epoch: usize,

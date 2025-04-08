@@ -25,6 +25,18 @@ pub enum PureDPBudget {
     Epsilon(f64),
 }
 
+impl PureDPBudget {
+    /// Create a new budget with the given epsilon.
+    /// Set to infinite if epsilon is NaN or negative.
+    pub fn new(epsilon: f64) -> Self {
+        if epsilon.is_nan() || epsilon < 0.0 {
+            PureDPBudget::Infinite
+        } else {
+            PureDPBudget::Epsilon(epsilon)
+        }
+    }
+}
+
 impl Serialize for PureDPBudget {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

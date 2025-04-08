@@ -29,10 +29,10 @@ impl PureDPBudget {
     /// Create a new budget with the given epsilon.
     /// Set to infinite if epsilon is NaN or negative.
     pub fn new(epsilon: f64) -> Self {
-        if epsilon.is_nan() || epsilon < 0.0 {
-            PureDPBudget::Infinite
-        } else {
+        if epsilon >= 0.0 {
             PureDPBudget::Epsilon(epsilon)
+        } else {
+            PureDPBudget::Infinite
         }
     }
 }

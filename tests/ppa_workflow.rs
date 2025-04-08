@@ -10,7 +10,7 @@ use pdslib::{
         hashmap_event_storage::HashMapEventStorage, simple_event::SimpleEvent,
         traits::EventUris,
     },
-    pds::epoch_pds::{EpochPrivateDataService, StaticCapacities},
+    pds::epoch_pds::{EpochPrivateDataService, StaticCapacities, PdsReportResult},
     queries::{
         simple_last_touch_histogram::{
             SimpleLastTouchHistogramRequest, SimpleRelevantEventSelector,
@@ -87,9 +87,17 @@ fn main() -> Result<(), anyhow::Error> {
     let report = pds.compute_report(&report_request)?;
 
     // Look at the histogram stored in the report (unencrypted here).
-    assert_eq!(
-        report.filtered_report.bin_value,
-        Some((event.event_key, 70.0))
-    );
+    match report {
+        PdsReportResult::Regular(pds_report) => {
+            assert_eq!(
+                pds_report.filtered_report.bin_value,
+                Some((event.event_key, 70.0))
+            );
+        }
+        _ => {
+            panic!("Expected a regular report");
+        }
+    }
+
     Ok(())
 }

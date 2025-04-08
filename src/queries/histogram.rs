@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Debug, hash::Hash};
+use std::{collections::{HashMap, HashSet}, fmt::Debug, hash::Hash};
 
 use crate::{
     budget::pure_dp_filter::PureDPBudget,
@@ -81,6 +81,35 @@ pub trait HistogramRequest: Debug {
     ) -> Vec<(&'a Self::Event, f64)>;
 
     fn report_uris(&self) -> ReportRequestUris<String>;
+
+    fn is_optimization_query(&self) -> bool {
+        false // Default implementation returns false
+    }
+
+     /// Gets the querier bucket mapping for filtering histograms
+     fn get_intermediary_bucket_mapping(&self) -> Option<&HashMap<String, HashSet<usize>>> {
+        None // Default implementation returns None
+    }
+
+    /// Filter a histogram for a specific querier
+    fn filter_report_for_intermediary(
+        &self,
+        _: &HistogramReport<Self::BucketKey>, 
+        _: &String,
+        _: &HashMap<Self::EpochId, Self::EpochEvents>,
+    ) -> Option<HistogramReport<Self::BucketKey>> {
+        None // Default implementation returns an empty HashMap
+    }
+    
+    // Function to create an intermediary-to-bucket mapping
+    fn create_intermediary_bucket_mapping(
+        mappings: Vec<(String, Vec<usize>)>,
+    ) -> HashMap<String, HashSet<usize>> {
+        mappings
+            .into_iter()
+            .map(|(uri, buckets)| (uri, buckets.into_iter().collect()))
+            .collect()
+    }
 }
 
 /// We implement the EpochReportRequest trait, so any type that implements
@@ -186,5 +215,29 @@ impl<H: HistogramRequest> EpochReportRequest for H {
         // similar to `SimpleLastTouchHistogramReport` with Option<BucketKey,
         // f64>.
         2.0 * self.report_global_sensitivity()
+    }
+
+    /// Retrives the type of query that is being run.
+    fn is_optimization_query(&self) -> bool {
+        self.is_optimization_query()  // Default implementation returns false
+    }
+
+    /// Creates a mapping between the intermediary URIs and buckets id.
+    fn get_intermediary_bucket_mapping(&self) -> Option<&HashMap<Self::Uri, HashSet<usize>>> {
+        self.get_intermediary_bucket_mapping()
+    }
+
+    /// Return the filtered report for the given intermediary URI.
+    fn filter_report_for_intermediary(
+        &self,
+        report: &Self::Report, 
+        intermediary_uri: &Self::Uri,
+        relevant_events_per_epoch: &HashMap<Self::EpochId, Self::EpochEvents>,
+    ) -> Option<Self::Report> {
+        self.filter_report_for_intermediary(
+            report,
+            intermediary_uri,
+            relevant_events_per_epoch,
+        )
     }
 }

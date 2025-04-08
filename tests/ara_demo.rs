@@ -1,5 +1,7 @@
 mod common;
 
+use std::collections::HashMap;
+
 use common::logging;
 use log::info;
 use pdslib::{
@@ -11,9 +13,9 @@ use pdslib::{
         hashmap_event_storage::HashMapEventStorage, ppa_event::PpaEvent,
         traits::EventUris,
     },
-    pds::epoch_pds::{EpochPrivateDataService, StaticCapacities},
+    pds::epoch_pds::{EpochPrivateDataService, StaticCapacities, PdsReportResult},
     queries::{
-        ppa_histogram::{PpaHistogramRequest, PpaRelevantEventSelector},
+        ppa_histogram::{PpaHistogramRequest, PpaRelevantEventSelector, PpaHistogramConfig},
         traits::ReportRequestUris,
     },
 };
@@ -51,6 +53,10 @@ fn main() -> Result<(), anyhow::Error> {
     let sample_report_request_uris = ReportRequestUris {
         trigger_uri: "shoes.com".to_string(),
         source_uris: vec!["blog.com".to_string()],
+        intermediary_uris: vec![
+            "search.engine.com".to_string(),
+            "social.media.com".to_string(),
+        ],
         querier_uris: vec!["adtech.com".to_string()],
     };
 
@@ -97,61 +103,77 @@ fn main() -> Result<(), anyhow::Error> {
 
     // Test basic attribution
     let request1 = PpaHistogramRequest::new(
-        1,
-        2,
-        32768.0,
-        65536.0,
-        1.0,
-        2048,
+        PpaHistogramConfig {
+            start_epoch: 1,
+            end_epoch: 2,
+            report_global_sensitivity: 32768.0,
+            query_global_sensitivity: 65536.0,
+            requested_epsilon: 1.0,
+            histogram_size: 2048,
+            is_optimization_query: false,
+        },
         PpaRelevantEventSelector {
             report_request_uris: sample_report_request_uris.clone(),
             is_matching_event: Box::new(|event_filter_data: u64| {
                 event_filter_data == 1
             }),
+            intermediary_bucket_mapping: HashMap::new(),
         }, // Not filtering yet.
     )
     .unwrap();
 
     let report1 = pds.compute_report(&request1).unwrap();
     info!("Report1: {:?}", report1);
-    let bin_values1 = &report1.filtered_report.bin_values;
+    match report1 {
+        PdsReportResult::Regular(pds_report) => {
+            let bin_values1 = &pds_report.filtered_report.bin_values;
 
-    // One event attributed to the binary OR of the source keypiece and trigger
-    // keypiece = 0x159 | 0x400
-    assert!(bin_values1.contains_key(&0x559));
-    println!("Report1: {:?}", bin_values1.len());
-    assert_eq!(bin_values1.get(&0x559), Some(&32768.0));
+            // One event attributed to the binary OR of the source keypiece and trigger
+            // keypiece = 0x159 | 0x400
+            assert!(bin_values1.contains_key(&0x559));
+            println!("Report1: {:?}", bin_values1.len());
+            assert_eq!(bin_values1.get(&0x559), Some(&32768.0));
+        }
+        _ => panic!("Expected PpaHistogram report"),
+    }
 
     // Test error case when requested_epsilon is 0.
     let request2 = PpaHistogramRequest::new(
-        1,
-        2,
-        32768.0,
-        65536.0,
-        0.0, // This should fail.
-        2048,
+        PpaHistogramConfig {
+            start_epoch: 1,
+            end_epoch: 2,
+            report_global_sensitivity: 32768.0,
+            query_global_sensitivity: 65536.0,
+            requested_epsilon: 0.0, // This should fail.
+            histogram_size: 2048,
+            is_optimization_query: false,
+        },
         PpaRelevantEventSelector {
             report_request_uris: sample_report_request_uris.clone(),
             is_matching_event: Box::new(|event_filter_data: u64| {
                 event_filter_data == 1
             }),
+            intermediary_bucket_mapping: HashMap::new(),
         }, // Not filtering yet.
     );
     assert!(request2.is_err());
 
-    // Test metadata relevant event logic check rejects.
     let request3 = PpaHistogramRequest::new(
-        1,
-        2,
-        32768.0,
-        65536.0,
-        1.0,
-        2048,
+        PpaHistogramConfig {
+            start_epoch: 1,
+            end_epoch: 2,
+            report_global_sensitivity: 32768.0,
+            query_global_sensitivity: 65536.0,
+            requested_epsilon: 1.0,
+            histogram_size: 2048,
+            is_optimization_query: false,
+        },
         PpaRelevantEventSelector {
             report_request_uris: sample_report_request_uris.clone(),
             is_matching_event: Box::new(|event_filter_data: u64| {
                 event_filter_data != 1
             }),
+            intermediary_bucket_mapping: HashMap::new(),
         }, // Not filtering yet.
     )
     .unwrap();
@@ -161,7 +183,13 @@ fn main() -> Result<(), anyhow::Error> {
 
     // No event attributed because the lambda logic filters out the only
     // qualified event.
-    assert_eq!(report3.filtered_report.bin_values.len(), 0);
+    match report3 {
+        PdsReportResult::Regular(pds_report) => {
+            assert_eq!(pds_report.filtered_report.bin_values.len(), 0);
+        }
+        _ => panic!("Expected PpaHistogram report"),
+        
+    }
 
     // TODO(https://github.com/columbia/pdslib/issues/8): add more tests when we have multiple events
 

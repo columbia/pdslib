@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::{
     budget::pure_dp_filter::PureDPBudget,
@@ -137,5 +137,24 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
         NoiseScale::Laplace(
             self.query_global_sensitivity / self.requested_epsilon,
         )
+    }
+
+    fn is_optimization_query(&self) -> bool {
+        false
+    }
+
+    fn get_intermediary_bucket_mapping(
+        &self,
+    ) -> Option<&HashMap<Self::Uri, HashSet<usize>>> {
+        None
+    }
+
+    fn filter_report_for_intermediary(
+        &self,
+        report: &Self::Report,
+        _intermediary_uri: &Self::Uri,
+        _relevant_epochs_per_epoch: &HashMap<usize, Self::EpochEvents>,
+    ) -> Option<Self::Report> {
+        Some(report.clone())
     }
 }

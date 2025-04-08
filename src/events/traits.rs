@@ -18,6 +18,10 @@ pub struct EventUris<U> {
     /// URI of entities that can trigger the computation of a report
     pub trigger_uris: Vec<U>,
 
+    /// URI of entities that are embedded in the source/trigger sites
+    /// and can receive reports that include this event.
+    pub intermediary_uris: Vec<U>,
+
     /// URI of entities that can receive reports that include this event.
     pub querier_uris: Vec<U>,
 }

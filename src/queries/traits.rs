@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Debug, hash::Hash};
+use std::{collections::{HashMap, HashSet}, fmt::Debug, hash::Hash};
 
 use crate::{
     events::traits::{EpochEvents, EpochId, Event, RelevantEventSelector},
@@ -12,6 +12,10 @@ pub struct ReportRequestUris<U> {
 
     /// Source URIs that can be used to compute the report
     pub source_uris: Vec<U>,
+
+    /// Intermediary URIs that are embedded in the source/trigger sites
+    /// and will receive encrypted reports
+    pub intermediary_uris: Vec<U>,
 
     /// Queriers that will receive a report
     pub querier_uris: Vec<U>,
@@ -71,6 +75,20 @@ pub trait EpochReportRequest: Debug {
 
     /// Retrieves the scale of the noise that will be added by the aggregator.
     fn noise_scale(&self) -> NoiseScale;
+
+    /// Retrives the type of query that is being run.
+    fn is_optimization_query(&self) -> bool;
+
+    /// Creates a mapping between the intermediary URIs and buckets id.
+    fn get_intermediary_bucket_mapping(&self) -> Option<&HashMap<Self::Uri, HashSet<usize>>>;
+
+    /// Return the filtered report for the given intermediary URI.
+    fn filter_report_for_intermediary(
+        &self,
+        report: &Self::Report, 
+        intermediary_uri: &Self::Uri,
+        relevant_events_per_epoch: &HashMap<Self::EpochId, Self::EpochEvents>,
+    ) -> Option<Self::Report>;
 }
 
 /// Type for passive privacy loss accounting. Uniform over all epochs for now.

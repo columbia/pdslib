@@ -11,7 +11,7 @@ use pdslib::{
         hashmap_event_storage::HashMapEventStorage, simple_event::SimpleEvent,
         traits::EventUris,
     },
-    pds::epoch_pds::{EpochPrivateDataService, StaticCapacities, PdsReportResult},
+    pds::epoch_pds::{EpochPrivateDataService, StaticCapacities},
     queries::{
         simple_last_touch_histogram::{
             SimpleLastTouchHistogramRequest, SimpleRelevantEventSelector,
@@ -86,15 +86,8 @@ fn main() -> Result<(), anyhow::Error> {
         report_uris: sample_report_uris.clone(),
     };
     let report = pds.compute_report(&report_request)?;
-    match report {
-        PdsReportResult::Regular(pds_report) => {
-            let bucket = Some((event.event_key, 3.0));
-            assert_eq!(pds_report.filtered_report.bin_value, bucket);
-        }
-        _ => {
-            panic!("Expected a regular report, but got: {:?}", report);
-        }
-    }
+    let bucket = Some((event.event_key, 3.0));
+    assert_eq!(report.get(&report_request.report_uris.querier_uris[0]).unwrap().filtered_report.bin_value, bucket);
 
 
     // Test having multiple events in one epoch
@@ -114,17 +107,10 @@ fn main() -> Result<(), anyhow::Error> {
         report_uris: sample_report_uris.clone(),
     };
     let report2 = pds.compute_report(&report_request2)?;
-    match report2 {
-        PdsReportResult::Regular(pds_report) => {
-            // Allocated budget for epoch 1 is 3.0, but 3.0 has already been consumed in
-            // the last request, so the budget is depleted. Now, the null report should
-            // be returned for this additional query.
-            assert_eq!(pds_report.filtered_report.bin_value, None);
-        }
-        _ => {
-            panic!("Expected a regular report, but got: {:?}", report2);
-        }
-    }
+    // Allocated budget for epoch 1 is 3.0, but 3.0 has already been consumed in
+    // the last request, so the budget is depleted. Now, the null report should
+    // be returned for this additional query.
+    assert_eq!(report2.get(&report_request2.report_uris.querier_uris[0]).unwrap().filtered_report.bin_value, None);
 
     let report_request2 = SimpleLastTouchHistogramRequest {
         epoch_start: 1,
@@ -136,15 +122,8 @@ fn main() -> Result<(), anyhow::Error> {
         report_uris: sample_report_uris.clone(),
     };
     let report2 = pds.compute_report(&report_request2)?;
-    match report2 {
-        PdsReportResult::Regular(pds_report) => {
-            let bucket2 = Some((event2.event_key, 3.0));
-            assert_eq!(pds_report.filtered_report.bin_value, bucket2);
-        }
-        _ => {
-            panic!("Expected a regular report, but got: {:?}", report2);
-        }
-    }
+    let bucket2 = Some((event2.event_key, 3.0));
+    assert_eq!(report2.get(&report_request2.report_uris.querier_uris[0]).unwrap().filtered_report.bin_value, bucket2);
 
     // Test request for epoch empty yet.
     let report_request3_empty = SimpleLastTouchHistogramRequest {
@@ -157,14 +136,7 @@ fn main() -> Result<(), anyhow::Error> {
         report_uris: sample_report_uris.clone(),
     };
     let report3_empty = pds.compute_report(&report_request3_empty)?;
-    match report3_empty {
-        PdsReportResult::Regular(pds_report) => {
-            assert_eq!(pds_report.filtered_report.bin_value, None);
-        }
-        _ => {
-            panic!("Expected a regular report, but got: {:?}", report3_empty);
-        }
-    }
+    assert_eq!(report3_empty.get(&report_request3_empty.report_uris.querier_uris[0]).unwrap().filtered_report.bin_value, None);
 
     // Test restricting report_global_sensitivity
     pds.register_event(event4.clone())?;
@@ -179,14 +151,7 @@ fn main() -> Result<(), anyhow::Error> {
     };
     let report3_over_budget =
         pds.compute_report(&report_request3_over_budget)?;
-    match report3_over_budget {
-        PdsReportResult::Regular(pds_report) => {
-            assert_eq!(pds_report.filtered_report.bin_value, None);
-        }
-        _ => {
-            panic!("Expected a regular report, but got: {:?}", report3_over_budget);
-        }
-    }
+    assert_eq!(report3_over_budget.get(&report_request3_over_budget.report_uris.querier_uris[0]).unwrap().filtered_report.bin_value, None);
 
     // This tests the case where we meet the first event in epoch 3, below the
     // budget not used.
@@ -200,15 +165,8 @@ fn main() -> Result<(), anyhow::Error> {
         report_uris: sample_report_uris.clone(),
     };
     let report3 = pds.compute_report(&report_request3)?;
-    match report3 {
-        PdsReportResult::Regular(pds_report) => {
-            let bucket3 = Some((event3.event_key, 3.0));
-            assert_eq!(pds_report.filtered_report.bin_value, bucket3);
-        }
-        _ => {
-            panic!("Expected a regular report, but got: {:?}", report3);
-        }
-    }
+    let bucket3 = Some((event3.event_key, 3.0));
+    assert_eq!(report3.get(&report_request3.report_uris.querier_uris[0]).unwrap().filtered_report.bin_value, bucket3);
 
     // Check that irrelevant events are ignored
     let report_request4 = SimpleLastTouchHistogramRequest {
@@ -223,15 +181,8 @@ fn main() -> Result<(), anyhow::Error> {
         report_uris: sample_report_uris.clone(),
     };
     let report4 = pds.compute_report(&report_request4)?;
-    match report4 {
-        PdsReportResult::Regular(pds_report) => {
-            let bucket4: Option<(usize, f64)> = None;
-            assert_eq!(pds_report.filtered_report.bin_value, bucket4);
-        }
-        _ => {
-            panic!("Expected a regular report, but got: {:?}", report4);
-        }
-    }
+    let bucket4: Option<(usize, f64)> = None;
+    assert_eq!(report4.get(&report_request4.report_uris.querier_uris[0]).unwrap().filtered_report.bin_value, bucket4);
 
     Ok(())
 }

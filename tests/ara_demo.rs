@@ -13,10 +13,9 @@ use pdslib::{
         hashmap_event_storage::HashMapEventStorage, ppa_event::PpaEvent,
         traits::EventUris,
     },
-    pds::epoch_pds::{EpochPrivateDataService, StaticCapacities, PdsReportResult},
+    pds::epoch_pds::{EpochPrivateDataService, StaticCapacities},
     queries::{
-        ppa_histogram::{PpaHistogramRequest, PpaRelevantEventSelector, PpaHistogramConfig},
-        traits::ReportRequestUris,
+        histogram::HistogramRequest, ppa_histogram::{PpaHistogramConfig, PpaHistogramRequest, PpaRelevantEventSelector}, traits::ReportRequestUris
     },
 };
 
@@ -124,18 +123,13 @@ fn main() -> Result<(), anyhow::Error> {
 
     let report1 = pds.compute_report(&request1).unwrap();
     info!("Report1: {:?}", report1);
-    match report1 {
-        PdsReportResult::Regular(pds_report) => {
-            let bin_values1 = &pds_report.filtered_report.bin_values;
+    let bin_values1 = &report1.get(&request1.report_uris().querier_uris[0]).unwrap().filtered_report.bin_values;
 
-            // One event attributed to the binary OR of the source keypiece and trigger
-            // keypiece = 0x159 | 0x400
-            assert!(bin_values1.contains_key(&0x559));
-            println!("Report1: {:?}", bin_values1.len());
-            assert_eq!(bin_values1.get(&0x559), Some(&32768.0));
-        }
-        _ => panic!("Expected PpaHistogram report"),
-    }
+    // One event attributed to the binary OR of the source keypiece and trigger
+    // keypiece = 0x159 | 0x400
+    assert!(bin_values1.contains_key(&0x559));
+    println!("Report1: {:?}", bin_values1.len());
+    assert_eq!(bin_values1.get(&0x559), Some(&32768.0));
 
     // Test error case when requested_epsilon is 0.
     let request2 = PpaHistogramRequest::new(
@@ -183,13 +177,7 @@ fn main() -> Result<(), anyhow::Error> {
 
     // No event attributed because the lambda logic filters out the only
     // qualified event.
-    match report3 {
-        PdsReportResult::Regular(pds_report) => {
-            assert_eq!(pds_report.filtered_report.bin_values.len(), 0);
-        }
-        _ => panic!("Expected PpaHistogram report"),
-        
-    }
+    assert_eq!(report3.get(&request3.report_uris().querier_uris[0]).unwrap().filtered_report.bin_values.len(), 0);
 
     // TODO(https://github.com/columbia/pdslib/issues/8): add more tests when we have multiple events
 

@@ -41,12 +41,6 @@ pub struct StaticCapacities<FID, B> {
     _phantom: std::marker::PhantomData<FID>,
 }
 
-#[derive(Debug)]
-pub enum PdsReportResult<Q: EpochReportRequest> {
-    Regular(PdsReport<Q>),
-    Optimization(HashMap<Q::Uri, PdsReport<Q>>), // Map from intermediary_uri to PdsReport
-}
-
 impl<FID, B> StaticCapacities<FID, B> {
     pub fn new(nc: B, c: B, qtrigger: B, qsource: B) -> Self {
         Self {
@@ -169,7 +163,7 @@ where
     /// Computes a report for the given report request.
     /// This function follows `compute_attribution_report` from the Cookie
     /// Monster Algorithm (https://arxiv.org/pdf/2405.16719, Code Listing 1)
-    pub fn compute_report(&mut self, request: &Q) -> Result<PdsReportResult<Q>, ERR> {
+    pub fn compute_report(&mut self, request: &Q) -> Result<HashMap<Q::Uri, PdsReport<Q>>, ERR> {
         debug!("Computing report for request {:?}", request);
 
         // Check if this is a multi-beneficiary query, which we don't support yet
@@ -300,7 +294,7 @@ where
             let intermediary_uris = request.report_uris().intermediary_uris.clone();
             let mut intermediary_reports = HashMap::new();
 
-            if let Some(_) = request.get_intermediary_bucket_mapping() {
+            if request.get_intermediary_bucket_mapping().is_some() {
                 // Process each intermediary
                 for intermediary_uri in intermediary_uris {
                     // Filter report for this intermediary
@@ -321,11 +315,19 @@ where
                 }
             }
             // Return optimization result with all intermediary reports
-            return Ok(PdsReportResult::Optimization(intermediary_reports));
+            // The main report should be included in the intermediary reports and be deirected to the querier URI.
+            intermediary_reports.insert(
+                request.report_uris().querier_uris[0].clone(),
+                main_report,
+            );
+            return Ok(intermediary_reports);
         }
 
         // For regular requests or optimization queries without intermediary reports
-        Ok(PdsReportResult::Regular(main_report))
+        Ok(HashMap::from([(
+            request.report_uris().querier_uris[0].clone(),
+            main_report,
+        )]))
     }
 
     /// [Experimental] Accounts for passive privacy loss. Can fail if the
@@ -925,52 +927,45 @@ mod cross_report_optimization_tests {
         let report_result = pds.compute_report(&request)?;
 
         // Verify the result is an Optimization report
-        match report_result {
-            PdsReportResult::Optimization(intermediary_reports) => {
-                // Verify we have reports for both intermediaries
-                assert_eq!(intermediary_reports.len(), 2, "Expected reports for 2 intermediaries");
+        // Verify we have reports for both intermediaries
+        assert_eq!(report_result.len(), 3, "Expected reports for 2 intermediaries");
+        
+        // Verify r1.ex's report has bucket 3
+        let r1_report = report_result.get(&intermediary_uri1).expect("Missing report for r1.ex");
+        let r1_bins = &r1_report.filtered_report.bin_values;
+        assert_eq!(r1_bins.len(), 1, "Expected 1 bucket for r1.ex");
+        assert!(r1_bins.contains_key(&3), "Expected bucket 3 for r1.ex");
+        
+        // Verify r2.ex's report has bucket 3
+        let r2_report = report_result.get(&intermediary_uri2).expect("Missing report for r2.ex");
+        let r2_bins = &r2_report.filtered_report.bin_values;
+        assert_eq!(r2_bins.len(), 1, "Expected 1 bucket for r2.ex");
+        assert!(r2_bins.contains_key(&3), "Expected bucket 3 for r2.ex");
+        
+        // Verify both intermediaries received the same value at bucket 3
+        assert_eq!(r1_bins.get(&3), Some(&100.0), "Incorrect value for r1.ex bucket 3");
+        assert_eq!(r2_bins.get(&3), Some(&100.0), "Incorrect value for r2.ex bucket 3");
+        
+        // Verify the privacy budget was deducted only once
+        // Despite two reports being generated (one for each intermediary)
+        let post_budget = pds.filter_storage.remaining_budget(&beneficiary_filter_id)?;
+        
+        match (initial_budget.clone(), post_budget) {
+            (PureDPBudget::Epsilon(initial), PureDPBudget::Epsilon(remaining)) => {
+                let deduction = initial - remaining;
                 
-                // Verify r1.ex's report has bucket 3
-                let r1_report = intermediary_reports.get(&intermediary_uri1).expect("Missing report for r1.ex");
-                let r1_bins = &r1_report.filtered_report.bin_values;
-                assert_eq!(r1_bins.len(), 1, "Expected 1 bucket for r1.ex");
-                assert!(r1_bins.contains_key(&3), "Expected bucket 3 for r1.ex");
+                // Verify budget was actually deducted
+                assert!(deduction == 0.5, "Expected budget deduction but none occurred");
                 
-                // Verify r2.ex's report has bucket 3
-                let r2_report = intermediary_reports.get(&intermediary_uri2).expect("Missing report for r2.ex");
-                let r2_bins = &r2_report.filtered_report.bin_values;
-                assert_eq!(r2_bins.len(), 1, "Expected 1 bucket for r2.ex");
-                assert!(r2_bins.contains_key(&3), "Expected bucket 3 for r2.ex");
+                // Calculate what would be deducted with vs. without optimization
+                let expected_single_deduction = config.report_global_sensitivity / config.query_global_sensitivity;
                 
-                // Verify both intermediaries received the same value at bucket 3
-                assert_eq!(r1_bins.get(&3), Some(&100.0), "Incorrect value for r1.ex bucket 3");
-                assert_eq!(r2_bins.get(&3), Some(&100.0), "Incorrect value for r2.ex bucket 3");
-                
-                // Verify the privacy budget was deducted only once
-                // Despite two reports being generated (one for each intermediary)
-                let post_budget = pds.filter_storage.remaining_budget(&beneficiary_filter_id)?;
-                
-                match (initial_budget.clone(), post_budget) {
-                    (PureDPBudget::Epsilon(initial), PureDPBudget::Epsilon(remaining)) => {
-                        let deduction = initial - remaining;
-                        
-                        // Verify budget was actually deducted
-                        assert!(deduction == 0.5, "Expected budget deduction but none occurred");
-                        
-                        // Calculate what would be deducted with vs. without optimization
-                        let expected_single_deduction = config.report_global_sensitivity / config.query_global_sensitivity;
-                        
-                        // Verify deduction is close to single event (cross-report optimization working)
-                        assert!(deduction == expected_single_deduction, 
-                                "Budget deduction indicates optimization is not working");
-                    },
-                    _ => {
-                        panic!("Expected finite budget deduction");
-                    }
-                }
+                // Verify deduction is close to single event (cross-report optimization working)
+                assert!(deduction == expected_single_deduction, 
+                        "Budget deduction indicates optimization is not working");
             },
-            PdsReportResult::Regular(_) => {
-                panic!("Expected Optimization report, got Regular report");
+            _ => {
+                panic!("Expected finite budget deduction");
             }
         }
 

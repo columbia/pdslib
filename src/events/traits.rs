@@ -37,8 +37,6 @@ pub trait Event: Debug + Clone {
     fn epoch_id(&self) -> Self::EpochId;
 
     fn event_uris(&self) -> EventUris<Self::Uri>;
-
-    fn histogram_index(&self) -> usize;
 }
 
 /// Collection of events for a given epoch.

@@ -231,4 +231,10 @@ impl<H: HistogramRequest> EpochReportRequest for H {
             relevant_events_per_epoch,
         )
     }
+
+    /// Returns whether a ppa_histogram query is optimizable.
+    fn is_optimization_query(&self) -> bool {
+        // Consider a query optimizable if it has at least two intermediary URIs
+        self.report_uris().intermediary_uris.len() >= 2
+    }
 }

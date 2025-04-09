@@ -36,8 +36,4 @@ impl Event for PpaEvent {
     fn event_uris(&self) -> EventUris<String> {
         self.uris.clone()
     }
-
-    fn histogram_index(&self) -> Self::HistogramIndex {
-        self.histogram_index
-    }
 }

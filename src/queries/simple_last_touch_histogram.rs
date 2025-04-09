@@ -153,4 +153,8 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
     ) -> Option<Self::Report> {
         Some(report.clone())
     }
+
+    fn is_optimization_query(&self) -> bool {
+        false
+    }
 }

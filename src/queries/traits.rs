@@ -86,6 +86,9 @@ pub trait EpochReportRequest: Debug {
         intermediary_uri: &Self::Uri,
         relevant_events_per_epoch: &HashMap<Self::EpochId, Self::EpochEvents>,
     ) -> Option<Self::Report>;
+
+    /// Returns whether a ppa_histogram query is optimizable.
+    fn is_optimization_query(&self) -> bool;
 }
 
 /// Type for passive privacy loss accounting. Uniform over all epochs for now.

@@ -290,44 +290,19 @@ where
         };
 
         // Handle optimization queries when at least two intermediary URIs are in the request.
-        if request.report_uris().intermediary_uris.len() >= 2 {
+        if request.is_optimization_query() {
             let intermediary_uris = request.report_uris().intermediary_uris.clone();
             let mut intermediary_reports = HashMap::new();
 
             if request.get_intermediary_bucket_mapping().is_some() {
                 // Process each intermediary
                 for intermediary_uri in intermediary_uris {
-                    // Get the bucket mapping for this intermediary
-                    let histogram_indices_to_intermediary = request
-                        .get_intermediary_bucket_mapping()
-                        .unwrap()
-                        .get(&intermediary_uri)
-                        .unwrap();
-                    print!("FKKK {:?}", histogram_indices_to_intermediary);
-
                     // TODO(https://github.com/columbia/pdslib/issues/55):
                     // The events should not be readable by any intermediary. In Fig 2 it seems that the first event is readable by r1.ex and r3.ex only,
                     // and the second event is readable by r2.ex and r3.ex. r3 is a special intermediary that can read all the events (maybe r3.ex = shoes.example).
                     // But feel free to keep this remark in a issue for later, because that would involve modifying the is_relevant_event logic too, to check that
                     // the intermediary_uris match. Your get_intermediary_bucket_mapping seems to serve the same purpose.
                     // Get the relevant events for this intermediary
-                    let mut relevant_events_per_epoch_one_intermerdiary: HashMap<EI, EE> = HashMap::new();
-
-                    for (epoch, events) in &relevant_events_per_epoch {
-                        for histogram_index in histogram_indices_to_intermediary.iter() {
-                            let mut filtered_events: EE = EpochEvents::new();
-                            for event in events.iter() {
-                                if event.histogram_index() ==  *histogram_index {
-                                    // Clone if you want new, owned data
-                                    filtered_events.push(event.clone());
-                                }
-                            }
-
-                            if !filtered_events.is_empty() {
-                                relevant_events_per_epoch_one_intermerdiary.insert(epoch.clone(), filtered_events);
-                            }
-                        }
-                    }
 
                     // Filter report for this intermediary
                     if let Some(intermediary_filtered_report) = request.filter_report_for_intermediary(

@@ -82,10 +82,6 @@ pub trait HistogramRequest: Debug {
 
     fn report_uris(&self) -> ReportRequestUris<String>;
 
-    fn is_optimization_query(&self) -> bool {
-        false // Default implementation returns false
-    }
-
      /// Gets the querier bucket mapping for filtering histograms
      fn get_intermediary_bucket_mapping(&self) -> Option<&HashMap<String, HashSet<usize>>> {
         None // Default implementation returns None
@@ -215,11 +211,6 @@ impl<H: HistogramRequest> EpochReportRequest for H {
         // similar to `SimpleLastTouchHistogramReport` with Option<BucketKey,
         // f64>.
         2.0 * self.report_global_sensitivity()
-    }
-
-    /// Retrives the type of query that is being run.
-    fn is_optimization_query(&self) -> bool {
-        self.is_optimization_query()  // Default implementation returns false
     }
 
     /// Creates a mapping between the intermediary URIs and buckets id.

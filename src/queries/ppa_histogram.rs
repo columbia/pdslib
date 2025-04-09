@@ -30,7 +30,6 @@ pub struct PpaHistogramConfig {
     pub query_global_sensitivity: f64,
     pub requested_epsilon: f64,
     pub histogram_size: usize,
-    pub is_optimization_query: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -83,7 +82,6 @@ pub struct PpaHistogramRequest {
     histogram_size: usize,
     filters: PpaRelevantEventSelector,
     logic: AttributionLogic,
-    is_optimization_query: bool,
 }
 
 impl PpaHistogramRequest {
@@ -113,13 +111,7 @@ impl PpaHistogramRequest {
             histogram_size: config.histogram_size,
             filters,
             logic: AttributionLogic::LastTouch,
-            is_optimization_query: config.is_optimization_query,
         })
-    }
-
-    // Helper methods for optimization
-    pub fn is_optimization_query(&self) -> bool {
-        self.is_optimization_query
     }
     
     pub fn get_intermediary_bucket_mapping(&self) -> &HashMap<String, HashSet<usize>> {
@@ -217,10 +209,6 @@ impl HistogramRequest for PpaHistogramRequest {
 
     fn report_uris(&self) -> ReportRequestUris<String> {
         self.filters.report_request_uris.clone()
-    }
-
-    fn is_optimization_query(&self) -> bool {
-        self.is_optimization_query()
     }
 
     fn get_intermediary_bucket_mapping(&self) -> Option<&HashMap<String, HashSet<usize>>> {

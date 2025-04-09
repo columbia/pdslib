@@ -289,11 +289,12 @@ where
             oob_filters,
         };
 
-        // Handle optimization queries with intermediary-specific reports
-        if request.is_optimization_query() {
+        // Handle optimization queries when at least two intermediary URIs are in the request.
+        if request.report_uris().intermediary_uris.len() >= 2 {
             let intermediary_uris = request.report_uris().intermediary_uris.clone();
             let mut intermediary_reports = HashMap::new();
 
+            print!("FKKKK {:?}", request.get_intermediary_bucket_mapping());
             if request.get_intermediary_bucket_mapping().is_some() {
                 // Process each intermediary
                 for intermediary_uri in intermediary_uris {
@@ -315,11 +316,7 @@ where
                 }
             }
             // Return optimization result with all intermediary reports
-            // The main report should be included in the intermediary reports and be deirected to the querier URI.
-            intermediary_reports.insert(
-                request.report_uris().querier_uris[0].clone(),
-                main_report,
-            );
+            // If the querier needs to receive a report for itself too, need to add itself as an intermediary in the request
             return Ok(intermediary_reports);
         }
 
@@ -906,7 +903,6 @@ mod cross_report_optimization_tests {
             query_global_sensitivity: 200.0,
             requested_epsilon: 1.0,
             histogram_size: 4,  // Ensure we have space for bucket 3
-            is_optimization_query: true,
         };
         
         let request = PpaHistogramRequest::new(
@@ -928,7 +924,7 @@ mod cross_report_optimization_tests {
 
         // Verify the result is an Optimization report
         // Verify we have reports for both intermediaries
-        assert_eq!(report_result.len(), 3, "Expected reports for 2 intermediaries");
+        assert_eq!(report_result.len(), 2, "Expected reports for 2 intermediaries");
         
         // Verify r1.ex's report has bucket 3
         let r1_report = report_result.get(&intermediary_uri1).expect("Missing report for r1.ex");

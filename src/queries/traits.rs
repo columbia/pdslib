@@ -76,9 +76,6 @@ pub trait EpochReportRequest: Debug {
     /// Retrieves the scale of the noise that will be added by the aggregator.
     fn noise_scale(&self) -> NoiseScale;
 
-    /// Retrives the type of query that is being run.
-    fn is_optimization_query(&self) -> bool;
-
     /// Creates a mapping between the intermediary URIs and buckets id.
     fn get_intermediary_bucket_mapping(&self) -> Option<&HashMap<Self::Uri, HashSet<usize>>>;
 

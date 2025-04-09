@@ -139,10 +139,6 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
         )
     }
 
-    fn is_optimization_query(&self) -> bool {
-        false
-    }
-
     fn get_intermediary_bucket_mapping(
         &self,
     ) -> Option<&HashMap<Self::Uri, HashSet<usize>>> {

@@ -54,7 +54,6 @@ fn main() -> Result<(), anyhow::Error> {
         source_uris: vec!["blog.com".to_string()],
         intermediary_uris: vec![
             "search.engine.com".to_string(),
-            "social.media.com".to_string(),
         ],
         querier_uris: vec!["adtech.com".to_string()],
     };
@@ -109,7 +108,6 @@ fn main() -> Result<(), anyhow::Error> {
             query_global_sensitivity: 65536.0,
             requested_epsilon: 1.0,
             histogram_size: 2048,
-            is_optimization_query: false,
         },
         PpaRelevantEventSelector {
             report_request_uris: sample_report_request_uris.clone(),
@@ -140,7 +138,6 @@ fn main() -> Result<(), anyhow::Error> {
             query_global_sensitivity: 65536.0,
             requested_epsilon: 0.0, // This should fail.
             histogram_size: 2048,
-            is_optimization_query: false,
         },
         PpaRelevantEventSelector {
             report_request_uris: sample_report_request_uris.clone(),
@@ -160,7 +157,6 @@ fn main() -> Result<(), anyhow::Error> {
             query_global_sensitivity: 65536.0,
             requested_epsilon: 1.0,
             histogram_size: 2048,
-            is_optimization_query: false,
         },
         PpaRelevantEventSelector {
             report_request_uris: sample_report_request_uris.clone(),

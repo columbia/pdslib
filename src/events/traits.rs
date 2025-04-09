@@ -31,18 +31,27 @@ pub struct EventUris<U> {
 pub trait Event: Debug + Clone {
     type EpochId: EpochId;
     type Uri: Clone + Eq + Hash + Debug;
+    type HistogramIndex: Hash + Eq + Clone + Debug;
     // TODO(https://github.com/columbia/pdslib/issues/18): add source/trigger information for Big Bird / Level 2.
 
     fn epoch_id(&self) -> Self::EpochId;
 
     fn event_uris(&self) -> EventUris<Self::Uri>;
+
+    fn histogram_index(&self) -> usize;
 }
 
 /// Collection of events for a given epoch.
 pub trait EpochEvents: Debug {
+    type Event: Event;
+
     fn new() -> Self;
 
     fn is_empty(&self) -> bool;
+
+    fn push(&mut self, event: Self::Event);
+
+    fn iter(&self) -> std::slice::Iter<Self::Event>;
 }
 
 /// Selector that can tag relevant events one by one or in bulk.

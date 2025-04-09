@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Debug, hash::Hash};
+use std::{collections::HashMap, fmt::Debug, hash::Hash, vec};
 
 use log::debug;
 
@@ -297,6 +297,32 @@ where
             if request.get_intermediary_bucket_mapping().is_some() {
                 // Process each intermediary
                 for intermediary_uri in intermediary_uris {
+                    // Get the bucket mapping for this intermediary
+                    let histogram_indices_to_intermediary = request
+                        .get_intermediary_bucket_mapping()
+                        .unwrap()
+                        .get(&intermediary_uri)
+                        .unwrap();
+
+                    // Get the relevant events for this intermediary
+                    let mut relevant_events_per_epoch_one_intermerdiary: HashMap<EI, EE> = HashMap::new();
+
+                    for (epoch, events) in &relevant_events_per_epoch {
+                        for histogram_index in histogram_indices_to_intermediary.iter() {
+                            let mut filtered_events: EE = EpochEvents::new();
+                            for event in events.iter() {
+                                if event.histogram_index() ==  *histogram_index {
+                                    // Clone if you want new, owned data
+                                    filtered_events.push(event.clone());
+                                }
+                            }
+
+                            if !filtered_events.is_empty() {
+                                relevant_events_per_epoch_one_intermerdiary.insert(epoch.clone(), filtered_events);
+                            }
+                        }
+                    }
+
                     // Filter report for this intermediary
                     if let Some(intermediary_filtered_report) = request.filter_report_for_intermediary(
                         &main_report.filtered_report, 
@@ -326,16 +352,16 @@ where
 
                                 let individual_privacy_loss = self.compute_epoch_loss(
                                     request,
-                                    relevant_events_per_epoch.get(&epoch_id),
+                                    relevant_events_per_epoch_one_intermerdiary.get(&epoch_id),
                                     &intermediary_pds_report.filtered_report,
-                                    1,
+                                    relevant_events_per_epoch_one_intermerdiary.len(),
                                 );
 
                                 let source_losses = self.compute_epoch_source_losses(
                                     request,
                                     epoch_source_relevant_events,
                                     &intermediary_pds_report.filtered_report,
-                                    1,
+                                    relevant_events_per_epoch_one_intermerdiary.len(),
                                 );
 
                                 // Deduct budget for this intermediary
@@ -348,7 +374,7 @@ where
                                 );
                             }
                         }
-                        
+
                         intermediary_reports.insert(intermediary_uri, intermediary_pds_report);
                     }
                 }
@@ -958,7 +984,7 @@ mod cross_report_optimization_tests {
         pds.filter_storage.new_filter(intermediary_filter_id_1.clone())?;
         let initial_budget_1 = pds.filter_storage.remaining_budget(&intermediary_filter_id_1)?;
 
-        let intermediary_filter_id_2 = FilterId::Nc(1, intermediary_uri2.clone());
+        let intermediary_filter_id_2 = FilterId::Nc(2, intermediary_uri2.clone());
         pds.filter_storage.new_filter(intermediary_filter_id_2.clone())?;
         let initial_budget_2 = pds.filter_storage.remaining_budget(&intermediary_filter_id_2)?;
         
@@ -988,12 +1014,12 @@ mod cross_report_optimization_tests {
                         assert!(deduction > 0.0, "Expected budget deduction but none occurred");
         
                         // Calculate what would be deducted with vs. without optimization
-                        let expected_single_deduction = config.report_global_sensitivity / config.query_global_sensitivity;
+                        let expected_single_deduction_1 = config.report_global_sensitivity / config.query_global_sensitivity;
                         
                         // Verify deduction is close to single event (cross-report optimization working)
-                        assert!(deduction == expected_single_deduction, 
+                        assert!(deduction == expected_single_deduction_1, 
                         "Budget deduction of {} doesn't match expected {} (optimization not working)", 
-                        deduction, expected_single_deduction);
+                        deduction, expected_single_deduction_1);
                     },
                     _ => {
                         panic!("Expected finite budget deduction");
@@ -1022,12 +1048,12 @@ mod cross_report_optimization_tests {
                         assert!(deduction > 0.0, "Expected budget deduction but none occurred");
         
                         // Calculate what would be deducted with vs. without optimization
-                        let expected_single_deduction = config.report_global_sensitivity / config.query_global_sensitivity;
+                        let expected_single_deduction_2 = config.report_global_sensitivity / config.query_global_sensitivity;
                         
                         // Verify deduction is close to single event (cross-report optimization working)
-                        assert!(deduction == expected_single_deduction, 
+                        assert!(deduction == expected_single_deduction_2, 
                         "Budget deduction of {} doesn't match expected {} (optimization not working)", 
-                        deduction, expected_single_deduction);
+                        deduction, expected_single_deduction_2);
                     },
                     _ => {
                         panic!("Expected finite budget deduction");

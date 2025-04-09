@@ -13,6 +13,7 @@ pub struct SimpleEvent {
 impl Event for SimpleEvent {
     type EpochId = usize;
     type Uri = String;
+    type HistogramIndex = usize;
 
     fn epoch_id(&self) -> Self::EpochId {
         self.epoch_number
@@ -20,6 +21,10 @@ impl Event for SimpleEvent {
 
     fn event_uris(&self) -> EventUris<String> {
         self.uris.clone()
+    }
+
+    fn histogram_index(&self) -> Self::HistogramIndex {
+        0  // Default to 0 for unimplemented histogram index 
     }
 }
 

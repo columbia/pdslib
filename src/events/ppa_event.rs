@@ -27,6 +27,7 @@ pub struct PpaEvent {
 impl Event for PpaEvent {
     type EpochId = usize;
     type Uri = String;
+    type HistogramIndex = usize;
 
     fn epoch_id(&self) -> Self::EpochId {
         self.epoch_number
@@ -34,5 +35,9 @@ impl Event for PpaEvent {
 
     fn event_uris(&self) -> EventUris<String> {
         self.uris.clone()
+    }
+
+    fn histogram_index(&self) -> Self::HistogramIndex {
+        self.histogram_index
     }
 }

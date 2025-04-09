@@ -1059,10 +1059,8 @@ mod cross_report_optimization_tests {
                         panic!("Expected finite budget deduction");
                     }
                 }
-            } else {
-                if r1_bins_are_empty {
-                    panic!("Both r1.ex and r2.ex reports are empty; that should not happen");
-                }
+            } else if r1_bins_are_empty {
+                panic!("Both r1.ex and r2.ex reports are empty; that should not happen");
             }
         }
 

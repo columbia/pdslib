@@ -240,7 +240,7 @@ pub fn create_intermediary_bucket_mapping(
     for (uri, buckets) in &mappings {
         for &bucket in buckets {
             all_buckets.entry(bucket)
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(uri.clone());
         }
     }

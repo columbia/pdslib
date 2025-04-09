@@ -233,11 +233,34 @@ impl HistogramRequest for PpaHistogramRequest {
 // Utility function to create bucket mappings
 pub fn create_intermediary_bucket_mapping(
     mappings: Vec<(String, Vec<usize>)>,
-) -> HashMap<String, HashSet<usize>> {
-    mappings
+) -> Result<HashMap<String, HashSet<usize>>, String> {
+    // First, check for overlapping buckets
+    let mut all_buckets: HashMap<usize, Vec<String>> = HashMap::new();
+    // Track which bucket is assigned to which intermediaries
+    for (uri, buckets) in &mappings {
+        for &bucket in buckets {
+            all_buckets.entry(bucket)
+                .or_insert_with(Vec::new)
+                .push(uri.clone());
+        }
+    }
+    
+    // Find any buckets assigned to multiple intermediaries
+    let overlapping_buckets: HashMap<usize, Vec<String>> = all_buckets
+        .into_iter()
+        .filter(|(_, uris)| uris.len() > 1)
+        .collect();
+    if !overlapping_buckets.is_empty() {
+        return Err(String::from("Bucket overlap detected between intermediaries"));
+    }
+    
+    // If no overlaps, create the mapping as before
+    let mapping = mappings
         .into_iter()
         .map(|(uri, buckets)| (uri, buckets.into_iter().collect()))
-        .collect()
+        .collect();
+    
+    Ok(mapping)
 }
 
 // Utility function to filter histogram

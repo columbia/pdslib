@@ -303,6 +303,7 @@ where
                         .unwrap()
                         .get(&intermediary_uri)
                         .unwrap();
+                    print!("FKKK {:?}", histogram_indices_to_intermediary);
 
                     // TODO(https://github.com/columbia/pdslib/issues/55):
                     // The events should not be readable by any intermediary. In Fig 2 it seems that the first event is readable by r1.ex and r3.ex only,
@@ -884,13 +885,18 @@ mod cross_report_optimization_tests {
         let trigger_uri = "shoes.example.com".to_string();
         let intermediary_uri1 = "r1.ex".to_string();
         let intermediary_uri2 = "r2.ex".to_string();
+        let intermediary_uri3 = "r3.ex".to_string();
 
         // Create event URIs with appropriate intermediaries
         let event_uris = EventUris {
             source_uri: source_uri.clone(),
             trigger_uris: vec![trigger_uri.clone()],
             querier_uris: vec![beneficiary_uri.clone()],
-            intermediary_uris: vec![intermediary_uri1.clone(), intermediary_uri2.clone()],
+            intermediary_uris: vec![
+                intermediary_uri1.clone(),
+                intermediary_uri2.clone(),
+                intermediary_uri3.clone(),
+            ],
         };
 
         // Create report request URIs
@@ -898,7 +904,11 @@ mod cross_report_optimization_tests {
             trigger_uri: trigger_uri.clone(),
             source_uris: vec![source_uri.clone()],
             querier_uris: vec![beneficiary_uri.clone()],
-            intermediary_uris: vec![intermediary_uri1.clone(), intermediary_uri2.clone()],
+            intermediary_uris: vec![
+                intermediary_uri1.clone(),
+                intermediary_uri2.clone(),
+                intermediary_uri3.clone(),
+            ],
         };
 
         // Register an early event with bucket 1 - this should be overridden by last-touch attribution
@@ -926,8 +936,9 @@ mod cross_report_optimization_tests {
         // Create intermediary bucket mapping
         // Both intermediaries have access to bucket 3, so they'll both get data from the same event
         let intermediary_bucket_mapping = create_intermediary_bucket_mapping(vec![
-            (intermediary_uri1.clone(), vec![1]),  // r1.ex gets buckets 1 and 3
-            (intermediary_uri2.clone(), vec![2]),  // r2.ex gets buckets 2 and 3
+            (intermediary_uri1.clone(), vec![1]),  // r1.ex gets buckets 1
+            (intermediary_uri2.clone(), vec![2]),  // r2.ex gets buckets 2
+            (intermediary_uri3.clone(), vec![3]),  // r3.ex gets buckets 3
         ]).map_err(anyhow::Error::msg)?;
         // Create histogram request with optimization query flag set to true
         let config = PpaHistogramConfig {
@@ -951,42 +962,47 @@ mod cross_report_optimization_tests {
         let beneficiary_filter_id = FilterId::Nc(1, beneficiary_uri.clone());
         pds.filter_storage.new_filter(beneficiary_filter_id.clone())?;
         let initial_budget = pds.filter_storage.remaining_budget(&beneficiary_filter_id)?;
-        
+
         // Process the request
         let report_result = pds.compute_report(&request)?;
 
         // Verify the result is an Optimization report
         // Verify we have reports for both intermediaries
-        assert_eq!(report_result.len(), 2, "Expected reports for 2 intermediaries");
+        assert_eq!(report_result.len(), 3, "Expected reports for 2 intermediaries");
 
-        // Verify r1.ex's report has bucket 3
+        // Verify r1.ex's report has bucket 1
         let r1_report = report_result.get(&intermediary_uri1).expect("Missing report for r1.ex");
         let r1_bins = &r1_report.filtered_report.bin_values;
         assert!(r1_bins.is_empty(), "1 bucket for r1.ex should have been filtered out by last-touch attribution");
-        
-        // Verify r2.ex's report has bucket 3
+
+        // Verify r2.ex's report has bucket 2
         let r2_report = report_result.get(&intermediary_uri2).expect("Missing report for r2.ex");
         let r2_bins = &r2_report.filtered_report.bin_values;
         assert_eq!(r2_bins.len(), 1, "Expected 1 bucket for r2.ex");
         assert!(r2_bins.contains_key(&2), "Expected bucket 3 for r2.ex");
-        
+
         // Intermediary r2 receives the value from the main event
         assert_eq!(r2_bins.get(&2), Some(&100.0), "Incorrect value for r2.ex bucket 3");
-        
+
+        // Verify r3.ex's report has bucket 3
+        let r3_report = report_result.get(&intermediary_uri3).expect("Missing report for r3.ex");
+        let r3_bins = &r3_report.filtered_report.bin_values;
+        assert!(r3_bins.is_empty(), "1 bucket for r1.ex should have been filtered out by last-touch attribution");
+
         // Verify the privacy budget was deducted only once
         // Despite two reports being generated (one for each intermediary)
         let post_budget = pds.filter_storage.remaining_budget(&beneficiary_filter_id)?;
-        
+
         match (initial_budget.clone(), post_budget) {
             (PureDPBudget::Epsilon(initial), PureDPBudget::Epsilon(remaining)) => {
                 let deduction = initial - remaining;
-                
+
                 // Verify budget was actually deducted
                 assert!(deduction == 0.5, "Expected budget deduction but none occurred");
-                
+
                 // Calculate what would be deducted with vs. without optimization
                 let expected_single_deduction = config.report_global_sensitivity / config.query_global_sensitivity;
-                
+
                 // Verify deduction is close to single event (cross-report optimization working)
                 assert!(deduction == expected_single_deduction, 
                         "Budget deduction indicates optimization is not working");

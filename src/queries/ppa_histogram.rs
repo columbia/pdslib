@@ -1,5 +1,7 @@
 use std::{collections::HashMap, vec};
 
+use anyhow::{bail, Error};
+
 use crate::{
     events::{
         hashmap_event_storage::VecEpochEvents, ppa_event::PpaEvent,
@@ -78,6 +80,7 @@ impl PpaHistogramRequest {
     /// - `requested_epsilon` is > 0.
     /// - `report_global_sensitivity` and `query_global_sensitivity` are
     ///   non-negative.
+    /// TODO: Cleaner error types, maybe avoid anyhow in pdslib even if it's a bit tedious.
     pub fn new(
         start_epoch: usize,
         end_epoch: usize,
@@ -86,15 +89,15 @@ impl PpaHistogramRequest {
         requested_epsilon: f64,
         histogram_size: usize,
         filters: PpaRelevantEventSelector,
-    ) -> Result<Self, &'static str> {
+    ) -> Result<Self, Error> {
         if requested_epsilon <= 0.0 {
-            return Err("requested_epsilon must be greater than 0");
+            bail!("requested_epsilon must be greater than 0");
         }
         if report_global_sensitivity < 0.0 || query_global_sensitivity < 0.0 {
-            return Err("sensitivity values must be non-negative");
+            bail!("sensitivity values must be non-negative");
         }
         if histogram_size == 0 {
-            return Err("histogram_size must be greater than 0");
+            bail!("histogram_size must be greater than 0");
         }
         Ok(Self {
             start_epoch,

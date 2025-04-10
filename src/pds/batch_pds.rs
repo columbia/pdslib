@@ -88,8 +88,9 @@ mod tests {
         },
         pds::{batch_pds, epoch_pds::StaticCapacities, utils::PpaPds},
         queries::{
+            ppa_histogram::{PpaHistogramRequest, PpaRelevantEventSelector},
             simple_last_touch_histogram::SimpleLastTouchHistogramRequest,
-            traits::PassivePrivacyLossRequest,
+            traits::{PassivePrivacyLossRequest, ReportRequestUris},
         },
     };
 
@@ -116,6 +117,23 @@ mod tests {
         };
 
         batch_pds.register_event(event1.clone())?;
+
+        let request1 = PpaHistogramRequest::new(
+            1,
+            2,
+            32768.0,
+            65536.0,
+            1.0,
+            2048,
+            PpaRelevantEventSelector {
+                report_request_uris: ReportRequestUris::mock(),
+                is_matching_event: Box::new(|event_filter_data: u64| {
+                    event_filter_data == 1
+                }),
+            },
+        )?;
+
+        batch_pds.register_report_request(request1)?;
 
         Ok(())
     }

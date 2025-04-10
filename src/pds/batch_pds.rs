@@ -74,19 +74,49 @@ where
 
 #[cfg(test)]
 mod tests {
+    use log::info;
+
     use super::*;
     use crate::{
         budget::{
             hashmap_filter_storage::HashMapFilterStorage,
             pure_dp_filter::{PureDPBudget, PureDPBudgetFilter},
         },
-        events::hashmap_event_storage::HashMapEventStorage,
+        events::{
+            hashmap_event_storage::HashMapEventStorage, ppa_event::PpaEvent,
+            traits::EventUris,
+        },
+        pds::{batch_pds, epoch_pds::StaticCapacities, utils::PpaPds},
         queries::{
             simple_last_touch_histogram::SimpleLastTouchHistogramRequest,
             traits::PassivePrivacyLossRequest,
         },
     };
 
-    // #[test]
-    // fn schedule_one_batch() -> Result<(), anyhow::Error> {}
+    #[test]
+    fn schedule_one_batch() -> Result<(), anyhow::Error> {
+        let capacities = StaticCapacities::mock();
+
+        let pds = PpaPds::new(capacities)?;
+
+        let mut batch_pds = BatchPrivateDataService {
+            pending_requests: vec![],
+            pds,
+        };
+
+        info!("Registering events");
+
+        let event1 = PpaEvent {
+            id: 1,
+            timestamp: 0,
+            epoch_number: 1,
+            histogram_index: 0x559, // 0x559 = "campaignCounts".to_string() | 0x400
+            uris: EventUris::mock(),
+            filter_data: 1,
+        };
+
+        batch_pds.register_event(event1.clone())?;
+
+        Ok(())
+    }
 }

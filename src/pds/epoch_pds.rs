@@ -170,6 +170,55 @@ pub struct PdsReport<Q: EpochReportRequest> {
     pub oob_filters: Vec<FilterId<Q::EpochId, Q::Uri>>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
+pub enum FilterErrorType {
+    Nc,
+    C,
+    QTriggerSource,
+    QTrigger,
+    QSource,
+}
+
+impl<Q: EpochReportRequest> PdsReport<Q> {
+    /// Returns None if the report was not impacted by filters that were out of budget.
+    /// Otherwise, returns the cause of the error, using some error attribution rules.
+    pub fn error_cause(&self) -> Option<FilterErrorType> {
+        if self.oob_filters.is_empty() {
+            return None;
+        }
+
+        // We start by counting the OOB filters in each category, for that particular report.
+        let mut n_nc_report = 0;
+        let mut n_c_report = 0;
+        let mut n_qconv_report = 0;
+        let mut n_qimp_report = 0;
+        for filter in self.oob_filters.iter() {
+            match filter {
+                FilterId::Nc(_, _) => n_nc_report += 1,
+                FilterId::C(_) => n_c_report += 1,
+                FilterId::QTrigger(_, _) => n_qconv_report += 1,
+                FilterId::QSource(_, _) => n_qimp_report += 1,
+            }
+        }
+
+        // Now we can attribute the whole report to a single OOB category.
+        let error_cause = if n_nc_report > 0 {
+            FilterErrorType::Nc
+        } else if n_c_report > 0 {
+            FilterErrorType::C
+        } else if (n_qconv_report > 0) && (n_qimp_report > 0) {
+            FilterErrorType::QTriggerSource
+        } else if n_qconv_report > 0 {
+            FilterErrorType::QTrigger
+        } else if n_qimp_report > 0 {
+            FilterErrorType::QSource
+        } else {
+            panic!("Failed to attribute error, should not happen.");
+        };
+        Some(error_cause)
+    }
+}
+
 /// API for the epoch-based PDS.
 ///
 /// TODO(https://github.com/columbia/pdslib/issues/21): support more than PureDP

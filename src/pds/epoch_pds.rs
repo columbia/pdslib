@@ -1,3 +1,5 @@
+//! TODO(https://github.com/columbia/pdslib/issues/66): refactor this file
+
 use std::{collections::HashMap, fmt::Debug, hash::Hash, vec};
 
 use log::debug;

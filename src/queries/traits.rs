@@ -5,6 +5,24 @@ use crate::{
     mechanisms::{NoiseScale, NormType},
 };
 
+pub struct QueryComputeResult<U, R> {
+    pub uri_bucket_map: HashMap<U, HashSet<usize>>,
+    pub uri_report_map: HashMap<U, R>,
+}
+
+impl<U, R> QueryComputeResult<U, R> {
+    // Example methods, if you need them
+    pub fn new(
+        uri_bucket_map: HashMap<U, HashSet<usize>>,
+        uri_report_map: HashMap<U, R>,
+    ) -> Self {
+        Self {
+            uri_bucket_map,
+            uri_report_map,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ReportRequestUris<U> {
     /// URI that triggered the report
@@ -52,10 +70,7 @@ pub trait EpochReportRequest: Debug {
     fn compute_report(
         &self,
         relevant_events_per_epoch: &HashMap<Self::EpochId, Self::EpochEvents>,
-    ) -> (
-        HashMap<Self::Uri, HashSet<usize>>,
-        HashMap<Self::Uri, Self::Report>
-    );
+    ) -> QueryComputeResult<Self::Uri, Self::Report>;
 
     /// Computes the individual sensitivity for the query when the report is
     /// computed over a single epoch.

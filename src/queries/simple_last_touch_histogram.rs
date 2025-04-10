@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use crate::{
     budget::pure_dp_filter::PureDPBudget,
@@ -7,7 +7,7 @@ use crate::{
         traits::RelevantEventSelector,
     },
     mechanisms::{NoiseScale, NormType},
-    queries::traits::{EpochReportRequest, Report, ReportRequestUris},
+    queries::traits::{EpochReportRequest, Report, ReportRequestUris, QueryComputeResult},
 };
 
 #[derive(Debug)]
@@ -77,10 +77,7 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
     fn compute_report(
         &self,
         relevant_epochs_per_epoch: &HashMap<usize, Self::EpochEvents>,
-    ) -> (
-        HashMap<Self::Uri, HashSet<usize>>,
-        HashMap<Self::Uri, Self::Report>
-    ) {
+    ) -> QueryComputeResult<Self::Uri, Self::Report> {
         // Browse epochs in the order given by `epoch_ids, most recent
         // epoch first. Within each epoch, we assume that events are
         // stored in the order that they occured
@@ -97,12 +94,12 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
                     // Just use event_key as the bucket key.
                     // See `ara_histogram` for a more general impression_key ->
                     // bucket_key mapping.
-                    return (
+                    return QueryComputeResult::new(
                         HashMap::new(),
                         HashMap::from([(
                             self.report_uris
                                 .querier_uris
-                                .get(0)
+                                .first()
                                 .unwrap()
                                 .clone(),
                             SimpleLastTouchHistogramReport {
@@ -115,12 +112,12 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
         }
 
         // No impressions were found so we return a report with a None bucket.
-        (
+        QueryComputeResult::new(
             HashMap::new(),
             HashMap::from([(
                 self.report_uris
                     .querier_uris
-                    .get(0)
+                    .first()
                     .unwrap()
                     .clone(),
                 SimpleLastTouchHistogramReport {

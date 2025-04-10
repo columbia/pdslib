@@ -210,7 +210,7 @@ where
 
         // Compute the raw report, useful for debugging and accounting.
         let num_epochs: usize = relevant_events_per_epoch.len();
-        let (_, unfiltered_report) =
+        let unfiltered_result =
             request.compute_report(&relevant_events_per_epoch);
 
         // Browse epochs in the attribution window
@@ -224,7 +224,7 @@ where
             let individual_privacy_loss = self.compute_epoch_loss(
                 request,
                 epoch_relevant_events,
-                &unfiltered_report.get(&request.report_uris().querier_uris[0]).unwrap(),
+                unfiltered_result.uri_report_map.get(&request.report_uris().querier_uris[0]).unwrap(),
                 num_epochs,
             );
 
@@ -237,7 +237,7 @@ where
             let source_losses = self.compute_epoch_source_losses(
                 request,
                 epoch_source_relevant_events,
-                &unfiltered_report.get(&request.report_uris().querier_uris[0]).unwrap(),
+                unfiltered_result.uri_report_map.get(&request.report_uris().querier_uris[0]).unwrap(),
                 num_epochs,
             );
 
@@ -283,20 +283,20 @@ where
         }
 
         // Now that we've dropped OOB epochs, we can compute the final report.
-        let (intermediary_bucket_mapping, filtered_report) =
+        let filtered_result =
             request.compute_report(&relevant_events_per_epoch);
         let main_report = PdsReport {
-            filtered_report: filtered_report.get(&request.report_uris().querier_uris[0]).unwrap().clone(),
-            unfiltered_report: unfiltered_report.get(&request.report_uris().querier_uris[0]).unwrap().clone(),
+            filtered_report: filtered_result.uri_report_map.get(&request.report_uris().querier_uris[0]).unwrap().clone(),
+            unfiltered_report: unfiltered_result.uri_report_map.get(&request.report_uris().querier_uris[0]).unwrap().clone(),
             oob_filters,
         };
 
         // Handle optimization queries when at least two intermediary URIs are in the request.
-        if self.is_optimization_query(filtered_report) {
+        if self.is_optimization_query(filtered_result.uri_report_map) {
             let intermediary_uris = request.report_uris().intermediary_uris.clone();
             let mut intermediary_reports = HashMap::new();
 
-            if intermediary_bucket_mapping.keys().len() > 0 {
+            if filtered_result.uri_bucket_map.keys().len() > 0 {
                 // Process each intermediary
                 for intermediary_uri in intermediary_uris {
                     // TODO(https://github.com/columbia/pdslib/issues/55):
@@ -307,12 +307,12 @@ where
                     // Get the relevant events for this intermediary
 
                     // Filter report for this intermediary
-                    if let Some(intermediary_filtered_report) = unfiltered_report.get(&intermediary_uri
+                    if let Some(intermediary_filtered_report) = unfiltered_result.uri_report_map.get(&intermediary_uri
                     ) {
                         // Create PdsReport for this intermediary
                         let intermediary_pds_report = PdsReport {
                             filtered_report: intermediary_filtered_report.clone(),
-                            unfiltered_report: unfiltered_report.get(&intermediary_uri).unwrap().clone(),
+                            unfiltered_report: unfiltered_result.uri_report_map.get(&intermediary_uri).unwrap().clone(),
                             oob_filters: main_report.oob_filters.clone(),
                         };
                         
@@ -579,7 +579,7 @@ where
             return true;
         }
 
-        return false;
+        false
     }
 }
 

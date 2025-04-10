@@ -4,7 +4,7 @@ use crate::{
     budget::pure_dp_filter::PureDPBudget,
     events::traits::{EpochEvents, EpochId, Event, RelevantEventSelector},
     mechanisms::{NoiseScale, NormType},
-    queries::traits::{EpochReportRequest, Report, ReportRequestUris},
+    queries::traits::{EpochReportRequest, Report, ReportRequestUris, QueryComputeResult},
 };
 
 #[derive(Debug, Clone)]
@@ -150,10 +150,7 @@ impl<H: HistogramRequest> EpochReportRequest for H {
     fn compute_report(
         &self,
         relevant_events_per_epoch: &HashMap<Self::EpochId, Self::EpochEvents>,
-    ) -> (
-        HashMap<Self::Uri, HashSet<usize>>,
-        HashMap<Self::Uri, Self::Report>,
-    ) {
+    ) -> QueryComputeResult<Self::Uri, Self::Report> {
         let mut bin_values: HashMap<H::BucketKey, f64> = HashMap::new();
 
         let mut total_value: f64 = 0.0;
@@ -220,13 +217,13 @@ impl<H: HistogramRequest> EpochReportRequest for H {
 
         match self.get_intermediary_bucket_mapping() {
             Some(intermediary_mapping) => {
-                (
+                QueryComputeResult::new(
                     intermediary_mapping.clone(),
                     site_to_report_mapping,
                 )
             }
             None => {
-                (
+                QueryComputeResult::new(
                     HashMap::new(),
                     site_to_report_mapping,
                 )

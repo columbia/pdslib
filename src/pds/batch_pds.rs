@@ -17,11 +17,36 @@ use crate::{
     queries::{ppa_histogram::PpaHistogramRequest, traits::EpochReportRequest},
 };
 
+use super::{epoch_pds::StaticCapacities, utils::PpaCapacities};
+
+#[derive(Debug)]
+pub struct BatchedRequest {
+    /// Since reports are dissociated from the initial report request, we need to keep track of who asked for what.
+    pub request_id: u64,
+
+    /// Number of times we can try scheduling this request.
+    /// E.g. if this is equal to 1, this request goes through only one `schedule_batch` call.
+    /// It has to be answered by the end of the call. If it didn't get allocated in the initialization, online or batch phase then it is answered with a null report.
+    pub n_remaining_scheduling_attempts: u64,
+
+    /// The actual request.
+    /// TODO: make generic.
+    pub request: PpaHistogramRequest,
+}
+
 /// [Experimental] Batch wrapper for private data service.
-/// TODO: maybe we need a trait for EpochPDS in the end. Make generic.
 pub struct BatchPrivateDataService {
-    /// Batch.
-    pub pending_requests: Vec<PpaHistogramRequest>,
+    pub current_scheduling_interval: u64,
+
+    /// Queries that arrived during the current interval.
+    pub new_pending_requests: Vec<BatchedRequest>,
+
+    /// Queries that are still waiting.
+    pub batched_requests: Vec<BatchedRequest>,
+
+    /// Reports for requests that have already been answered but need to wait for more scheduling intervals until they can be released.
+    /// Grouped by scheduling interval at the end of which they will be released.
+    pub delayed_reports: HashMap<u64, Vec<BatchedReport>>,
 
     /// Base private data service.
     /// Filters need to have functionality to unlock budget.
@@ -29,39 +54,92 @@ pub struct BatchPrivateDataService {
 }
 // TODO: time release. Maybe lives outside of pdslib.
 
+/// Report for a batched request. Guaranteed to be returned after the number of scheduling attempts the request specified.
+#[derive(Debug)]
+pub struct BatchedReport {
+    /// The request that asked for this report, potentially a long time ago.
+    pub request_id: u64,
+
+    /// The report answering that request.
+    pub report: PdsReport<PpaHistogramRequest>,
+}
+
 impl BatchPrivateDataService {
+    /// Creates a new batch private data service.
+    pub fn new(capacities: PpaCapacities) -> Result<Self, Error> {
+        let pds = PpaPds::new(capacities)?;
+
+        Ok(BatchPrivateDataService {
+            current_scheduling_interval: 0,
+            new_pending_requests: vec![],
+            batched_requests: vec![],
+            delayed_reports: HashMap::new(),
+            pds,
+        })
+    }
+
     /// Registers a new event, calls the existing pds transparently.
     pub fn register_event(&mut self, event: PpaEvent) -> Result<(), Error> {
         self.pds.register_event(event)
     }
 
-    /// TODO: Nice to take ownership of the request, should do that in pds too.
     pub fn register_report_request(
         &mut self,
-        request: PpaHistogramRequest,
+        request: BatchedRequest,
     ) -> Result<(), Error> {
-        self.pending_requests.push(request);
+        self.new_pending_requests.push(request);
         Ok(())
     }
 
-    pub fn schedule_batch(
-        &mut self,
-    ) -> Result<Vec<PdsReport<PpaHistogramRequest>>, Error> {
-        // TODO(P1): first unlock some  fresh eps_C.
-        // then go through requests one by one, try to allocate with regular quotas.
-        //  next, reach out to the filters to deactivate qimp or set the capacity to infinity.
-        // At the end, reset the quota filter capacities.
-        // Let's keep a fixed qconv for now.
-
+    pub fn schedule_batch(&mut self) -> Result<Vec<BatchedReport>, Error> {
         // TODO: keep track of queriers and intermediaries? Or maybe this lives in the report directly, metadata. Maybe wrap it.
         // TODO: keep pending requests by deadline.
+
+        self.initialization_phase()?;
+        self.online_phase()?;
+        self.batch_phase()?;
+
+        // Take all the reports that are ready to be released.
+        let reports = self
+            .delayed_reports
+            .remove(&self.current_scheduling_interval)
+            .unwrap_or_default();
+
+        self.current_scheduling_interval += 1;
+
+        Ok(reports) // TODO(P1): only answer by the deadline.
+    }
+
+    fn initialization_phase(&mut self) -> Result<(), Error> {
+        // TODO(P1): first unlock eps_C. Fresh quotas.
+        // TODO: what happens when some epochs in the attribution have unlocked their whole budget but not others?
+
+        // Go through batched requests, they get a head start.
+        todo!()
+
+        // TODO(later): some basic caching to avoid checking queries that have zero chance of being fair?
+    }
+
+    fn online_phase(&mut self) -> Result<(), Error> {
+        // browse newly arrived requests one by one, try to allocate with regular quotas.
+
         let mut reports = vec![];
-        for request in self.pending_requests.iter() {
-            let report = self.pds.compute_report(request)?;
+
+        for request in self.new_pending_requests.iter() {
+            let report = self.pds.compute_report(&request.request)?;
             reports.push(report);
         }
-        self.pending_requests.clear(); // We don't retry failed requests for now.
-        Ok(reports)
+
+        self.new_pending_requests.clear(); // TODO: put in batch.
+
+        todo!()
+    }
+
+    fn batch_phase(&mut self) -> Result<(), Error> {
+        //  next, reach out to the filters to deactivate qimp or set the capacity to infinity.
+        // Let's keep a fixed qconv for now.
+        // Sort and try to allocate.
+        todo!()
     }
 }
 
@@ -94,13 +172,7 @@ mod tests {
         log4rs::init_file("logging_config.yaml", Default::default())?;
 
         let capacities = StaticCapacities::mock();
-
-        let pds = PpaPds::new(capacities)?;
-
-        let mut batch_pds = BatchPrivateDataService {
-            pending_requests: vec![],
-            pds,
-        };
+        let mut batch_pds = BatchPrivateDataService::new(capacities)?;
 
         info!("Registering events");
 
@@ -115,11 +187,23 @@ mod tests {
 
         batch_pds.register_event(event1.clone())?;
 
-        let request1 = PpaHistogramRequest::mock()?;
-        batch_pds.register_report_request(request1)?;
+        batch_pds.register_report_request(BatchedRequest {
+            request_id: 1,
+            n_remaining_scheduling_attempts: 1,
+            request: PpaHistogramRequest::mock()?,
+        })?;
 
-        let request2 = PpaHistogramRequest::mock()?;
-        batch_pds.register_report_request(request2)?;
+        batch_pds.register_report_request(BatchedRequest {
+            request_id: 2,
+            n_remaining_scheduling_attempts: 1,
+            request: PpaHistogramRequest::mock()?,
+        })?;
+
+        batch_pds.register_report_request(BatchedRequest {
+            request_id: 3,
+            n_remaining_scheduling_attempts: 2,
+            request: PpaHistogramRequest::mock()?,
+        })?;
 
         let reports = batch_pds.schedule_batch()?;
         assert_eq!(reports.len(), 2);
@@ -127,8 +211,8 @@ mod tests {
         info!("Reports: {:?}", reports);
 
         let reports = batch_pds.schedule_batch()?;
-        assert_eq!(reports.len(), 0);
-        info!("Reports after scheduling everyone: {:?}", reports);
+        assert_eq!(reports.len(), 1);
+        info!("Reports again: {:?}", reports);
 
         // TODO: check ull reports, etc.
 

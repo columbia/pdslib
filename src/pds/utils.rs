@@ -23,12 +23,15 @@ use crate::{
 
 use super::epoch_pds::StaticCapacities;
 
+pub type PpaCapacities =
+    StaticCapacities<FilterId<usize, String>, PureDPBudget>;
+
 pub type PpaPds = EpochPrivateDataService<
     HashMapFilterStorage<
         FilterId<usize, String>,
         PureDPBudgetFilter,
         PureDPBudget,
-        StaticCapacities<FilterId<usize, String>, PureDPBudget>,
+        PpaCapacities,
     >,
     HashMapEventStorage<PpaEvent, PpaRelevantEventSelector>,
     PpaHistogramRequest,
@@ -36,9 +39,7 @@ pub type PpaPds = EpochPrivateDataService<
 >;
 
 impl PpaPds {
-    pub fn new(
-        capacities: StaticCapacities<FilterId<usize, String>, PureDPBudget>,
-    ) -> Result<Self, anyhow::Error> {
+    pub fn new(capacities: PpaCapacities) -> Result<Self, anyhow::Error> {
         let events =
             HashMapEventStorage::<PpaEvent, PpaRelevantEventSelector>::new();
 

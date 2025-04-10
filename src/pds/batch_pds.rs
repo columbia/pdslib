@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fmt::Debug, hash::Hash, vec};
 
-use anyhow::Error;
+use anyhow::{Error, Result};
 
 use crate::{
     budget::{pure_dp_filter::PureDPBudget, traits::FilterStorage},
@@ -66,7 +66,7 @@ pub struct BatchedReport {
 
 impl BatchPrivateDataService {
     /// Creates a new batch private data service.
-    pub fn new(capacities: PpaCapacities) -> Result<Self, Error> {
+    pub fn new(capacities: PpaCapacities) -> Result<Self> {
         let pds = PpaPds::new(capacities)?;
 
         Ok(BatchPrivateDataService {
@@ -79,19 +79,19 @@ impl BatchPrivateDataService {
     }
 
     /// Registers a new event, calls the existing pds transparently.
-    pub fn register_event(&mut self, event: PpaEvent) -> Result<(), Error> {
+    pub fn register_event(&mut self, event: PpaEvent) -> Result<()> {
         self.pds.register_event(event)
     }
 
     pub fn register_report_request(
         &mut self,
         request: BatchedRequest,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         self.new_pending_requests.push(request);
         Ok(())
     }
 
-    pub fn schedule_batch(&mut self) -> Result<Vec<BatchedReport>, Error> {
+    pub fn schedule_batch(&mut self) -> Result<Vec<BatchedReport>> {
         // TODO: keep track of queriers and intermediaries? Or maybe this lives in the report directly, metadata. Maybe wrap it.
         // TODO: keep pending requests by deadline.
 
@@ -110,17 +110,21 @@ impl BatchPrivateDataService {
         Ok(reports) // TODO(P1): only answer by the deadline.
     }
 
-    fn initialization_phase(&mut self) -> Result<(), Error> {
+    fn initialization_phase(&mut self) -> Result<()> {
         // TODO(P1): first unlock eps_C. Fresh quotas.
         // TODO: what happens when some epochs in the attribution have unlocked their whole budget but not others?
 
         // Go through batched requests, they get a head start.
-        todo!()
-
+        for request in self.new_pending_requests.iter() {
+            let report = self.pds.compute_report(&request.request)?;
+            // TODO: check output.
+            reports.push(report);
+        }
+        Ok(())
         // TODO(later): some basic caching to avoid checking queries that have zero chance of being fair?
     }
 
-    fn online_phase(&mut self) -> Result<(), Error> {
+    fn online_phase(&mut self) -> Result<()> {
         // browse newly arrived requests one by one, try to allocate with regular quotas.
 
         let mut reports = vec![];
@@ -135,7 +139,7 @@ impl BatchPrivateDataService {
         todo!()
     }
 
-    fn batch_phase(&mut self) -> Result<(), Error> {
+    fn batch_phase(&mut self) -> Result<()> {
         //  next, reach out to the filters to deactivate qimp or set the capacity to infinity.
         // Let's keep a fixed qconv for now.
         // Sort and try to allocate.

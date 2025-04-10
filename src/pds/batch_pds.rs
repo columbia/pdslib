@@ -1,33 +1,26 @@
-use std::{collections::HashMap, fmt::Debug, hash::Hash, mem::take, vec};
+use std::{collections::HashMap, fmt::Debug, mem::take, vec};
 
-use anyhow::{bail, Error, Result};
-use log::info;
+use anyhow::{bail, Result};
 
+use super::utils::PpaCapacities;
 use crate::{
-    budget::{pure_dp_filter::PureDPBudget, traits::FilterStorage},
-    events::{
-        ppa_event::PpaEvent,
-        traits::{
-            EpochEvents, EpochId, Event, EventStorage, RelevantEventSelector,
-        },
-    },
-    pds::{
-        epoch_pds::{EpochPrivateDataService, FilterId, PdsReport},
-        utils::PpaPds,
-    },
+    budget::traits::FilterStorage,
+    events::{ppa_event::PpaEvent, traits::EpochEvents},
+    pds::{epoch_pds::PdsReport, utils::PpaPds},
     queries::{ppa_histogram::PpaHistogramRequest, traits::EpochReportRequest},
 };
 
-use super::{epoch_pds::StaticCapacities, utils::PpaCapacities};
-
 #[derive(Debug)]
 pub struct BatchedRequest {
-    /// Since reports are dissociated from the initial report request, we need to keep track of who asked for what.
+    /// Since reports are dissociated from the initial report request, we need
+    /// to keep track of who asked for what.
     request_id: u64,
 
     /// Number of times we can try scheduling this request.
-    /// E.g. if this is equal to 1, this request goes through only one `schedule_batch` call.
-    /// It has to be answered by the end of the call. If it didn't get allocated in the initialization, online or batch phase then it is answered with a null report.
+    /// E.g. if this is equal to 1, this request goes through only one
+    /// `schedule_batch` call. It has to be answered by the end of the
+    /// call. If it didn't get allocated in the initialization, online or batch
+    /// phase then it is answered with a null report.
     n_remaining_scheduling_attempts: u64,
 
     /// The actual request.
@@ -42,7 +35,9 @@ impl BatchedRequest {
         request: PpaHistogramRequest,
     ) -> Result<Self> {
         if n_scheduling_attemps == 0 {
-            // TODO: allow requests with 0 batch scheduling attempt for real-time queries. But for now we only consider batched, where a query goes through at least one batch phase.
+            // TODO: allow requests with 0 batch scheduling attempt for
+            // real-time queries. But for now we only consider batched, where a
+            // query goes through at least one batch phase.
             bail!("The request should have at least one scheduling attempt.");
         }
 
@@ -64,8 +59,10 @@ pub struct BatchPrivateDataService {
     /// Queries that are still waiting.
     pub batched_requests: Vec<BatchedRequest>,
 
-    /// Reports for requests that have already been answered but need to wait for more scheduling intervals until they can be released.
-    /// Grouped by scheduling interval at the end of which they will be released.
+    /// Reports for requests that have already been answered but need to wait
+    /// for more scheduling intervals until they can be released.
+    /// Grouped by scheduling interval at the end of which they will be
+    /// released.
     pub delayed_reports: HashMap<u64, Vec<BatchedReport>>,
 
     /// Base private data service.
@@ -74,7 +71,8 @@ pub struct BatchPrivateDataService {
 }
 // TODO: time release. Maybe lives outside of pdslib.
 
-/// Report for a batched request. Guaranteed to be returned after the number of scheduling attempts the request specified.
+/// Report for a batched request. Guaranteed to be returned after the number of
+/// scheduling attempts the request specified.
 #[derive(Debug)]
 pub struct BatchedReport {
     /// The request that asked for this report, potentially a long time ago.
@@ -112,20 +110,23 @@ impl BatchPrivateDataService {
     }
 
     pub fn schedule_batch(&mut self) -> Result<Vec<BatchedReport>> {
-        // TODO: keep track of queriers and intermediaries? Or maybe this lives in the report directly, metadata. Maybe wrap it.
-        // TODO: keep pending requests by deadline.
+        // TODO: keep track of queriers and intermediaries? Or maybe this lives
+        // in the report directly, metadata. Maybe wrap it. TODO: keep
+        // pending requests by deadline.
 
         // TODO: move this to another function?
         self.initialization_phase()?;
 
         self.online_phase()?;
 
-        // We are about to finish the scheduling interval. Decrement the number of remaining attempts for all requests.
+        // We are about to finish the scheduling interval. Decrement the number
+        // of remaining attempts for all requests.
         for request in &mut self.batched_requests {
             request.n_remaining_scheduling_attempts -= 1;
         }
 
-        // Any request with 0 remaining attempts will be answered here and removed from the batch.
+        // Any request with 0 remaining attempts will be answered here and
+        // removed from the batch.
         self.batch_phase()?;
 
         // Take all the reports that are ready to be released.
@@ -141,8 +142,10 @@ impl BatchPrivateDataService {
 
     fn initialization_phase(&mut self) -> Result<()> {
         // TODO(P1): first unlock eps_C. Fresh quotas.
-        // TODO: what happens when some epochs in the attribution have unlocked their whole budget but not others?
-        // TODO(later): some basic caching to avoid checking queries that have zero chance of being fair?
+        // TODO: what happens when some epochs in the attribution have unlocked
+        // their whole budget but not others? TODO(later): some basic
+        // caching to avoid checking queries that have zero chance of being
+        // fair?
 
         let batched_requests = take(&mut self.batched_requests);
         let unallocated_requests = self.try_allocate(batched_requests)?;
@@ -154,7 +157,8 @@ impl BatchPrivateDataService {
     }
 
     fn online_phase(&mut self) -> Result<()> {
-        // browse newly arrived requests one by one, try to allocate with regular quotas.
+        // browse newly arrived requests one by one, try to allocate with
+        // regular quotas.
 
         let new_pending_requests = take(&mut self.new_pending_requests);
         let unallocated_requests = self.try_allocate(new_pending_requests)?;
@@ -165,14 +169,15 @@ impl BatchPrivateDataService {
     }
 
     fn batch_phase(&mut self) -> Result<()> {
-        //  next, reach out to the filters to deactivate qimp or set the capacity to infinity.
-        // Let's keep a fixed qconv for now.
+        //  next, reach out to the filters to deactivate qimp or set the
+        // capacity to infinity. Let's keep a fixed qconv for now.
         // Sort and try to allocate.
 
         // TODO(P1): implement the actual logic here.
         let sorted_batched_requests = take(&mut self.batched_requests);
 
-        // Try to allocate the requests. Requests with 0 remaining attemps will be
+        // Try to allocate the requests. Requests with 0 remaining attemps will
+        // be
         let unallocated_requests =
             self.try_allocate(sorted_batched_requests)?;
 
@@ -191,13 +196,16 @@ impl BatchPrivateDataService {
             let report = self.pds.compute_report(&request.request)?;
 
             if report.error_cause().is_none() {
-                // Request was successfully allocated. Keep the result for when the time is right.
+                // Request was successfully allocated. Keep the result for when
+                // the time is right.
                 let batched_report = BatchedReport {
                     request_id: request.request_id,
                     report,
                 };
 
-                // If n_remaining_scheduling_attempts is 0, we will release the report right away, at the end of the current call to `schedule_batch`.
+                // If n_remaining_scheduling_attempts is 0, we will release the
+                // report right away, at the end of the current call to
+                // `schedule_batch`.
                 let target_scheduling_interval = self
                     .current_scheduling_interval
                     + request.n_remaining_scheduling_attempts;
@@ -253,7 +261,8 @@ mod tests {
             id: 1,
             timestamp: 0,
             epoch_number: 1,
-            histogram_index: 0x559, // 0x559 = "campaignCounts".to_string() | 0x400
+            histogram_index: 0x559, /* 0x559 = "campaignCounts".to_string() |
+                                     * 0x400 */
             uris: EventUris::mock(),
             filter_data: 1,
         };

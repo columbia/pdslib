@@ -1,6 +1,8 @@
-//! TODO: require Event Storage and Filter Storage to implement `new` with some config param?
-//! Or make things a bit more generic, only for those who implement the right traits.
+//! TODO: require Event Storage and Filter Storage to implement `new` with some
+//! config param? Or make things a bit more generic, only for those who
+//! implement the right traits.
 
+use super::epoch_pds::StaticCapacities;
 use crate::{
     budget::{
         hashmap_filter_storage::HashMapFilterStorage,
@@ -8,20 +10,12 @@ use crate::{
         traits::FilterStorage,
     },
     events::{
-        hashmap_event_storage::HashMapEventStorage,
-        ppa_event::PpaEvent,
-        traits::{
-            EpochEvents, EpochId, Event, EventStorage, RelevantEventSelector,
-        },
+        hashmap_event_storage::HashMapEventStorage, ppa_event::PpaEvent,
+        traits::EpochEvents,
     },
-    pds::epoch_pds::{EpochPrivateDataService, FilterId, PdsReport},
-    queries::{
-        ppa_histogram::{PpaHistogramRequest, PpaRelevantEventSelector},
-        traits::EpochReportRequest,
-    },
+    pds::epoch_pds::{EpochPrivateDataService, FilterId},
+    queries::ppa_histogram::{PpaHistogramRequest, PpaRelevantEventSelector},
 };
-
-use super::epoch_pds::StaticCapacities;
 
 pub type PpaCapacities =
     StaticCapacities<FilterId<usize, String>, PureDPBudget>;

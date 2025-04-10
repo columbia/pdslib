@@ -81,7 +81,8 @@ impl PpaHistogramRequest {
     /// - `requested_epsilon` is > 0.
     /// - `report_global_sensitivity` and `query_global_sensitivity` are
     ///   non-negative.
-    /// TODO: Cleaner error types, maybe avoid anyhow in pdslib even if it's a bit tedious.
+    /// TODO: Cleaner error types, maybe avoid anyhow in pdslib even if it's a
+    /// bit tedious.
     pub fn new(
         start_epoch: usize,
         end_epoch: usize,

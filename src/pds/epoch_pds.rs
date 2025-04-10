@@ -180,14 +180,16 @@ pub enum FilterErrorType {
 }
 
 impl<Q: EpochReportRequest> PdsReport<Q> {
-    /// Returns None if the report was not impacted by filters that were out of budget.
-    /// Otherwise, returns the cause of the error, using some error attribution rules.
+    /// Returns None if the report was not impacted by filters that were out of
+    /// budget. Otherwise, returns the cause of the error, using some error
+    /// attribution rules.
     pub fn error_cause(&self) -> Option<FilterErrorType> {
         if self.oob_filters.is_empty() {
             return None;
         }
 
-        // We start by counting the OOB filters in each category, for that particular report.
+        // We start by counting the OOB filters in each category, for that
+        // particular report.
         let mut n_nc_report = 0;
         let mut n_c_report = 0;
         let mut n_qconv_report = 0;

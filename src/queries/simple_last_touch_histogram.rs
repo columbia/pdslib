@@ -7,7 +7,9 @@ use crate::{
         traits::RelevantEventSelector,
     },
     mechanisms::{NoiseScale, NormType},
-    queries::traits::{EpochReportRequest, Report, ReportRequestUris, QueryComputeResult},
+    queries::traits::{
+        EpochReportRequest, QueryComputeResult, Report, ReportRequestUris,
+    },
 };
 
 #[derive(Debug)]
@@ -105,7 +107,7 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
                             SimpleLastTouchHistogramReport {
                                 bin_value: Some((event_key, attributed_value)),
                             },
-                        )])
+                        )]),
                     );
                 }
             }
@@ -115,14 +117,8 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
         QueryComputeResult::new(
             HashMap::new(),
             HashMap::from([(
-                self.report_uris
-                    .querier_uris
-                    .first()
-                    .unwrap()
-                    .clone(),
-                SimpleLastTouchHistogramReport {
-                        bin_value: None
-                    },
+                self.report_uris.querier_uris.first().unwrap().clone(),
+                SimpleLastTouchHistogramReport { bin_value: None },
             )]),
         )
     }

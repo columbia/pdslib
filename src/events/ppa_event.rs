@@ -27,7 +27,6 @@ pub struct PpaEvent {
 impl Event for PpaEvent {
     type EpochId = usize;
     type Uri = String;
-    type HistogramIndex = usize;
 
     fn epoch_id(&self) -> Self::EpochId {
         self.epoch_number

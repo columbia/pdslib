@@ -15,7 +15,11 @@ use pdslib::{
     },
     pds::epoch_pds::{EpochPrivateDataService, StaticCapacities},
     queries::{
-        histogram::HistogramRequest, ppa_histogram::{PpaHistogramConfig, PpaHistogramRequest, PpaRelevantEventSelector}, traits::ReportRequestUris
+        histogram::HistogramRequest,
+        ppa_histogram::{
+            PpaHistogramConfig, PpaHistogramRequest, PpaRelevantEventSelector,
+        },
+        traits::ReportRequestUris,
     },
 };
 
@@ -52,9 +56,7 @@ fn main() -> Result<(), anyhow::Error> {
     let sample_report_request_uris = ReportRequestUris {
         trigger_uri: "shoes.com".to_string(),
         source_uris: vec!["blog.com".to_string()],
-        intermediary_uris: vec![
-            "search.engine.com".to_string(),
-        ],
+        intermediary_uris: vec!["search.engine.com".to_string()],
         querier_uris: vec!["adtech.com".to_string()],
     };
 
@@ -121,7 +123,11 @@ fn main() -> Result<(), anyhow::Error> {
 
     let report1 = pds.compute_report(&request1).unwrap();
     info!("Report1: {:?}", report1);
-    let bin_values1 = &report1.get(&request1.report_uris().querier_uris[0]).unwrap().filtered_report.bin_values;
+    let bin_values1 = &report1
+        .get(&request1.report_uris().querier_uris[0])
+        .unwrap()
+        .filtered_report
+        .bin_values;
 
     // One event attributed to the binary OR of the source keypiece and trigger
     // keypiece = 0x159 | 0x400
@@ -173,7 +179,15 @@ fn main() -> Result<(), anyhow::Error> {
 
     // No event attributed because the lambda logic filters out the only
     // qualified event.
-    assert_eq!(report3.get(&request3.report_uris().querier_uris[0]).unwrap().filtered_report.bin_values.len(), 0);
+    assert_eq!(
+        report3
+            .get(&request3.report_uris().querier_uris[0])
+            .unwrap()
+            .filtered_report
+            .bin_values
+            .len(),
+        0
+    );
 
     // TODO(https://github.com/columbia/pdslib/issues/8): add more tests when we have multiple events
 

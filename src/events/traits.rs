@@ -31,8 +31,6 @@ pub struct EventUris<U> {
 pub trait Event: Debug + Clone {
     type EpochId: EpochId;
     type Uri: Clone + Eq + Hash + Debug;
-    type HistogramIndex: Hash + Eq + Clone + Debug;
-    // TODO(https://github.com/columbia/pdslib/issues/18): add source/trigger information for Big Bird / Level 2.
 
     fn epoch_id(&self) -> Self::EpochId;
 

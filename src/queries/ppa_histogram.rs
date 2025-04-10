@@ -1,11 +1,17 @@
-use std::{collections::{HashMap, HashSet}, vec};
+use std::{
+    collections::{HashMap, HashSet},
+    vec,
+};
 
 use crate::{
     events::{
         hashmap_event_storage::VecEpochEvents, ppa_event::PpaEvent,
         traits::RelevantEventSelector,
     },
-    queries::{histogram::{HistogramRequest, HistogramReport}, traits::ReportRequestUris},
+    queries::{
+        histogram::{HistogramReport, HistogramRequest},
+        traits::ReportRequestUris,
+    },
 };
 
 pub struct PpaRelevantEventSelector {
@@ -96,7 +102,9 @@ impl PpaHistogramRequest {
         if config.requested_epsilon <= 0.0 {
             return Err("requested_epsilon must be greater than 0");
         }
-        if config.report_global_sensitivity < 0.0 || config.query_global_sensitivity < 0.0 {
+        if config.report_global_sensitivity < 0.0
+            || config.query_global_sensitivity < 0.0
+        {
             return Err("sensitivity values must be non-negative");
         }
         if config.histogram_size == 0 {
@@ -113,14 +121,24 @@ impl PpaHistogramRequest {
             logic: AttributionLogic::LastTouch,
         })
     }
-    
-    pub fn get_intermediary_bucket_mapping(&self) -> &HashMap<String, HashSet<usize>> {
+
+    pub fn get_intermediary_bucket_mapping(
+        &self,
+    ) -> &HashMap<String, HashSet<usize>> {
         &self.filters.intermediary_bucket_mapping
     }
-    
+
     // Helper to check if a bucket is for a specific intermediary
-    pub fn is_bucket_for_intermediary(&self, bucket_key: usize, intermediary_uri: &str) -> bool {
-        match self.filters.intermediary_bucket_mapping.get(intermediary_uri) {
+    pub fn is_bucket_for_intermediary(
+        &self,
+        bucket_key: usize,
+        intermediary_uri: &str,
+    ) -> bool {
+        match self
+            .filters
+            .intermediary_bucket_mapping
+            .get(intermediary_uri)
+        {
             Some(bucket_set) => bucket_set.contains(&bucket_key),
             None => false,
         }
@@ -211,8 +229,10 @@ impl HistogramRequest for PpaHistogramRequest {
         self.filters.report_request_uris.clone()
     }
 
-    fn get_intermediary_bucket_mapping(&self) -> Option<&HashMap<String, HashSet<usize>>> {
-       Some(&self.filters.intermediary_bucket_mapping)
+    fn get_intermediary_bucket_mapping(
+        &self,
+    ) -> Option<&HashMap<String, HashSet<usize>>> {
+        Some(&self.filters.intermediary_bucket_mapping)
     }
 
     fn filter_report_for_intermediary(
@@ -222,11 +242,20 @@ impl HistogramRequest for PpaHistogramRequest {
         _relevant_events_per_epoch: &HashMap<Self::EpochId, Self::EpochEvents>,
     ) -> Option<HistogramReport<Self::BucketKey>> {
         // intermediary_bucket_mapping.get() returns Option<&HashSet<usize>>
-        self.filters.intermediary_bucket_mapping.get(intermediary_uri).map(|intermediary_buckets| {
-            // intermediary_buckets is &HashSet<usize>, which is what filter_histogram_for_intermediary expects
-            let filtered_bins = filter_histogram_for_intermediary(&report.bin_values, intermediary_buckets);
-            HistogramReport { bin_values: filtered_bins }
-        })
+        self.filters
+            .intermediary_bucket_mapping
+            .get(intermediary_uri)
+            .map(|intermediary_buckets| {
+                // intermediary_buckets is &HashSet<usize>, which is what
+                // filter_histogram_for_intermediary expects
+                let filtered_bins = filter_histogram_for_intermediary(
+                    &report.bin_values,
+                    intermediary_buckets,
+                );
+                HistogramReport {
+                    bin_values: filtered_bins,
+                }
+            })
     }
 }
 
@@ -239,27 +268,27 @@ pub fn create_intermediary_bucket_mapping(
     // Track which bucket is assigned to which intermediaries
     for (uri, buckets) in &mappings {
         for &bucket in buckets {
-            all_buckets.entry(bucket)
-                .or_default()
-                .push(uri.clone());
+            all_buckets.entry(bucket).or_default().push(uri.clone());
         }
     }
-    
+
     // Find any buckets assigned to multiple intermediaries
     let overlapping_buckets: HashMap<usize, Vec<String>> = all_buckets
         .into_iter()
         .filter(|(_, uris)| uris.len() > 1)
         .collect();
     if !overlapping_buckets.is_empty() {
-        return Err(String::from("Bucket overlap detected between intermediaries"));
+        return Err(String::from(
+            "Bucket overlap detected between intermediaries",
+        ));
     }
-    
+
     // If no overlaps, create the mapping as before
     let mapping = mappings
         .into_iter()
         .map(|(uri, buckets)| (uri, buckets.into_iter().collect()))
         .collect();
-    
+
     Ok(mapping)
 }
 

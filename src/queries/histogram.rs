@@ -1,10 +1,16 @@
-use std::{collections::{HashMap, HashSet}, fmt::Debug, hash::Hash};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Debug,
+    hash::Hash,
+};
 
 use crate::{
     budget::pure_dp_filter::PureDPBudget,
     events::traits::{EpochEvents, EpochId, Event, RelevantEventSelector},
     mechanisms::{NoiseScale, NormType},
-    queries::traits::{EpochReportRequest, Report, ReportRequestUris, QueryComputeResult},
+    queries::traits::{
+        EpochReportRequest, QueryComputeResult, Report, ReportRequestUris,
+    },
 };
 
 #[derive(Debug, Clone)]
@@ -85,21 +91,23 @@ where
 
     fn report_uris(&self) -> ReportRequestUris<String>;
 
-     /// Gets the querier bucket mapping for filtering histograms
-     fn get_intermediary_bucket_mapping(&self) -> Option<&HashMap<String, HashSet<usize>>> {
+    /// Gets the querier bucket mapping for filtering histograms
+    fn get_intermediary_bucket_mapping(
+        &self,
+    ) -> Option<&HashMap<String, HashSet<usize>>> {
         None // Default implementation returns None
     }
 
     /// Filter a histogram for a specific querier
     fn filter_report_for_intermediary(
         &self,
-        _: &HistogramReport<Self::BucketKey>, 
+        _: &HistogramReport<Self::BucketKey>,
         _: &String,
         _: &HashMap<Self::EpochId, Self::EpochEvents>,
     ) -> Option<HistogramReport<Self::BucketKey>> {
         None // Default implementation returns an empty HashMap
     }
-    
+
     // Function to create an intermediary-to-bucket mapping
     fn create_intermediary_bucket_mapping(
         mappings: Vec<(String, Vec<usize>)>,
@@ -176,7 +184,9 @@ impl<H: HistogramRequest> EpochReportRequest for H {
             if total_value > self.report_global_sensitivity() {
                 // Return partial attribution to stay within the cap.
                 early_stop = true;
-                report = HistogramReport { bin_values: bin_values.clone() };
+                report = HistogramReport {
+                    bin_values: bin_values.clone(),
+                };
                 break;
             }
             let bin = self.bucket_key(event);
@@ -188,10 +198,8 @@ impl<H: HistogramRequest> EpochReportRequest for H {
         }
 
         let mut site_to_report_mapping = HashMap::new();
-        site_to_report_mapping.insert(
-            self.report_uris().querier_uris[0].clone(),
-            report.clone(),
-        );
+        site_to_report_mapping
+            .insert(self.report_uris().querier_uris[0].clone(), report.clone());
 
         for intermediary_uri in self.report_uris().intermediary_uris.iter() {
             match self.filter_report_for_intermediary(
@@ -200,33 +208,27 @@ impl<H: HistogramRequest> EpochReportRequest for H {
                 relevant_events_per_epoch,
             ) {
                 Some(filtered_report) => {
-                    site_to_report_mapping.insert(
-                        intermediary_uri.clone(), 
-                        filtered_report,
-                    );
+                    site_to_report_mapping
+                        .insert(intermediary_uri.clone(), filtered_report);
                 }
                 None => {
                     site_to_report_mapping.insert(
                         intermediary_uri.clone(),
-                        HistogramReport { bin_values: HashMap::new() },
+                        HistogramReport {
+                            bin_values: HashMap::new(),
+                        },
                     );
                 }
             }
-            
         }
 
         match self.get_intermediary_bucket_mapping() {
-            Some(intermediary_mapping) => {
-                QueryComputeResult::new(
-                    intermediary_mapping.clone(),
-                    site_to_report_mapping,
-                )
-            }
+            Some(intermediary_mapping) => QueryComputeResult::new(
+                intermediary_mapping.clone(),
+                site_to_report_mapping,
+            ),
             None => {
-                QueryComputeResult::new(
-                    HashMap::new(),
-                    site_to_report_mapping,
-                )
+                QueryComputeResult::new(HashMap::new(), site_to_report_mapping)
             }
         }
     }

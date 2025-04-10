@@ -165,10 +165,14 @@ where
     /// Computes a report for the given report request.
     /// This function follows `compute_attribution_report` from the Cookie
     /// Monster Algorithm (https://arxiv.org/pdf/2405.16719, Code Listing 1)
-    pub fn compute_report(&mut self, request: &Q) -> Result<HashMap<Q::Uri, PdsReport<Q>>, ERR> {
+    pub fn compute_report(
+        &mut self,
+        request: &Q,
+    ) -> Result<HashMap<Q::Uri, PdsReport<Q>>, ERR> {
         debug!("Computing report for request {:?}", request);
 
-        // Check if this is a multi-beneficiary query, which we don't support yet
+        // Check if this is a multi-beneficiary query, which we don't support
+        // yet
         if request.report_uris().querier_uris.len() > 1 {
             todo!("Implement multi-beneficiary queries");
         }
@@ -224,7 +228,10 @@ where
             let individual_privacy_loss = self.compute_epoch_loss(
                 request,
                 epoch_relevant_events,
-                unfiltered_result.uri_report_map.get(&request.report_uris().querier_uris[0]).unwrap(),
+                unfiltered_result
+                    .uri_report_map
+                    .get(&request.report_uris().querier_uris[0])
+                    .unwrap(),
                 num_epochs,
             );
 
@@ -237,7 +244,10 @@ where
             let source_losses = self.compute_epoch_source_losses(
                 request,
                 epoch_source_relevant_events,
-                unfiltered_result.uri_report_map.get(&request.report_uris().querier_uris[0]).unwrap(),
+                unfiltered_result
+                    .uri_report_map
+                    .get(&request.report_uris().querier_uris[0])
+                    .unwrap(),
                 num_epochs,
             );
 
@@ -286,51 +296,80 @@ where
         let filtered_result =
             request.compute_report(&relevant_events_per_epoch);
         let main_report = PdsReport {
-            filtered_report: filtered_result.uri_report_map.get(&request.report_uris().querier_uris[0]).unwrap().clone(),
-            unfiltered_report: unfiltered_result.uri_report_map.get(&request.report_uris().querier_uris[0]).unwrap().clone(),
+            filtered_report: filtered_result
+                .uri_report_map
+                .get(&request.report_uris().querier_uris[0])
+                .unwrap()
+                .clone(),
+            unfiltered_report: unfiltered_result
+                .uri_report_map
+                .get(&request.report_uris().querier_uris[0])
+                .unwrap()
+                .clone(),
             oob_filters,
         };
 
-        // Handle optimization queries when at least two intermediary URIs are in the request.
+        // Handle optimization queries when at least two intermediary URIs are
+        // in the request.
         if self.is_optimization_query(filtered_result.uri_report_map) {
-            let intermediary_uris = request.report_uris().intermediary_uris.clone();
+            let intermediary_uris =
+                request.report_uris().intermediary_uris.clone();
             let mut intermediary_reports = HashMap::new();
 
             if filtered_result.uri_bucket_map.keys().len() > 0 {
                 // Process each intermediary
                 for intermediary_uri in intermediary_uris {
                     // TODO(https://github.com/columbia/pdslib/issues/55):
-                    // The events should not be readable by any intermediary. In Fig 2 it seems that the first event is readable by r1.ex and r3.ex only,
-                    // and the second event is readable by r2.ex and r3.ex. r3 is a special intermediary that can read all the events (maybe r3.ex = shoes.example).
-                    // But feel free to keep this remark in a issue for later, because that would involve modifying the is_relevant_event logic too, to check that
-                    // the intermediary_uris match. Your get_intermediary_bucket_mapping seems to serve the same purpose.
+                    // The events should not be readable by any intermediary. In
+                    // Fig 2 it seems that the first event is readable by r1.ex
+                    // and r3.ex only, and the second event
+                    // is readable by r2.ex and r3.ex. r3 is a special
+                    // intermediary that can read all the events (maybe r3.ex =
+                    // shoes.example). But feel free to keep
+                    // this remark in a issue for later, because that would
+                    // involve modifying the is_relevant_event logic too, to
+                    // check that the intermediary_uris
+                    // match. Your get_intermediary_bucket_mapping seems to
+                    // serve the same purpose.
                     // Get the relevant events for this intermediary
 
                     // Filter report for this intermediary
-                    if let Some(intermediary_filtered_report) = unfiltered_result.uri_report_map.get(&intermediary_uri
-                    ) {
+                    if let Some(intermediary_filtered_report) =
+                        unfiltered_result.uri_report_map.get(&intermediary_uri)
+                    {
                         // Create PdsReport for this intermediary
                         let intermediary_pds_report = PdsReport {
-                            filtered_report: intermediary_filtered_report.clone(),
-                            unfiltered_report: unfiltered_result.uri_report_map.get(&intermediary_uri).unwrap().clone(),
+                            filtered_report: intermediary_filtered_report
+                                .clone(),
+                            unfiltered_report: unfiltered_result
+                                .uri_report_map
+                                .get(&intermediary_uri)
+                                .unwrap()
+                                .clone(),
                             oob_filters: main_report.oob_filters.clone(),
                         };
-                        
-                        // Add this code to deduct budget for the intermediary
-                        // Create a modified request URIs with the intermediary as the querier
-                        let mut intermediary_report_uris = request.report_uris().clone();
-                        intermediary_report_uris.querier_uris = vec![intermediary_uri.clone()];
 
-                        intermediary_reports.insert(intermediary_uri, intermediary_pds_report);
+                        // Add this code to deduct budget for the intermediary
+                        // Create a modified request URIs with the intermediary
+                        // as the querier
+                        let mut intermediary_report_uris =
+                            request.report_uris().clone();
+                        intermediary_report_uris.querier_uris =
+                            vec![intermediary_uri.clone()];
+
+                        intermediary_reports
+                            .insert(intermediary_uri, intermediary_pds_report);
                     }
                 }
             }
             // Return optimization result with all intermediary reports
-            // If the querier needs to receive a report for itself too, need to add itself as an intermediary in the request
+            // If the querier needs to receive a report for itself too, need to
+            // add itself as an intermediary in the request
             return Ok(intermediary_reports);
         }
 
-        // For regular requests or optimization queries without intermediary reports
+        // For regular requests or optimization queries without intermediary
+        // reports
         Ok(HashMap::from([(
             request.report_uris().querier_uris[0].clone(),
             main_report,
@@ -494,7 +533,6 @@ where
             filters_to_consume.insert(filter_id, loss);
         }
 
-
         // Add the QSource filters with their own device-epoch-source level loss
         for (source, loss) in source_losses {
             let fid = FilterId::QSource(epoch_id.clone(), source.clone());
@@ -572,9 +610,15 @@ where
         PureDPBudget::Epsilon(individual_sensitivity / noise_scale)
     }
 
-    fn is_optimization_query(&self, site_to_report_mapping: HashMap<U, Q::Report>) -> bool {
+    fn is_optimization_query(
+        &self,
+        site_to_report_mapping: HashMap<U, Q::Report>,
+    ) -> bool {
         // TODO: May need to change this based on assumption changes.
-        // If the mapping has more then 3 keys, that means it has at least 2 intermediary sites (since we map the main report only to the first querier URI), so this would be the case where the query optimization can take place.
+        // If the mapping has more then 3 keys, that means it has at least 2
+        // intermediary sites (since we map the main report only to the first
+        // querier URI), so this would be the case where the query optimization
+        // can take place.
         if site_to_report_mapping.keys().len() >= 3 {
             return true;
         }
@@ -838,12 +882,14 @@ mod cross_report_optimization_tests {
             pure_dp_filter::{PureDPBudget, PureDPBudgetFilter},
         },
         events::{
-            hashmap_event_storage::HashMapEventStorage,
-            ppa_event::PpaEvent,
+            hashmap_event_storage::HashMapEventStorage, ppa_event::PpaEvent,
             traits::EventUris,
         },
         queries::{
-            ppa_histogram::{PpaHistogramRequest, PpaRelevantEventSelector, PpaHistogramConfig, create_intermediary_bucket_mapping},
+            ppa_histogram::{
+                create_intermediary_bucket_mapping, PpaHistogramConfig,
+                PpaHistogramRequest, PpaRelevantEventSelector,
+            },
             traits::ReportRequestUris,
         },
     };
@@ -851,7 +897,8 @@ mod cross_report_optimization_tests {
     #[test]
     fn test_cross_report_optimization() -> Result<(), anyhow::Error> {
         // Create PDS with mock capacities
-        let events = HashMapEventStorage::<PpaEvent, PpaRelevantEventSelector>::new();
+        let events =
+            HashMapEventStorage::<PpaEvent, PpaRelevantEventSelector>::new();
         let capacities = StaticCapacities::mock();
         let filters: HashMapFilterStorage<_, PureDPBudgetFilter, _, _> =
             HashMapFilterStorage::new(capacities)?;
@@ -895,12 +942,13 @@ mod cross_report_optimization_tests {
             ],
         };
 
-        // Register an early event with bucket 1 - this should be overridden by last-touch attribution
+        // Register an early event with bucket 1 - this should be overridden by
+        // last-touch attribution
         let early_event = PpaEvent {
             id: 1,
             timestamp: 100,
             epoch_number: 1,
-            histogram_index: 1,  // r1.ex bucket
+            histogram_index: 1, // r1.ex bucket
             uris: event_uris.clone(),
             filter_data: 1,
         };
@@ -910,20 +958,24 @@ mod cross_report_optimization_tests {
         // We'll use a histogram index that's covered by both intermediaries (3)
         let main_event = PpaEvent {
             id: 2,
-            timestamp: 200,  // Later timestamp so this event is picked by last-touch
+            timestamp: 200, /* Later timestamp so this event is picked by
+                             * last-touch */
             epoch_number: 1,
-            histogram_index: 2,  // A bucket that will be kept and read by r2.ex
+            histogram_index: 2, // A bucket that will be kept and read by r2.ex
             uris: event_uris.clone(),
             filter_data: 1,
         };
         pds.register_event(main_event.clone())?;
         // Create intermediary bucket mapping
-        // Both intermediaries have access to bucket 3, so they'll both get data from the same event
-        let intermediary_bucket_mapping = create_intermediary_bucket_mapping(vec![
-            (intermediary_uri1.clone(), vec![1]),  // r1.ex gets buckets 1
-            (intermediary_uri2.clone(), vec![2]),  // r2.ex gets buckets 2
-            (intermediary_uri3.clone(), vec![3]),  // r3.ex gets buckets 3
-        ]).map_err(anyhow::Error::msg)?;
+        // Both intermediaries have access to bucket 3, so they'll both get data
+        // from the same event
+        let intermediary_bucket_mapping =
+            create_intermediary_bucket_mapping(vec![
+                (intermediary_uri1.clone(), vec![1]), // r1.ex gets buckets 1
+                (intermediary_uri2.clone(), vec![2]), // r2.ex gets buckets 2
+                (intermediary_uri3.clone(), vec![3]), // r3.ex gets buckets 3
+            ])
+            .map_err(anyhow::Error::msg)?;
         // Create histogram request with optimization query flag set to true
         let config = PpaHistogramConfig {
             start_epoch: 1,
@@ -931,66 +983,100 @@ mod cross_report_optimization_tests {
             report_global_sensitivity: 100.0,
             query_global_sensitivity: 200.0,
             requested_epsilon: 1.0,
-            histogram_size: 4,  // Ensure we have space for bucket 3
+            histogram_size: 4, // Ensure we have space for bucket 3
         };
 
         let request = PpaHistogramRequest::new(
             config.clone(),
             PpaRelevantEventSelector {
                 report_request_uris,
-                is_matching_event: Box::new(|event_filter_data: u64| event_filter_data == 1),
+                is_matching_event: Box::new(|event_filter_data: u64| {
+                    event_filter_data == 1
+                }),
                 intermediary_bucket_mapping,
             },
-        ).map_err(|e| anyhow::anyhow!("Failed to create request: {}", e))?;
+        )
+        .map_err(|e| anyhow::anyhow!("Failed to create request: {}", e))?;
         // Initialize and check the initial beneficiary's NC filter
         let beneficiary_filter_id = FilterId::Nc(1, beneficiary_uri.clone());
-        pds.filter_storage.new_filter(beneficiary_filter_id.clone())?;
-        let initial_budget = pds.filter_storage.remaining_budget(&beneficiary_filter_id)?;
+        pds.filter_storage
+            .new_filter(beneficiary_filter_id.clone())?;
+        let initial_budget = pds
+            .filter_storage
+            .remaining_budget(&beneficiary_filter_id)?;
 
         // Process the request
         let report_result = pds.compute_report(&request)?;
 
         // Verify the result is an Optimization report
         // Verify we have reports for both intermediaries
-        assert_eq!(report_result.len(), 3, "Expected reports for 2 intermediaries");
+        assert_eq!(
+            report_result.len(),
+            3,
+            "Expected reports for 2 intermediaries"
+        );
 
         // Verify r1.ex's report has bucket 1
-        let r1_report = report_result.get(&intermediary_uri1).expect("Missing report for r1.ex");
+        let r1_report = report_result
+            .get(&intermediary_uri1)
+            .expect("Missing report for r1.ex");
         let r1_bins = &r1_report.filtered_report.bin_values;
         assert!(r1_bins.is_empty(), "1 bucket for r1.ex should have been filtered out by last-touch attribution");
 
         // Verify r2.ex's report has bucket 2
-        let r2_report = report_result.get(&intermediary_uri2).expect("Missing report for r2.ex");
+        let r2_report = report_result
+            .get(&intermediary_uri2)
+            .expect("Missing report for r2.ex");
         let r2_bins = &r2_report.filtered_report.bin_values;
         assert_eq!(r2_bins.len(), 1, "Expected 1 bucket for r2.ex");
         assert!(r2_bins.contains_key(&2), "Expected bucket 3 for r2.ex");
 
         // Intermediary r2 receives the value from the main event
-        assert_eq!(r2_bins.get(&2), Some(&100.0), "Incorrect value for r2.ex bucket 3");
+        assert_eq!(
+            r2_bins.get(&2),
+            Some(&100.0),
+            "Incorrect value for r2.ex bucket 3"
+        );
 
         // Verify r3.ex's report has bucket 3
-        let r3_report = report_result.get(&intermediary_uri3).expect("Missing report for r3.ex");
+        let r3_report = report_result
+            .get(&intermediary_uri3)
+            .expect("Missing report for r3.ex");
         let r3_bins = &r3_report.filtered_report.bin_values;
         assert!(r3_bins.is_empty(), "1 bucket for r1.ex should have been filtered out by last-touch attribution");
 
         // Verify the privacy budget was deducted only once
         // Despite two reports being generated (one for each intermediary)
-        let post_budget = pds.filter_storage.remaining_budget(&beneficiary_filter_id)?;
+        let post_budget = pds
+            .filter_storage
+            .remaining_budget(&beneficiary_filter_id)?;
 
         match (initial_budget.clone(), post_budget) {
-            (PureDPBudget::Epsilon(initial), PureDPBudget::Epsilon(remaining)) => {
+            (
+                PureDPBudget::Epsilon(initial),
+                PureDPBudget::Epsilon(remaining),
+            ) => {
                 let deduction = initial - remaining;
 
                 // Verify budget was actually deducted
-                assert!(deduction == 0.5, "Expected budget deduction but none occurred");
+                assert!(
+                    deduction == 0.5,
+                    "Expected budget deduction but none occurred"
+                );
 
-                // Calculate what would be deducted with vs. without optimization
-                let expected_single_deduction = config.report_global_sensitivity / config.query_global_sensitivity;
+                // Calculate what would be deducted with vs. without
+                // optimization
+                let expected_single_deduction = config
+                    .report_global_sensitivity
+                    / config.query_global_sensitivity;
 
-                // Verify deduction is close to single event (cross-report optimization working)
-                assert!(deduction == expected_single_deduction, 
-                        "Budget deduction indicates optimization is not working");
-            },
+                // Verify deduction is close to single event (cross-report
+                // optimization working)
+                assert!(
+                    deduction == expected_single_deduction,
+                    "Budget deduction indicates optimization is not working"
+                );
+            }
             _ => {
                 panic!("Expected finite budget deduction");
             }
@@ -998,25 +1084,28 @@ mod cross_report_optimization_tests {
         Ok(())
     }
 
+    #[test]
+    fn test_bucket_overlap_validation() {
+        // Test case 1: Valid disjoint buckets
+        let valid_mapping = vec![
+            ("r1.ex".to_string(), vec![1, 3, 5]),
+            ("r2.ex".to_string(), vec![2, 4, 6]),
+        ];
 
-#[test]
-fn test_bucket_overlap_validation() {
-    // Test case 1: Valid disjoint buckets
-    let valid_mapping = vec![
-        ("r1.ex".to_string(), vec![1, 3, 5]),
-        ("r2.ex".to_string(), vec![2, 4, 6]),
-    ];
-    
-    let result = create_intermediary_bucket_mapping(valid_mapping);
-    assert!(result.is_ok(), "Valid mapping should not produce an error");
-    
-    // Test case 2: Invalid overlapping buckets
-    let invalid_mapping = vec![
-        ("r1.ex".to_string(), vec![1, 3, 5]),
-        ("r2.ex".to_string(), vec![2, 3, 6]), // Bucket 3 overlaps with r1.ex
-    ];
-    
-    let result = create_intermediary_bucket_mapping(invalid_mapping);
-    assert!(result.is_err(), "Overlapping buckets should produce an error");
-}
+        let result = create_intermediary_bucket_mapping(valid_mapping);
+        assert!(result.is_ok(), "Valid mapping should not produce an error");
+
+        // Test case 2: Invalid overlapping buckets
+        let invalid_mapping = vec![
+            ("r1.ex".to_string(), vec![1, 3, 5]),
+            ("r2.ex".to_string(), vec![2, 3, 6]), /* Bucket 3 overlaps with
+                                                   * r1.ex */
+        ];
+
+        let result = create_intermediary_bucket_mapping(invalid_mapping);
+        assert!(
+            result.is_err(),
+            "Overlapping buckets should produce an error"
+        );
+    }
 }

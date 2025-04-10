@@ -10,6 +10,7 @@ use crate::{
     queries::{histogram::HistogramRequest, traits::ReportRequestUris},
 };
 
+// TODO: simpler matching logic, and then implement Clone for the struct.
 pub struct PpaRelevantEventSelector {
     pub report_request_uris: ReportRequestUris<String>,
     pub is_matching_event: Box<dyn Fn(u64) -> bool>,

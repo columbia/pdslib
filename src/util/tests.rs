@@ -1,6 +1,13 @@
+use anyhow::Error;
+
 use crate::{
-    budget::pure_dp_filter::PureDPBudget, events::traits::EventUris,
-    pds::epoch_pds::StaticCapacities, queries::traits::ReportRequestUris,
+    budget::pure_dp_filter::PureDPBudget,
+    events::traits::EventUris,
+    pds::epoch_pds::StaticCapacities,
+    queries::{
+        ppa_histogram::{PpaHistogramRequest, PpaRelevantEventSelector},
+        traits::ReportRequestUris,
+    },
 };
 
 // Sample mock values to reduce boilerplate in tests.
@@ -39,5 +46,22 @@ impl ReportRequestUris<String> {
             source_uris: vec!["blog.com".to_string()],
             querier_uris: vec!["adtech.com".to_string()],
         }
+    }
+}
+
+impl PpaHistogramRequest {
+    pub fn mock() -> Result<Self, Error> {
+        PpaHistogramRequest::new(
+            1,
+            2,
+            32768.0,
+            65536.0,
+            1.0,
+            2048,
+            PpaRelevantEventSelector {
+                report_request_uris: ReportRequestUris::mock(),
+                is_matching_event: Box::new(|_: u64| true),
+            },
+        )
     }
 }

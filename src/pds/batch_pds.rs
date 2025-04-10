@@ -1,65 +1,58 @@
 use std::{collections::HashMap, fmt::Debug, hash::Hash, vec};
 
+use anyhow::Error;
+
 use crate::{
     budget::{pure_dp_filter::PureDPBudget, traits::FilterStorage},
-    events::traits::{
-        EpochEvents, EpochId, Event, EventStorage, RelevantEventSelector,
+    events::{
+        ppa_event::PpaEvent,
+        traits::{
+            EpochEvents, EpochId, Event, EventStorage, RelevantEventSelector,
+        },
     },
-    pds::epoch_pds::{EpochPrivateDataService, FilterId, PdsReport},
-    queries::traits::EpochReportRequest,
+    pds::{
+        epoch_pds::{EpochPrivateDataService, FilterId, PdsReport},
+        utils::PpaPds,
+    },
+    queries::{ppa_histogram::PpaHistogramRequest, traits::EpochReportRequest},
 };
 
 /// [Experimental] Batch wrapper for private data service.
-/// TODO: maybe we need a trait for EpochPDS in the end.
-pub struct BatchPrivateDataService<
-    FS: FilterStorage,
-    ES: EventStorage,
-    Q: EpochReportRequest,
-    ERR: From<FS::Error> + From<ES::Error>,
-> {
+/// TODO: maybe we need a trait for EpochPDS in the end. Make generic.
+pub struct BatchPrivateDataService {
     /// Batch.
-    pub pending_requests: Vec<Q>,
+    pub pending_requests: Vec<PpaHistogramRequest>,
 
     /// Base private data service.
     /// Filters need to have functionality to unlock budget.
-    pub pds: EpochPrivateDataService<FS, ES, Q, ERR>,
+    pub pds: PpaPds,
 }
 // TODO: time release. Maybe lives outside of pdslib.
 
-impl<U, EI, E, EE, RES, FS, ES, Q, ERR> BatchPrivateDataService<FS, ES, Q, ERR>
-where
-    U: Clone + Eq + Hash + Debug,
-    EI: EpochId,
-    E: Event<EpochId = EI, Uri = U> + Clone,
-    EE: EpochEvents,
-    FS: FilterStorage<Budget = PureDPBudget, FilterId = FilterId<EI, U>>,
-    RES: RelevantEventSelector<Event = E>,
-    ES: EventStorage<
-        Event = E,
-        EpochEvents = EE,
-        RelevantEventSelector = RES,
-        Uri = U,
-    >,
-    Q: EpochReportRequest<
-        EpochId = EI,
-        EpochEvents = EE,
-        RelevantEventSelector = RES,
-        Uri = U,
-    >,
-    ERR: From<FS::Error> + From<ES::Error> + From<anyhow::Error>,
-{
-    /// Registers a new event.
-    pub fn register_event(&mut self, event: E) -> Result<(), ERR> {
+impl BatchPrivateDataService {
+    /// Registers a new event, calls the existing pds transparently.
+    pub fn register_event(&mut self, event: PpaEvent) -> Result<(), Error> {
         self.pds.register_event(event)
     }
 
     /// TODO: Nice to take ownership of the request, should do that in pds too.
-    pub fn register_report_request(&mut self, request: Q) -> Result<(), ERR> {
+    pub fn register_report_request(
+        &mut self,
+        request: PpaHistogramRequest,
+    ) -> Result<(), Error> {
         self.pending_requests.push(request);
         Ok(())
     }
 
-    pub fn schedule_batch(&mut self) -> Result<Vec<PdsReport<Q>>, ERR> {
+    pub fn schedule_batch(
+        &mut self,
+    ) -> Result<Vec<PdsReport<PpaHistogramRequest>>, Error> {
+        // TODO(P1): first unlock some  fresh eps_C.
+        // then go through requests one by one, try to allocate with regular quotas.
+        //  next, reach out to the filters to deactivate qimp or set the capacity to infinity.
+        // At the end, reset the quota filter capacities.
+        // Let's keep a fixed qconv for now.
+
         // TODO: keep track of queriers and intermediaries? Or maybe this lives in the report directly, metadata. Maybe wrap it.
         // TODO: keep pending requests by deadline.
         let mut reports = vec![];
@@ -74,7 +67,9 @@ where
 
 #[cfg(test)]
 mod tests {
+    // use common::logging;
     use log::info;
+    use log4rs;
 
     use super::*;
     use crate::{
@@ -96,6 +91,8 @@ mod tests {
 
     #[test]
     fn schedule_one_batch() -> Result<(), anyhow::Error> {
+        log4rs::init_file("logging_config.yaml", Default::default())?;
+
         let capacities = StaticCapacities::mock();
 
         let pds = PpaPds::new(capacities)?;
@@ -118,22 +115,22 @@ mod tests {
 
         batch_pds.register_event(event1.clone())?;
 
-        let request1 = PpaHistogramRequest::new(
-            1,
-            2,
-            32768.0,
-            65536.0,
-            1.0,
-            2048,
-            PpaRelevantEventSelector {
-                report_request_uris: ReportRequestUris::mock(),
-                is_matching_event: Box::new(|event_filter_data: u64| {
-                    event_filter_data == 1
-                }),
-            },
-        )?;
-
+        let request1 = PpaHistogramRequest::mock()?;
         batch_pds.register_report_request(request1)?;
+
+        let request2 = PpaHistogramRequest::mock()?;
+        batch_pds.register_report_request(request2)?;
+
+        let reports = batch_pds.schedule_batch()?;
+        assert_eq!(reports.len(), 2);
+
+        info!("Reports: {:?}", reports);
+
+        let reports = batch_pds.schedule_batch()?;
+        assert_eq!(reports.len(), 0);
+        info!("Reports after scheduling everyone: {:?}", reports);
+
+        // TODO: check ull reports, etc.
 
         Ok(())
     }

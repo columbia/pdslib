@@ -94,29 +94,15 @@ where
     /// Gets the querier bucket mapping for filtering histograms
     fn get_intermediary_bucket_mapping(
         &self,
-    ) -> Option<&HashMap<String, HashSet<usize>>> {
-        None // Default implementation returns None
-    }
+    ) -> Option<&HashMap<String, HashSet<usize>>>;
 
     /// Filter a histogram for a specific querier
     fn filter_report_for_intermediary(
         &self,
-        _: &HistogramReport<Self::BucketKey>,
-        _: &String,
+        report: &HistogramReport<Self::BucketKey>,
+        intermediary_uri: &str,
         _: &HashMap<Self::EpochId, Self::EpochEvents>,
-    ) -> Option<HistogramReport<Self::BucketKey>> {
-        None // Default implementation returns an empty HashMap
-    }
-
-    // Function to create an intermediary-to-bucket mapping
-    fn create_intermediary_bucket_mapping(
-        mappings: Vec<(String, Vec<usize>)>,
-    ) -> HashMap<String, HashSet<usize>> {
-        mappings
-            .into_iter()
-            .map(|(uri, buckets)| (uri, buckets.into_iter().collect()))
-            .collect()
-    }
+    ) -> Option<HistogramReport<Self::BucketKey>>;
 }
 
 /// We implement the EpochReportRequest trait, so any type that implements

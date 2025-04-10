@@ -238,7 +238,7 @@ impl HistogramRequest for PpaHistogramRequest {
     fn filter_report_for_intermediary(
         &self,
         report: &HistogramReport<Self::BucketKey>,
-        intermediary_uri: &String,
+        intermediary_uri: &str,
         _relevant_events_per_epoch: &HashMap<Self::EpochId, Self::EpochEvents>,
     ) -> Option<HistogramReport<Self::BucketKey>> {
         // intermediary_bucket_mapping.get() returns Option<&HashSet<usize>>

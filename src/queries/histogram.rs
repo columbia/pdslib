@@ -13,7 +13,7 @@ pub struct HistogramReport<BucketKey> {
 }
 
 /// Trait for bucket keys.
-pub trait BucketKey: Debug + Hash + Eq {}
+pub trait BucketKey: Debug + Hash + Eq + Clone {}
 
 /// Default type for bucket keys.
 impl BucketKey for usize {}
@@ -33,7 +33,10 @@ impl<BK: BucketKey> Report for HistogramReport<BK> {}
 /// this interface will be callable as a valid ReportRequest with the right
 /// accounting. Following the formalism from https://arxiv.org/pdf/2405.16719, Thm 18.
 /// Can be instantiated by ARA-style queries in particular.
-pub trait HistogramRequest: Debug {
+pub trait HistogramRequest: Debug
+where
+    Self::BucketKey: Clone,
+{
     type EpochId: EpochId;
     type EpochEvents: EpochEvents;
     type Event: Event;
@@ -147,7 +150,10 @@ impl<H: HistogramRequest> EpochReportRequest for H {
     fn compute_report(
         &self,
         relevant_events_per_epoch: &HashMap<Self::EpochId, Self::EpochEvents>,
-    ) -> Self::Report {
+    ) -> (
+        HashMap<Self::Uri, HashSet<usize>>,
+        HashMap<Self::Uri, Self::Report>,
+    ) {
         let mut bin_values: HashMap<H::BucketKey, f64> = HashMap::new();
 
         let mut total_value: f64 = 0.0;
@@ -163,17 +169,69 @@ impl<H: HistogramRequest> EpochReportRequest for H {
         // dropped by the contribution cap.
         //
         // TODO(https://github.com/columbia/pdslib/issues/19):  Use an ordered map for relevant_events_per_epoch?
+        let mut report = HistogramReport {
+            bin_values: HashMap::new(),
+        };
+        let mut early_stop = false;
+
         for (event, value) in event_values {
             total_value += value;
             if total_value > self.report_global_sensitivity() {
                 // Return partial attribution to stay within the cap.
-                return HistogramReport { bin_values };
+                early_stop = true;
+                report = HistogramReport { bin_values: bin_values.clone() };
+                break;
             }
             let bin = self.bucket_key(event);
             *bin_values.entry(bin).or_default() += value;
         }
 
-        HistogramReport { bin_values }
+        if !early_stop {
+            report = HistogramReport { bin_values };
+        }
+
+        let mut site_to_report_mapping = HashMap::new();
+        site_to_report_mapping.insert(
+            self.report_uris().querier_uris[0].clone(),
+            report.clone(),
+        );
+
+        for intermediary_uri in self.report_uris().intermediary_uris.iter() {
+            match self.filter_report_for_intermediary(
+                &report,
+                intermediary_uri,
+                relevant_events_per_epoch,
+            ) {
+                Some(filtered_report) => {
+                    site_to_report_mapping.insert(
+                        intermediary_uri.clone(), 
+                        filtered_report,
+                    );
+                }
+                None => {
+                    site_to_report_mapping.insert(
+                        intermediary_uri.clone(),
+                        HistogramReport { bin_values: HashMap::new() },
+                    );
+                }
+            }
+            
+        }
+
+        match self.get_intermediary_bucket_mapping() {
+            Some(intermediary_mapping) => {
+                (
+                    intermediary_mapping.clone(),
+                    site_to_report_mapping,
+                )
+            }
+            None => {
+                (
+                    HashMap::new(),
+                    site_to_report_mapping,
+                )
+            }
+        }
     }
 
     /// Computes individual sensitivity in the single epoch case.
@@ -211,30 +269,5 @@ impl<H: HistogramRequest> EpochReportRequest for H {
         // similar to `SimpleLastTouchHistogramReport` with Option<BucketKey,
         // f64>.
         2.0 * self.report_global_sensitivity()
-    }
-
-    /// Creates a mapping between the intermediary URIs and buckets id.
-    fn get_intermediary_bucket_mapping(&self) -> Option<&HashMap<Self::Uri, HashSet<usize>>> {
-        self.get_intermediary_bucket_mapping()
-    }
-
-    /// Return the filtered report for the given intermediary URI.
-    fn filter_report_for_intermediary(
-        &self,
-        report: &Self::Report, 
-        intermediary_uri: &Self::Uri,
-        relevant_events_per_epoch: &HashMap<Self::EpochId, Self::EpochEvents>,
-    ) -> Option<Self::Report> {
-        self.filter_report_for_intermediary(
-            report,
-            intermediary_uri,
-            relevant_events_per_epoch,
-        )
-    }
-
-    /// Returns whether a ppa_histogram query is optimizable.
-    fn is_optimization_query(&self) -> bool {
-        // Consider a query optimizable if it has at least two intermediary URIs
-        self.report_uris().intermediary_uris.len() >= 2
     }
 }

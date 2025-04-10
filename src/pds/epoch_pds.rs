@@ -208,7 +208,7 @@ where
 
         // Compute the raw report, useful for debugging and accounting.
         let num_epochs: usize = relevant_events_per_epoch.len();
-        let unfiltered_report =
+        let (_, unfiltered_report) =
             request.compute_report(&relevant_events_per_epoch);
 
         // Browse epochs in the attribution window
@@ -222,7 +222,7 @@ where
             let individual_privacy_loss = self.compute_epoch_loss(
                 request,
                 epoch_relevant_events,
-                &unfiltered_report,
+                &unfiltered_report.get(&request.report_uris().querier_uris[0]).unwrap(),
                 num_epochs,
             );
 
@@ -235,7 +235,7 @@ where
             let source_losses = self.compute_epoch_source_losses(
                 request,
                 epoch_source_relevant_events,
-                &unfiltered_report,
+                &unfiltered_report.get(&request.report_uris().querier_uris[0]).unwrap(),
                 num_epochs,
             );
 
@@ -281,20 +281,20 @@ where
         }
 
         // Now that we've dropped OOB epochs, we can compute the final report.
-        let filtered_report =
+        let (intermediary_bucket_mapping, filtered_report) =
             request.compute_report(&relevant_events_per_epoch);
         let main_report = PdsReport {
-            filtered_report,
-            unfiltered_report: unfiltered_report.clone(),
+            filtered_report: filtered_report.get(&request.report_uris().querier_uris[0]).unwrap().clone(),
+            unfiltered_report: unfiltered_report.get(&request.report_uris().querier_uris[0]).unwrap().clone(),
             oob_filters,
         };
 
         // Handle optimization queries when at least two intermediary URIs are in the request.
-        if request.is_optimization_query() {
+        if self.is_optimization_query(filtered_report) {
             let intermediary_uris = request.report_uris().intermediary_uris.clone();
             let mut intermediary_reports = HashMap::new();
 
-            if request.get_intermediary_bucket_mapping().is_some() {
+            if intermediary_bucket_mapping.keys().len() > 0 {
                 // Process each intermediary
                 for intermediary_uri in intermediary_uris {
                     // TODO(https://github.com/columbia/pdslib/issues/55):
@@ -305,15 +305,12 @@ where
                     // Get the relevant events for this intermediary
 
                     // Filter report for this intermediary
-                    if let Some(intermediary_filtered_report) = request.filter_report_for_intermediary(
-                        &main_report.filtered_report, 
-                        &intermediary_uri,
-                        &relevant_events_per_epoch
+                    if let Some(intermediary_filtered_report) = unfiltered_report.get(&intermediary_uri
                     ) {
                         // Create PdsReport for this intermediary
                         let intermediary_pds_report = PdsReport {
-                            filtered_report: intermediary_filtered_report,
-                            unfiltered_report: unfiltered_report.clone(),
+                            filtered_report: intermediary_filtered_report.clone(),
+                            unfiltered_report: unfiltered_report.get(&intermediary_uri).unwrap().clone(),
                             oob_filters: main_report.oob_filters.clone(),
                         };
                         
@@ -571,6 +568,16 @@ where
         // In Cookie Monster, we have `query_global_sensitivity` /
         // `requested_epsilon` instead of just `noise_scale`.
         PureDPBudget::Epsilon(individual_sensitivity / noise_scale)
+    }
+
+    fn is_optimization_query(&self, site_to_report_mapping: HashMap<U, Q::Report>) -> bool {
+        // TODO: May need to change this based on assumption changes.
+        // If the mapping has more then 3 keys, that means it has at least 2 intermediary sites (since we map the main report only to the first querier URI), so this would be the case where the query optimization can take place.
+        if site_to_report_mapping.keys().len() >= 3 {
+            return true;
+        }
+
+        return false;
     }
 }
 

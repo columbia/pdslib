@@ -77,7 +77,10 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
     fn compute_report(
         &self,
         relevant_epochs_per_epoch: &HashMap<usize, Self::EpochEvents>,
-    ) -> Self::Report {
+    ) -> (
+        HashMap<Self::Uri, HashSet<usize>>,
+        HashMap<Self::Uri, Self::Report>
+    ) {
         // Browse epochs in the order given by `epoch_ids, most recent
         // epoch first. Within each epoch, we assume that events are
         // stored in the order that they occured
@@ -94,15 +97,37 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
                     // Just use event_key as the bucket key.
                     // See `ara_histogram` for a more general impression_key ->
                     // bucket_key mapping.
-                    return SimpleLastTouchHistogramReport {
-                        bin_value: Some((event_key, attributed_value)),
-                    };
+                    return (
+                        HashMap::new(),
+                        HashMap::from([(
+                            self.report_uris
+                                .querier_uris
+                                .get(0)
+                                .unwrap()
+                                .clone(),
+                            SimpleLastTouchHistogramReport {
+                                bin_value: Some((event_key, attributed_value)),
+                            },
+                        )])
+                    );
                 }
             }
         }
 
         // No impressions were found so we return a report with a None bucket.
-        SimpleLastTouchHistogramReport { bin_value: None }
+        (
+            HashMap::new(),
+            HashMap::from([(
+                self.report_uris
+                    .querier_uris
+                    .get(0)
+                    .unwrap()
+                    .clone(),
+                SimpleLastTouchHistogramReport {
+                        bin_value: None
+                    },
+            )]),
+        )
     }
 
     fn single_epoch_individual_sensitivity(
@@ -137,24 +162,5 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
         NoiseScale::Laplace(
             self.query_global_sensitivity / self.requested_epsilon,
         )
-    }
-
-    fn get_intermediary_bucket_mapping(
-        &self,
-    ) -> Option<&HashMap<Self::Uri, HashSet<usize>>> {
-        None
-    }
-
-    fn filter_report_for_intermediary(
-        &self,
-        report: &Self::Report,
-        _intermediary_uri: &Self::Uri,
-        _relevant_epochs_per_epoch: &HashMap<usize, Self::EpochEvents>,
-    ) -> Option<Self::Report> {
-        Some(report.clone())
-    }
-
-    fn is_optimization_query(&self) -> bool {
-        false
     }
 }

@@ -52,7 +52,10 @@ pub trait EpochReportRequest: Debug {
     fn compute_report(
         &self,
         relevant_events_per_epoch: &HashMap<Self::EpochId, Self::EpochEvents>,
-    ) -> Self::Report;
+    ) -> (
+        HashMap<Self::Uri, HashSet<usize>>,
+        HashMap<Self::Uri, Self::Report>
+    );
 
     /// Computes the individual sensitivity for the query when the report is
     /// computed over a single epoch.
@@ -75,20 +78,6 @@ pub trait EpochReportRequest: Debug {
 
     /// Retrieves the scale of the noise that will be added by the aggregator.
     fn noise_scale(&self) -> NoiseScale;
-
-    /// Creates a mapping between the intermediary URIs and buckets id.
-    fn get_intermediary_bucket_mapping(&self) -> Option<&HashMap<Self::Uri, HashSet<usize>>>;
-
-    /// Return the filtered report for the given intermediary URI.
-    fn filter_report_for_intermediary(
-        &self,
-        report: &Self::Report, 
-        intermediary_uri: &Self::Uri,
-        relevant_events_per_epoch: &HashMap<Self::EpochId, Self::EpochEvents>,
-    ) -> Option<Self::Report>;
-
-    /// Returns whether a ppa_histogram query is optimizable.
-    fn is_optimization_query(&self) -> bool;
 }
 
 /// Type for passive privacy loss accounting. Uniform over all epochs for now.

@@ -11,7 +11,10 @@ use crate::budget::traits::{
 #[derive(Debug, Default)]
 pub struct HashMapFilterStorage<FID, F, B, C> {
     capacities: C,
-    filters: HashMap<FID, F>,
+
+    /// TODO: make this field private again eventually. MAde it public for
+    /// hacky serialization.
+    pub filters: HashMap<FID, F>,
     _marker: PhantomData<B>,
 }
 

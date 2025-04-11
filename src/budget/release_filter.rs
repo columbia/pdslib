@@ -97,3 +97,47 @@ impl PureDPBudgetReleaseFilter {
         };
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_pure_dp_budget_release_filter() -> Result<(), anyhow::Error> {
+        let mut filter =
+            PureDPBudgetReleaseFilter::new(PureDPBudget::Epsilon(1.0))?;
+
+        // No budget initially
+        assert_eq!(
+            filter.try_consume(&PureDPBudget::Epsilon(0.5))?,
+            FilterStatus::OutOfBudget
+        );
+
+        // Unlock some budget
+        filter.release(0.7);
+        assert_eq!(
+            filter.try_consume(&PureDPBudget::Epsilon(0.5))?,
+            FilterStatus::Continue
+        );
+
+        assert_eq!(
+            filter.try_consume(&PureDPBudget::Epsilon(0.3))?,
+            FilterStatus::OutOfBudget
+        );
+
+        // Unlock the rest
+        filter.release(2.0);
+
+        assert_eq!(
+            filter.try_consume(&PureDPBudget::Epsilon(0.6))?,
+            FilterStatus::OutOfBudget
+        );
+
+        assert_eq!(
+            filter.try_consume(&PureDPBudget::Epsilon(0.3))?,
+            FilterStatus::Continue
+        );
+
+        Ok(())
+    }
+}

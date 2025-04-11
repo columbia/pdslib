@@ -131,14 +131,6 @@ impl Filter<PureDPBudget> for PureDPBudgetFilter {
     }
 }
 
-// impl PureDPBudgetFilter {
-//     fn release(&mut self, additional_capacity: PureDPBudget) -> Result<Error> {
-//         // Release more budget.
-//         self.capacity += additional_capacity;
-//         Ok(())
-//     }
-// }
-
 #[cfg(test)]
 mod tests {
     use super::*;

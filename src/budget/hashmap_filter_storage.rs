@@ -10,7 +10,7 @@ use crate::budget::traits::{
 /// Works for any Filter that implements the Filter trait.
 #[derive(Debug, Default)]
 pub struct HashMapFilterStorage<FID, F, B, C> {
-    capacities: C,
+    pub capacities: C,
 
     /// TODO: make this field private again eventually. MAde it public for
     /// hacky serialization.

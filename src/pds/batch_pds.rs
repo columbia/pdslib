@@ -1,11 +1,12 @@
 use std::{collections::HashMap, fmt::Debug, mem::take, vec};
 
 use anyhow::{bail, Result};
-use log::{debug, info};
+use log::{debug, info, warn};
 
-use super::utils::PpaCapacities;
+use super::{epoch_pds::FilterId, utils::PpaCapacities};
 use crate::{
-    events::ppa_event::PpaEvent,
+    budget::pure_dp_filter::PureDPBudget,
+    events::{ppa_event::PpaEvent, traits::Event},
     pds::{epoch_pds::PdsReport, utils::PpaPds},
     queries::ppa_histogram::PpaHistogramRequest,
 };
@@ -35,7 +36,7 @@ impl BatchedRequest {
         request: PpaHistogramRequest,
     ) -> Result<Self> {
         if n_scheduling_attemps == 0 {
-            // TODO: allow requests with 0 batch scheduling attempt for
+            // TODO(later): allow requests with 0 batch scheduling attempt for
             // real-time queries. But for now we only consider batched, where a
             // query goes through at least one batch phase.
             bail!("The request should have at least one scheduling attempt.");
@@ -65,6 +66,14 @@ pub struct BatchPrivateDataService {
     /// released.
     pub delayed_reports: HashMap<u64, Vec<BatchedReport>>,
 
+    /// Epochs present in the system
+    /// Range of epochs from start to end (included).
+    /// TODO: formalize a bit more the invariants, use  HashSet<u64>, or connect to time?
+    pub epochs: Option<(usize, usize)>,
+
+    /// Amount of c-filter budget to be released per scheduling interval.
+    pub eps_c_per_release: f64,
+
     /// Base private data service.
     /// Filters need to have functionality to unlock budget.
     pub pds: PpaPds,
@@ -83,8 +92,17 @@ pub struct BatchedReport {
 }
 
 impl BatchPrivateDataService {
-    /// Creates a new batch private data service.
-    pub fn new(capacities: PpaCapacities) -> Result<Self> {
+    /// Create a new batch private data service.
+    pub fn new(capacities: PpaCapacities, n_releases: usize) -> Result<Self> {
+        // Release the c-filter over T scheduling intervals.
+        let eps_c_per_release = match capacities.c {
+            PureDPBudget::Epsilon(eps_c) => eps_c / (n_releases as f64),
+            PureDPBudget::Infinite => {
+                warn!("C-filter has infinite capacity. Release is a no-op");
+                0.0
+            }
+        };
+
         let pds = PpaPds::new(capacities)?;
 
         Ok(BatchPrivateDataService {
@@ -92,12 +110,35 @@ impl BatchPrivateDataService {
             new_pending_requests: vec![],
             batched_requests: vec![],
             delayed_reports: HashMap::new(),
+            eps_c_per_release,
+            epochs: None,
             pds,
         })
     }
 
-    /// Registers a new event, calls the existing pds transparently.
+    /// Register a new event, calls the existing pds transparently.
     pub fn register_event(&mut self, event: PpaEvent) -> Result<()> {
+        let epoch = event.epoch_id();
+
+        // Update the range of epochs present in the system
+        match self.epochs {
+            Some((start, end)) => {
+                if epoch < end {
+                    bail!("Epochs should be monotonically increasing. Got epoch {}, but the current range is ({}, {})", epoch, start, end);
+                }
+                if epoch > end {
+                    // Extend the range of epochs when needed.
+                    // NOTE: queries don't extend the range.
+                    self.epochs = Some((start, epoch));
+                }
+            }
+            None => {
+                self.epochs = Some((epoch, epoch));
+            }
+        }
+
+        // TODO(P1): also keep track of impression sites, maybe per epoch, or just in total.
+
         self.pds.register_event(event)
     }
 
@@ -120,6 +161,12 @@ impl BatchPrivateDataService {
             self.batched_requests
         );
 
+        // We are entering a new scheduling interval. Decrement the number
+        // of remaining attempts for all requests.
+        for request in &mut self.batched_requests {
+            request.n_remaining_scheduling_attempts -= 1;
+        }
+
         self.initialization_phase()?;
 
         info!(
@@ -140,12 +187,6 @@ impl BatchPrivateDataService {
             self.new_pending_requests.is_empty(),
             "New requests should be empty after the online phase, since unallocated ones are moved to the batch."
         );
-
-        // We are about to finish the scheduling interval. Decrement the number
-        // of remaining attempts for all requests.
-        for request in &mut self.batched_requests {
-            request.n_remaining_scheduling_attempts -= 1;
-        }
 
         // Any request with 0 remaining attempts will be answered here and
         // removed from the batch.
@@ -178,7 +219,14 @@ impl BatchPrivateDataService {
         // Shove this to another function then, and for now really just try all
         // the past epochs since our implementations just have a few. Use events
         // or reports to check whether an epoch exists, otherwise could expose
-        // from filter storage. TODO(P1): Fresh quotas, need to update
+        // from filter storage.
+        if let Some((start, end)) = self.epochs {
+            for epoch in start..=end {
+                self.release_budget(epoch)?;
+            }
+        }
+
+        //TODO(P1): Fresh quotas, need to update
         // abstractions here too... TODO: what happens when some epochs
         // in the attribution have unlocked their whole budget but not
         // others? TODO(later): some basic caching to avoid checking
@@ -234,12 +282,20 @@ impl BatchPrivateDataService {
 
             info!("Report for request {}: {:?}", request.request_id, report);
 
+            // if (report.error_cause().is_none() || (end_of_scheduling_interval && request.n_remaining_scheduling_attempts == 0)) {
+            //     if report.error_cause().is_none() {
+            //     debug!(
+            //         "Request {} was successfully allocated: {:?}",
+            //         request.request_id, report
+            //     );
+            // }
+            // else {
+            //     debug!("Request was not allocated but ")
+            // }
+            //     // Request was successfully allocated.
+
             if report.error_cause().is_none() {
-                debug!(
-                    "Request {} was successfully allocated: {:?}",
-                    request.request_id, report
-                );
-                // Request was successfully allocated. Keep the result for when
+                // Keep the result for when
                 // the time is right.
                 let batched_report = BatchedReport {
                     request_id: request.request_id,
@@ -265,6 +321,21 @@ impl BatchPrivateDataService {
 
         Ok(unallocated_requests)
     }
+
+    /// Release budget for the given epoch. This is a no-op when the epoch's unlocked budget has reached the capacity.
+    fn release_budget(&mut self, epoch: usize) -> Result<()> {
+        let filter_id = FilterId::C(epoch);
+        self.pds.initialize_filter_if_necessary(filter_id.clone())?;
+        self.pds
+            .filter_storage
+            .release(&filter_id, self.eps_c_per_release)?;
+        info!(
+            "Released budget for epoch {}. Filter state: {:?}",
+            epoch,
+            self.pds.filter_storage.storage.filters.get(&filter_id)
+        );
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -277,15 +348,24 @@ mod tests {
     use crate::{
         events::{ppa_event::PpaEvent, traits::EventUris},
         pds::epoch_pds::StaticCapacities,
-        queries::ppa_histogram::PpaHistogramRequest,
+        queries::{
+            ppa_histogram::{PpaHistogramRequest, PpaRelevantEventSelector},
+            traits::ReportRequestUris,
+        },
     };
 
     #[test]
     fn schedule_one_batch() -> Result<(), anyhow::Error> {
         log4rs::init_file("logging_config.yaml", Default::default())?;
 
-        let capacities = StaticCapacities::mock();
-        let mut batch_pds = BatchPrivateDataService::new(capacities)?;
+        let capacities = StaticCapacities::new(
+            PureDPBudget::Epsilon(10.0),
+            PureDPBudget::Epsilon(4.0),
+            PureDPBudget::Epsilon(10.0),
+            PureDPBudget::Epsilon(10.0),
+        );
+
+        let mut batch_pds = BatchPrivateDataService::new(capacities, 2)?;
 
         info!("Registering events");
 
@@ -293,8 +373,7 @@ mod tests {
             id: 1,
             timestamp: 0,
             epoch_number: 1,
-            histogram_index: 0x559, /* 0x559 = "campaignCounts".to_string() |
-                                     * 0x400 */
+            histogram_index: 0,
             uris: EventUris::mock(),
             filter_data: 1,
         };
@@ -305,14 +384,36 @@ mod tests {
         batch_pds.register_report_request(BatchedRequest::new(
             1,
             1,
-            PpaHistogramRequest::mock()?,
+            PpaHistogramRequest::new(
+                1,
+                1,
+                1.0,
+                1.0,
+                1.0,
+                5,
+                PpaRelevantEventSelector {
+                    report_request_uris: ReportRequestUris::mock(),
+                    is_matching_event: Box::new(|_: u64| true),
+                },
+            )?,
         )?)?;
 
         // Another request with one scheduling attempt.
         batch_pds.register_report_request(BatchedRequest::new(
             2,
             1,
-            PpaHistogramRequest::mock()?,
+            PpaHistogramRequest::new(
+                1,
+                1,
+                1.0,
+                1.0,
+                1.0,
+                5,
+                PpaRelevantEventSelector {
+                    report_request_uris: ReportRequestUris::mock(),
+                    is_matching_event: Box::new(|_: u64| true),
+                },
+            )?,
         )?)?;
 
         // A request that will try two scheduling attempts. It requests too much
@@ -320,7 +421,18 @@ mod tests {
         batch_pds.register_report_request(BatchedRequest::new(
             3,
             2,
-            PpaHistogramRequest::mock()?,
+            PpaHistogramRequest::new(
+                1,
+                1,
+                1.0,
+                1.0,
+                1.0,
+                5,
+                PpaRelevantEventSelector {
+                    report_request_uris: ReportRequestUris::mock(),
+                    is_matching_event: Box::new(|_: u64| true),
+                },
+            )?,
         )?)?;
 
         let reports = batch_pds.schedule_batch()?;

@@ -388,7 +388,7 @@ where
         Ok(PdsFilterStatus::Continue)
     }
 
-    fn initialize_filter_if_necessary(
+    pub fn initialize_filter_if_necessary(
         &mut self,
         filter_id: FilterId<EI, U>,
     ) -> Result<(), ERR> {

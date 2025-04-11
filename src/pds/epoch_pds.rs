@@ -3,12 +3,11 @@
 use std::{collections::HashMap, fmt::Debug, hash::Hash, vec};
 
 use log::debug;
-use serde::{ser::SerializeStruct, Serialize};
+use serde::Serialize;
 
 use crate::{
     budget::{
-        hashmap_filter_storage::HashMapFilterStorage,
-        pure_dp_filter::{PureDPBudget, PureDPBudgetFilter},
+        pure_dp_filter::PureDPBudget,
         traits::{Budget, FilterCapacities, FilterStatus, FilterStorage},
     },
     events::traits::{

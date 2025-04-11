@@ -1,6 +1,4 @@
-use std::fmt::Debug;
-use std::hash::Hash;
-use std::{collections::HashMap, marker::PhantomData};
+use std::{collections::HashMap, fmt::Debug, hash::Hash, marker::PhantomData};
 
 use anyhow::Context;
 

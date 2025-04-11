@@ -5,10 +5,9 @@ use log::{debug, info};
 
 use super::utils::PpaCapacities;
 use crate::{
-    budget::traits::FilterStorage,
-    events::{ppa_event::PpaEvent, traits::EpochEvents},
+    events::ppa_event::PpaEvent,
     pds::{epoch_pds::PdsReport, utils::PpaPds},
-    queries::{ppa_histogram::PpaHistogramRequest, traits::EpochReportRequest},
+    queries::ppa_histogram::PpaHistogramRequest,
 };
 
 #[derive(Debug)]
@@ -111,12 +110,6 @@ impl BatchPrivateDataService {
     }
 
     pub fn schedule_batch(&mut self) -> Result<Vec<BatchedReport>> {
-        // TODO: keep track of queriers and intermediaries? Or maybe this lives
-        // in the report directly, metadata. Maybe wrap it. TODO: keep
-        // pending requests by deadline.
-
-        // TODO: move this to another function?
-
         info!(
             "Scheduling batch for interval {}",
             self.current_scheduling_interval
@@ -180,13 +173,16 @@ impl BatchPrivateDataService {
     }
 
     fn initialization_phase(&mut self) -> Result<()> {
-        // TODO(P1): first unlock eps_C. Fresh quotas.
-        // TODO: what happens when some epochs in the attribution have unlocked
-        // their whole budget but not others? TODO(later): some basic
-        // caching to avoid checking queries that have zero chance of being
-        // fair?
-
-        // TODO(P1): release some budget for all the epochs.
+        // TODO(P1): first unlock eps_C. Browse all epochs, or up to some max
+        // number of iterations that we know are enough to unlock everything.
+        // Shove this to another function then, and for now really just try all
+        // the past epochs since our implementations just have a few. Use events
+        // or reports to check whether an epoch exists, otherwise could expose
+        // from filter storage. TODO(P1): Fresh quotas, need to update
+        // abstractions here too... TODO: what happens when some epochs
+        // in the attribution have unlocked their whole budget but not
+        // others? TODO(later): some basic caching to avoid checking
+        // queries that have zero chance of being fair?
 
         let batched_requests = take(&mut self.batched_requests);
         let unallocated_requests = self.try_allocate(batched_requests)?;
@@ -319,7 +315,8 @@ mod tests {
             PpaHistogramRequest::mock()?,
         )?)?;
 
-        // A request that will try two scheduling attempts. It requests too much so should wait for more budget to be released.
+        // A request that will try two scheduling attempts. It requests too much
+        // so should wait for more budget to be released.
         batch_pds.register_report_request(BatchedRequest::new(
             3,
             2,

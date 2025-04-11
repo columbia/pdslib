@@ -2,9 +2,10 @@
 //! config param? Or make things a bit more generic, only for those who
 //! implement the right traits.
 
+use std::hash::Hash;
+
 use anyhow::{Context, Result};
 use serde::{ser::SerializeStruct, Serialize};
-use std::hash::Hash;
 
 use super::epoch_pds::StaticCapacities;
 use crate::{
@@ -13,10 +14,7 @@ use crate::{
         pure_dp_filter::PureDPBudget,
         release_filter::PureDPBudgetReleaseFilter, traits::FilterStorage,
     },
-    events::{
-        hashmap_event_storage::HashMapEventStorage, ppa_event::PpaEvent,
-        traits::EpochEvents,
-    },
+    events::{hashmap_event_storage::HashMapEventStorage, ppa_event::PpaEvent},
     pds::epoch_pds::{EpochPrivateDataService, FilterId},
     queries::ppa_histogram::{PpaHistogramRequest, PpaRelevantEventSelector},
 };

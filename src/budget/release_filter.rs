@@ -1,4 +1,4 @@
-use anyhow::{bail, Error, Result};
+use anyhow::Result;
 use log::debug;
 use serde::Serialize;
 
@@ -7,9 +7,9 @@ use super::{
     traits::{Filter, FilterStatus},
 };
 
-/// [Experimental] A pure DP filter that has additional functionality to release budget over time.
-/// TODO: Could frame as another trait if we want to have release for other types of filters.
-/// TODO: refactor a bit too.
+/// [Experimental] A pure DP filter that has additional functionality to release
+/// budget over time. TODO: Could frame as another trait if we want to have
+/// release for other types of filters. TODO: refactor a bit too.
 #[derive(Debug, Serialize)]
 pub struct PureDPBudgetReleaseFilter {
     pub consumed: f64, // Internal value, not bothering with infinity.
@@ -84,7 +84,8 @@ impl Filter<PureDPBudget> for PureDPBudgetReleaseFilter {
 }
 
 impl PureDPBudgetReleaseFilter {
-    /// Only release up to the capacity. `release` becomes a no-op once the unlocked budget reaches capacity.
+    /// Only release up to the capacity. `release` becomes a no-op once the
+    /// unlocked budget reaches capacity.
     pub fn release(&mut self, budget_to_unlock: f64) {
         match self.capacity {
             PureDPBudget::Infinite => {

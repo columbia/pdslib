@@ -1,6 +1,6 @@
 use core::f64;
 
-use anyhow::{Error, Result};
+use anyhow::Result;
 use log::debug;
 use serde::Serialize;
 

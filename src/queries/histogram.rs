@@ -80,6 +80,7 @@ pub trait HistogramRequest: Debug {
         >,
     ) -> Vec<(&'a Self::Event, f64)>;
 
+    // TODO: same name as trait is not great.
     fn report_uris(&self) -> ReportRequestUris<String>;
 }
 

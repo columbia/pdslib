@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
+    f32::consts::E,
     fmt::Debug,
     mem::take,
     vec,
@@ -13,7 +14,10 @@ use crate::{
     budget::pure_dp_filter::PureDPBudget,
     events::{ppa_event::PpaEvent, traits::Event},
     pds::{epoch_pds::PdsReport, utils::PpaPds},
-    queries::{ppa_histogram::PpaHistogramRequest, traits::EpochReportRequest},
+    queries::{
+        histogram::HistogramRequest, ppa_histogram::PpaHistogramRequest,
+        traits::EpochReportRequest,
+    },
 };
 
 #[derive(Debug)]
@@ -57,6 +61,10 @@ impl BatchedRequest {
             request,
             report: None,
         })
+    }
+
+    pub fn source_uris(&self) -> Vec<String> {
+        HistogramRequest::report_uris(&self.request).source_uris
     }
 }
 
@@ -191,7 +199,7 @@ impl BatchPrivateDataService {
 
         debug!(
             "\n\n 1. Starting initialization phase. Existing requests: {:?}",
-            self.batched_requests
+            self.collect_request_ids(&self.batched_requests)
         );
         let batched_requests = take(&mut self.batched_requests);
         let unallocated_requests =
@@ -200,7 +208,7 @@ impl BatchPrivateDataService {
 
         debug!(
             "\n\n 2. Starting online phase. New requests: {:?}",
-            self.new_pending_requests
+            self.collect_request_ids(&self.new_pending_requests)
         );
         let new_requests = take(&mut self.new_pending_requests);
         let unallocated_requests = self.online_phase(new_requests)?;
@@ -210,7 +218,7 @@ impl BatchPrivateDataService {
         // removed from the batch.
         debug!(
             "\n\n 3. Starting batch phase. Batch: {:?}",
-            self.batched_requests
+            self.collect_request_ids(&self.batched_requests)
         );
         let batched_requests = take(&mut self.batched_requests);
         let unallocated_requests = self.batch_phase(batched_requests)?;
@@ -422,7 +430,7 @@ impl BatchPrivateDataService {
 
         let mut all_sources = HashSet::new();
         for request in &requests {
-            let source_uris = request.request.report_uris().source_uris;
+            let source_uris = request.source_uris();
             all_sources.extend(source_uris);
         }
         debug!("Sources across all requests: {:?}", all_sources);
@@ -435,7 +443,7 @@ impl BatchPrivateDataService {
         debug!("Epochs across all requests: {:?}", all_epochs);
 
         let mut budget_per_source: HashMap<String, f64> = HashMap::new();
-        for source in all_sources {
+        for source in &all_sources {
             let mut source_total_budget = 0.0;
             for epoch in &all_epochs {
                 let filter_id = FilterId::QSource(*epoch, source.clone());
@@ -448,34 +456,57 @@ impl BatchPrivateDataService {
         }
         debug!("Budget per source: {:?}", budget_per_source);
 
-        // Another problem: it sounds tighter to look at the actual individual
-        // budget, instead of the requested budget. Because IDP optimizations
-        // tell us that sometimes a request actually consumes zero budget, so it
-        // should probably be ordered first. It's just a bit weird
-        // because we would need to cache `source_losses` or call
-        // `compute_epoch_source_losses`. Cheap optimization: use the
-        // list of source IDs to approximate.
-
-        let mut requests_by_source: HashMap<String, Vec<&BatchedRequest>> =
-            HashMap::new();
-
-        for request in &requests {
-            let source_uris = &request.request.report_uris().source_uris;
-            for source in source_uris {
-                requests_by_source
-                    .entry(source.clone())
-                    .or_default()
-                    .push(request);
-            }
-        }
-
-        debug!("Requests by source: {:?}", requests_by_source);
-
         // Idea: if we allocated that request, what would be the new value for
         // `budget_per_source`?
-        let sorted_requests = vec![];
+        // This doesn't look too great either. A large request can be allocated if it also boosts a small one? A request that asks for zero budget is not prioritized?
+        let mut weighted_requests: Vec<(BatchedRequest, f64)> = vec![];
+
+        for request in requests {
+            let mut min_budget = f64::MAX;
+            let source_uris = request.source_uris();
+            let requested_budget = request.request.requested_epsilon(); // TODO: multiply by epoch length? Or actual attribution?
+
+            // Another problem: it sounds tighter to look at the actual individual
+            // budget, instead of the requested budget. Because IDP optimizations
+            // tell us that sometimes a request actually consumes zero budget, so it
+            // should probably be ordered first. It's just a bit weird
+            // because we would need to cache `source_losses` or call
+            // `compute_epoch_source_losses`. Cheap optimization: use the
+            // list of source IDs to approximate.
+
+            for source in all_sources.iter() {
+                let mut source_budget_after_request =
+                    *budget_per_source.get(source).unwrap();
+                if source_uris.contains(source) {
+                    source_budget_after_request += requested_budget;
+                }
+                if source_budget_after_request < min_budget {
+                    min_budget = source_budget_after_request;
+                }
+            }
+
+            weighted_requests.push((request, min_budget));
+        }
+
+        debug!(
+            "Requests and minimum budget after allocation: {:?}",
+            weighted_requests
+                .iter()
+                .map(|(r, b)| (r.request_id, b))
+                .collect::<Vec<_>>()
+        );
+
+        // Sort by weight in descending order. i.e., start with the request that maximizes the minimum allocation across sources
+        weighted_requests.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+
+        let sorted_requests =
+            weighted_requests.into_iter().map(|(r, _)| r).collect();
 
         Ok(sorted_requests)
+    }
+
+    fn collect_request_ids(&self, requests: &[BatchedRequest]) -> Vec<u64> {
+        requests.iter().map(|r| r.request_id).collect::<Vec<_>>()
     }
 }
 

@@ -1,6 +1,6 @@
 use std::{
+    cmp::Ordering::{Greater, Less},
     collections::{HashMap, HashSet},
-    f32::consts::E,
     fmt::Debug,
     mem::take,
     vec,
@@ -415,7 +415,25 @@ impl BatchPrivateDataService {
         Ok(())
     }
 
-    /// Sort the requests.
+    /// Sort the requests. Start with the request that has the smallest
+    /// beneficiary, break ties by request budget.
+    ///
+    /// NOTE: this is just one possible heuristic.
+    /// Other ideas: if we allocated that request, what would be the new value for
+    /// `budget_per_source` for each source?
+    /// Then, try to minimize the maximum value across all sources, and break
+    /// ties by request epsilon. This is not perfect since it could allocate to
+    /// sources that are already quite big, but not the biggest.
+    /// But maximizing the minimum allocation doesn't look too great either. A
+    /// large request can be allocated if it also boosts a small one? A request
+    /// that asks for zero budget is not prioritized?
+    /// Some problems with max min or min max: it sounds tighter to look at the actual individual
+    /// budget, instead of the requested budget. Because IDP optimizations
+    /// tell us that sometimes a request actually consumes zero budget, so it
+    /// should probably be ordered first. It's just a bit weird
+    /// because we would need to cache `source_losses` or call
+    /// `compute_epoch_source_losses`. Cheap optimization: use the
+    /// list of source IDs to approximate.
     fn sort_batch(
         &mut self,
         requests: Vec<BatchedRequest>,
@@ -456,51 +474,61 @@ impl BatchPrivateDataService {
         }
         debug!("Budget per source: {:?}", budget_per_source);
 
-        // Idea: if we allocated that request, what would be the new value for
-        // `budget_per_source`?
-        // This doesn't look too great either. A large request can be allocated if it also boosts a small one? A request that asks for zero budget is not prioritized?
-        let mut weighted_requests: Vec<(BatchedRequest, f64)> = vec![];
+        let mut weighted_requests: Vec<(BatchedRequest, f64, f64)> = vec![];
 
+        // For each request, find the minimum source budget across all sources.
+        // So it r appears in both q1's list of requests and q2's list, since
+        // we'll go through q1's list first we don't need to even remember about
+        // q2.
         for request in requests {
-            let mut min_budget = f64::MAX;
+            let mut min_source_budget = f64::MAX;
             let source_uris = request.source_uris();
-            let requested_budget = request.request.requested_epsilon(); // TODO: multiply by epoch length? Or actual attribution?
+            let requested_budget = request.request.requested_epsilon();
 
-            // Another problem: it sounds tighter to look at the actual individual
-            // budget, instead of the requested budget. Because IDP optimizations
-            // tell us that sometimes a request actually consumes zero budget, so it
-            // should probably be ordered first. It's just a bit weird
-            // because we would need to cache `source_losses` or call
-            // `compute_epoch_source_losses`. Cheap optimization: use the
-            // list of source IDs to approximate.
-
-            for source in all_sources.iter() {
-                let mut source_budget_after_request =
-                    *budget_per_source.get(source).unwrap();
-                if source_uris.contains(source) {
-                    source_budget_after_request += requested_budget;
-                }
-                if source_budget_after_request < min_budget {
-                    min_budget = source_budget_after_request;
+            for source in source_uris.iter() {
+                let source_budget = *budget_per_source.get(source).unwrap();
+                if source_budget < min_source_budget {
+                    min_source_budget = source_budget;
                 }
             }
 
-            weighted_requests.push((request, min_budget));
+            weighted_requests.push((
+                request,
+                min_source_budget,
+                requested_budget,
+            ));
         }
 
         debug!(
-            "Requests and minimum budget after allocation: {:?}",
+            "Requests and budgets after sorting: {:?}",
             weighted_requests
                 .iter()
-                .map(|(r, b)| (r.request_id, b))
+                .map(|(r, b, c)| (r.request_id, b, c))
                 .collect::<Vec<_>>()
         );
 
-        // Sort by weight in descending order. i.e., start with the request that maximizes the minimum allocation across sources
-        weighted_requests.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+        // Sort by weight.
+        weighted_requests.sort_by(|a, b| {
+            let (a_min_source_budget, a_request_budget) = (a.1, a.2);
+            let (b_min_source_budget, b_request_budget) = (b.1, b.2);
+
+            if a_min_source_budget < b_min_source_budget {
+                Less
+            } else if a_min_source_budget > b_min_source_budget {
+                Greater
+            } else {
+                // If the minimum source budget is the same, sort by request
+                // budget
+                if a_request_budget <= b_request_budget {
+                    Less
+                } else {
+                    Greater
+                }
+            }
+        });
 
         let sorted_requests =
-            weighted_requests.into_iter().map(|(r, _)| r).collect();
+            weighted_requests.into_iter().map(|(r, _, _)| r).collect();
 
         Ok(sorted_requests)
     }

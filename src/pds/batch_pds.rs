@@ -13,7 +13,7 @@ use crate::{
     budget::pure_dp_filter::PureDPBudget,
     events::{ppa_event::PpaEvent, traits::Event},
     pds::{epoch_pds::PdsReport, utils::PpaPds},
-    queries::ppa_histogram::PpaHistogramRequest,
+    queries::{ppa_histogram::PpaHistogramRequest, traits::EpochReportRequest},
 };
 
 #[derive(Debug)]
@@ -180,11 +180,6 @@ impl BatchPrivateDataService {
             self.current_scheduling_interval
         );
 
-        debug!(
-            "Queries already in the batch before initialization: {:?}",
-            self.batched_requests
-        );
-
         // We are entering a new scheduling interval. Decrement the number
         // of remaining attempts for all requests in the system..
         for request in &mut self.batched_requests {
@@ -194,50 +189,32 @@ impl BatchPrivateDataService {
             request.n_remaining_scheduling_attempts -= 1;
         }
 
-        debug!("\n\n 1. Starting initialization phase.");
+        debug!(
+            "\n\n 1. Starting initialization phase. Existing requests: {:?}",
+            self.batched_requests
+        );
         let batched_requests = take(&mut self.batched_requests);
         let unallocated_requests =
             self.initialization_phase(batched_requests)?;
         self.batched_requests.extend(unallocated_requests);
 
         debug!(
-            "Queries in the batch after initialization: {:?}",
-            self.batched_requests
+            "\n\n 2. Starting online phase. New requests: {:?}",
+            self.new_pending_requests
         );
-
-        debug!("New queries that arrived since the previous scheduling attempt: {:?}", self.new_pending_requests);
-
-        debug!("\n\n 2. Starting online phase.");
         let new_requests = take(&mut self.new_pending_requests);
         let unallocated_requests = self.online_phase(new_requests)?;
         self.batched_requests.extend(unallocated_requests);
 
-        debug!(
-            "Queries in the batch after online phase: {:?}",
-            self.batched_requests
-        );
-
-        assert!(
-            self.new_pending_requests.is_empty(),
-            "New requests should be empty after the online phase, since unallocated ones are moved to the batch."
-        );
-
         // Any request with 0 remaining attempts will be answered here and
         // removed from the batch.
-        debug!("\n\n 3. Starting batch phase.");
+        debug!(
+            "\n\n 3. Starting batch phase. Batch: {:?}",
+            self.batched_requests
+        );
         let batched_requests = take(&mut self.batched_requests);
         let unallocated_requests = self.batch_phase(batched_requests)?;
         self.batched_requests.extend(unallocated_requests);
-
-        debug!(
-            "Queries in the batch after batch phase: {:?}",
-            self.batched_requests
-        );
-
-        debug!(
-            "All delayed reports: {:?}. Current interval is {}",
-            self.delayed_reports, self.current_scheduling_interval
-        );
 
         // Take all the reports that are ready to be released.
         let reports = self
@@ -245,14 +222,9 @@ impl BatchPrivateDataService {
             .remove(&self.current_scheduling_interval)
             .unwrap_or_default();
 
-        debug!(
-            "Reports to be released at the end of scheduling interval {}: {:?}",
-            self.current_scheduling_interval, reports
-        );
-
         self.current_scheduling_interval += 1;
 
-        Ok(reports) // TODO(P1): only answer by the deadline.
+        Ok(reports)
     }
 
     /// Unlock fresh eps_c, enable imp quota with fresh capacity, and try to
@@ -261,9 +233,9 @@ impl BatchPrivateDataService {
         &mut self,
         batched_requests: Vec<BatchedRequest>,
     ) -> Result<Vec<BatchedRequest>> {
-        // Just try all the past epochs since our implementations just have a
+        // Just try all the past epochs since our experiments just have a
         // few. Could eventually discard epochs that have reached their
-        // lifetime.
+        // lifetime if that becomes a bottleneck.
         if let Some((start, end)) = self.epochs {
             for epoch in start..=end {
                 self.release_budget(epoch)?;
@@ -286,8 +258,9 @@ impl BatchPrivateDataService {
         Ok(unallocated_requests)
     }
 
-    /// Browse newly arrived requests one by one, try to allocate under
-    /// regular quotas.
+    /// Browse `new_requests` one by one, try to allocate under
+    /// regular quotas. Stores allocated requests for delayed response. Returns
+    /// a list of unallocated requests.
     fn online_phase(
         &mut self,
         new_requests: Vec<BatchedRequest>,
@@ -297,6 +270,8 @@ impl BatchPrivateDataService {
     }
 
     /// Disable the imp quotas, sort the requests, and try to allocate them.
+    /// Stores allocated requests for delayed response. Returns a list of
+    /// unallocated requests.
     fn batch_phase(
         &mut self,
         batched_requests: Vec<BatchedRequest>,
@@ -328,8 +303,9 @@ impl BatchPrivateDataService {
             }
         }
 
-        // TODO(P1): implement the actual logic here.
-        let sorted_batched_requests = batched_requests;
+        // TODO(P1): actually re-sort after every successful allocation? Sounds
+        // pretty expensive, but can pass a param to try_allocate.
+        let sorted_batched_requests = self.sort_batch(batched_requests)?;
 
         // Try to allocate the requests.
         let unallocated_requests =
@@ -363,6 +339,8 @@ impl BatchPrivateDataService {
         Ok(remaining_unallocated_requests)
     }
 
+    /// Stores allocated requests for delayed response. Returns a list of
+    /// unallocated requests.
     fn try_allocate(
         &mut self,
         requests: Vec<BatchedRequest>,
@@ -427,6 +405,77 @@ impl BatchPrivateDataService {
             self.pds.filter_storage.storage.filters.get(&filter_id)
         );
         Ok(())
+    }
+
+    /// Sort the requests.
+    fn sort_batch(
+        &mut self,
+        requests: Vec<BatchedRequest>,
+    ) -> Result<Vec<BatchedRequest>> {
+        // Problem: A request spans multiple epochs. So the total budget an
+        // impression site received so far is not a scalar, it's a vector over
+        // epochs. Simple heuristic: just add up all epochs so we reduce
+        // to a scalar and can sort sources. Could also take the average. But
+        // over which set of epochs? Maybe all the epochs covered by requests in
+        // the batch. Could go beyond, like all epochs ever, to optimize for
+        // fairness over time.
+
+        let mut all_sources = HashSet::new();
+        for request in &requests {
+            let source_uris = request.request.report_uris().source_uris;
+            all_sources.extend(source_uris);
+        }
+        debug!("Sources across all requests: {:?}", all_sources);
+
+        let mut all_epochs = HashSet::new();
+        for request in &requests {
+            let epoch_ids = request.request.epoch_ids();
+            all_epochs.extend(epoch_ids);
+        }
+        debug!("Epochs across all requests: {:?}", all_epochs);
+
+        let mut budget_per_source: HashMap<String, f64> = HashMap::new();
+        for source in all_sources {
+            let mut source_total_budget = 0.0;
+            for epoch in &all_epochs {
+                let filter_id = FilterId::QSource(*epoch, source.clone());
+                self.pds.initialize_filter_if_necessary(filter_id.clone())?;
+                let consumed_budget =
+                    self.pds.filter_storage.consumed_budget(&filter_id)?;
+                source_total_budget += consumed_budget;
+            }
+            budget_per_source.insert(source.clone(), source_total_budget);
+        }
+        debug!("Budget per source: {:?}", budget_per_source);
+
+        // Another problem: it sounds tighter to look at the actual individual
+        // budget, instead of the requested budget. Because IDP optimizations
+        // tell us that sometimes a request actually consumes zero budget, so it
+        // should probably be ordered first. It's just a bit weird
+        // because we would need to cache `source_losses` or call
+        // `compute_epoch_source_losses`. Cheap optimization: use the
+        // list of source IDs to approximate.
+
+        let mut requests_by_source: HashMap<String, Vec<&BatchedRequest>> =
+            HashMap::new();
+
+        for request in &requests {
+            let source_uris = &request.request.report_uris().source_uris;
+            for source in source_uris {
+                requests_by_source
+                    .entry(source.clone())
+                    .or_default()
+                    .push(request);
+            }
+        }
+
+        debug!("Requests by source: {:?}", requests_by_source);
+
+        // Idea: if we allocated that request, what would be the new value for
+        // `budget_per_source`?
+        let sorted_requests = vec![];
+
+        Ok(sorted_requests)
     }
 }
 

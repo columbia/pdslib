@@ -193,6 +193,16 @@ impl PpaFilterStorage {
         Ok(())
     }
 
+    pub fn consumed_budget(&self, filter_id: &PpaFilterId) -> Result<f64> {
+        let filter = self
+            .storage
+            .filters
+            .get(filter_id)
+            .context("Filter for epoch not initialized")?;
+
+        Ok(filter.consumed)
+    }
+
     pub fn reset(&mut self, filter_id: &PpaFilterId) -> Result<()> {
         let filter = self
             .storage

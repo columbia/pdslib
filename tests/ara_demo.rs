@@ -116,7 +116,7 @@ fn main() -> Result<(), anyhow::Error> {
             is_matching_event: Box::new(|event_filter_data: u64| {
                 event_filter_data == 1
             }),
-            intermediary_bucket_mapping: HashMap::new(),
+            bucket_intermediary_mapping: HashMap::new(),
         }, // Not filtering yet.
     )
     .unwrap();
@@ -150,7 +150,7 @@ fn main() -> Result<(), anyhow::Error> {
             is_matching_event: Box::new(|event_filter_data: u64| {
                 event_filter_data == 1
             }),
-            intermediary_bucket_mapping: HashMap::new(),
+            bucket_intermediary_mapping: HashMap::new(),
         }, // Not filtering yet.
     );
     assert!(request2.is_err());
@@ -169,7 +169,7 @@ fn main() -> Result<(), anyhow::Error> {
             is_matching_event: Box::new(|event_filter_data: u64| {
                 event_filter_data != 1
             }),
-            intermediary_bucket_mapping: HashMap::new(),
+            bucket_intermediary_mapping: HashMap::new(),
         }, // Not filtering yet.
     )
     .unwrap();

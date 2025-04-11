@@ -17,7 +17,7 @@ use crate::{
 pub struct PpaRelevantEventSelector {
     pub report_request_uris: ReportRequestUris<String>,
     pub is_matching_event: Box<dyn Fn(u64) -> bool>,
-    pub intermediary_bucket_mapping: HashMap<String, HashSet<usize>>,
+    pub bucket_intermediary_mapping: HashMap<usize, String>,
 }
 
 impl std::fmt::Debug for PpaRelevantEventSelector {
@@ -122,10 +122,10 @@ impl PpaHistogramRequest {
         })
     }
 
-    pub fn get_intermediary_bucket_mapping(
+    pub fn get_bucket_intermediary_mapping(
         &self,
-    ) -> &HashMap<String, HashSet<usize>> {
-        &self.filters.intermediary_bucket_mapping
+    ) -> &HashMap<usize, String> {
+        &self.filters.bucket_intermediary_mapping
     }
 
     // Helper to check if a bucket is for a specific intermediary
@@ -136,10 +136,10 @@ impl PpaHistogramRequest {
     ) -> bool {
         match self
             .filters
-            .intermediary_bucket_mapping
-            .get(intermediary_uri)
+            .bucket_intermediary_mapping
+            .get(&bucket_key)
         {
-            Some(bucket_set) => bucket_set.contains(&bucket_key),
+            Some(intermediary) => intermediary == intermediary_uri,
             None => false,
         }
     }
@@ -229,10 +229,10 @@ impl HistogramRequest for PpaHistogramRequest {
         self.filters.report_request_uris.clone()
     }
 
-    fn get_intermediary_bucket_mapping(
+    fn get_bucket_intermediary_mapping(
         &self,
-    ) -> Option<&HashMap<String, HashSet<usize>>> {
-        Some(&self.filters.intermediary_bucket_mapping)
+    ) -> Option<&HashMap<usize, String>> {
+        Some(&self.filters.bucket_intermediary_mapping)
     }
 
     fn filter_report_for_intermediary(
@@ -241,55 +241,33 @@ impl HistogramRequest for PpaHistogramRequest {
         intermediary_uri: &str,
         _relevant_events_per_epoch: &HashMap<Self::EpochId, Self::EpochEvents>,
     ) -> Option<HistogramReport<Self::BucketKey>> {
-        // intermediary_bucket_mapping.get() returns Option<&HashSet<usize>>
-        self.filters
-            .intermediary_bucket_mapping
-            .get(intermediary_uri)
-            .map(|intermediary_buckets| {
-                // intermediary_buckets is &HashSet<usize>, which is what
-                // filter_histogram_for_intermediary expects
-                let filtered_bins = filter_histogram_for_intermediary(
-                    &report.bin_values,
-                    intermediary_buckets,
-                );
-                HistogramReport {
-                    bin_values: filtered_bins,
+        // Collect all usize keys whose value matches intermediary_uri
+        let intermediary_buckets: HashSet<usize> = self
+            .filters
+            .bucket_intermediary_mapping
+            .iter()
+            .filter_map(|(bucket_id, uri)| {
+                if uri == intermediary_uri {
+                    Some(*bucket_id)
+                } else {
+                    None
                 }
             })
-    }
-}
+            .collect();
 
-// Utility function to create bucket mappings
-pub fn create_intermediary_bucket_mapping(
-    mappings: Vec<(String, Vec<usize>)>,
-) -> Result<HashMap<String, HashSet<usize>>, String> {
-    // First, check for overlapping buckets
-    let mut all_buckets: HashMap<usize, Vec<String>> = HashMap::new();
-    // Track which bucket is assigned to which intermediaries
-    for (uri, buckets) in &mappings {
-        for &bucket in buckets {
-            all_buckets.entry(bucket).or_default().push(uri.clone());
+        // If none matched, return None; otherwise, filter and return Some(...)
+        if intermediary_buckets.is_empty() {
+            None
+        } else {
+            let filtered_bins = filter_histogram_for_intermediary(
+                &report.bin_values,
+                &intermediary_buckets,
+            );
+            Some(HistogramReport {
+                bin_values: filtered_bins,
+            })
         }
     }
-
-    // Find any buckets assigned to multiple intermediaries
-    let overlapping_buckets: HashMap<usize, Vec<String>> = all_buckets
-        .into_iter()
-        .filter(|(_, uris)| uris.len() > 1)
-        .collect();
-    if !overlapping_buckets.is_empty() {
-        return Err(String::from(
-            "Bucket overlap detected between intermediaries",
-        ));
-    }
-
-    // If no overlaps, create the mapping as before
-    let mapping = mappings
-        .into_iter()
-        .map(|(uri, buckets)| (uri, buckets.into_iter().collect()))
-        .collect();
-
-    Ok(mapping)
 }
 
 // Utility function to filter histogram

@@ -316,7 +316,7 @@ where
                 request.report_uris().intermediary_uris.clone();
             let mut intermediary_reports = HashMap::new();
 
-            if filtered_result.uri_bucket_map.keys().len() > 0 {
+            if filtered_result.bucket_uri_map.keys().len() > 0 {
                 // Process each intermediary
                 for intermediary_uri in intermediary_uris {
                     // TODO(https://github.com/columbia/pdslib/issues/55):
@@ -329,7 +329,7 @@ where
                     // this remark in a issue for later, because that would
                     // involve modifying the is_relevant_event logic too, to
                     // check that the intermediary_uris
-                    // match. Your get_intermediary_bucket_mapping seems to
+                    // match. Your get_bucket_intermediary_mapping seems to
                     // serve the same purpose.
                     // Get the relevant events for this intermediary
 
@@ -887,7 +887,7 @@ mod cross_report_optimization_tests {
         },
         queries::{
             ppa_histogram::{
-                create_intermediary_bucket_mapping, PpaHistogramConfig,
+                PpaHistogramConfig,
                 PpaHistogramRequest, PpaRelevantEventSelector,
             },
             traits::ReportRequestUris,
@@ -969,13 +969,12 @@ mod cross_report_optimization_tests {
         // Create intermediary bucket mapping
         // Both intermediaries have access to bucket 3, so they'll both get data
         // from the same event
-        let intermediary_bucket_mapping =
-            create_intermediary_bucket_mapping(vec![
-                (intermediary_uri1.clone(), vec![1]), // r1.ex gets buckets 1
-                (intermediary_uri2.clone(), vec![2]), // r2.ex gets buckets 2
-                (intermediary_uri3.clone(), vec![3]), // r3.ex gets buckets 3
-            ])
-            .map_err(anyhow::Error::msg)?;
+        let bucket_intermediary_mapping =
+            HashMap::from([
+                (1, intermediary_uri1.clone()), // r1.ex gets buckets 1
+                (2, intermediary_uri2.clone()), // r2.ex gets buckets 2
+                (3, intermediary_uri3.clone()), // r3.ex gets buckets 3
+            ]);
         // Create histogram request with optimization query flag set to true
         let config = PpaHistogramConfig {
             start_epoch: 1,
@@ -993,7 +992,7 @@ mod cross_report_optimization_tests {
                 is_matching_event: Box::new(|event_filter_data: u64| {
                     event_filter_data == 1
                 }),
-                intermediary_bucket_mapping,
+                bucket_intermediary_mapping,
             },
         )
         .map_err(|e| anyhow::anyhow!("Failed to create request: {}", e))?;
@@ -1082,30 +1081,5 @@ mod cross_report_optimization_tests {
             }
         }
         Ok(())
-    }
-
-    #[test]
-    fn test_bucket_overlap_validation() {
-        // Test case 1: Valid disjoint buckets
-        let valid_mapping = vec![
-            ("r1.ex".to_string(), vec![1, 3, 5]),
-            ("r2.ex".to_string(), vec![2, 4, 6]),
-        ];
-
-        let result = create_intermediary_bucket_mapping(valid_mapping);
-        assert!(result.is_ok(), "Valid mapping should not produce an error");
-
-        // Test case 2: Invalid overlapping buckets
-        let invalid_mapping = vec![
-            ("r1.ex".to_string(), vec![1, 3, 5]),
-            ("r2.ex".to_string(), vec![2, 3, 6]), /* Bucket 3 overlaps with
-                                                   * r1.ex */
-        ];
-
-        let result = create_intermediary_bucket_mapping(invalid_mapping);
-        assert!(
-            result.is_err(),
-            "Overlapping buckets should produce an error"
-        );
     }
 }

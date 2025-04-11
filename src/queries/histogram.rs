@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     fmt::Debug,
     hash::Hash,
 };
@@ -92,9 +92,9 @@ where
     fn report_uris(&self) -> ReportRequestUris<String>;
 
     /// Gets the querier bucket mapping for filtering histograms
-    fn get_intermediary_bucket_mapping(
+    fn get_bucket_intermediary_mapping(
         &self,
-    ) -> Option<&HashMap<String, HashSet<usize>>>;
+    ) -> Option<&HashMap<usize, String>>;
 
     /// Filter a histogram for a specific querier
     fn filter_report_for_intermediary(
@@ -208,7 +208,7 @@ impl<H: HistogramRequest> EpochReportRequest for H {
             }
         }
 
-        match self.get_intermediary_bucket_mapping() {
+        match self.get_bucket_intermediary_mapping() {
             Some(intermediary_mapping) => QueryComputeResult::new(
                 intermediary_mapping.clone(),
                 site_to_report_mapping,

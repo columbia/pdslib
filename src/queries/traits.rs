@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     fmt::Debug,
     hash::Hash,
 };
@@ -10,18 +10,18 @@ use crate::{
 };
 
 pub struct QueryComputeResult<U, R> {
-    pub uri_bucket_map: HashMap<U, HashSet<usize>>,
+    pub bucket_uri_map: HashMap<usize, U>,
     pub uri_report_map: HashMap<U, R>,
 }
 
 impl<U, R> QueryComputeResult<U, R> {
     // Example methods, if you need them
     pub fn new(
-        uri_bucket_map: HashMap<U, HashSet<usize>>,
+        bucket_uri_map: HashMap<usize, U>,
         uri_report_map: HashMap<U, R>,
     ) -> Self {
         Self {
-            uri_bucket_map,
+            bucket_uri_map,
             uri_report_map,
         }
     }

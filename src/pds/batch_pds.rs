@@ -27,6 +27,9 @@ pub struct BatchedRequest {
     /// The actual request.
     /// TODO: make generic.
     request: PpaHistogramRequest,
+
+    /// Cache the most recent result received for this request, even if it was a null report.
+    report: Option<PdsReport<PpaHistogramRequest>>,
 }
 
 impl BatchedRequest {
@@ -46,6 +49,7 @@ impl BatchedRequest {
             request_id,
             n_remaining_scheduling_attempts: n_scheduling_attemps,
             request,
+            report: None,
         })
     }
 }
@@ -261,13 +265,34 @@ impl BatchPrivateDataService {
         // TODO(P1): implement the actual logic here.
         let sorted_batched_requests = take(&mut self.batched_requests);
 
-        // Try to allocate the requests. Requests with 0 remaining attemps will
-        // be
+        // Try to allocate the requests.
         let unallocated_requests =
             self.try_allocate(sorted_batched_requests)?;
 
-        // Put unallocated requests back into the batch.
-        self.batched_requests = unallocated_requests;
+        // Requests with 0 remaining attemps will be answered with a null.
+        // Put other unallocated requests back into the batch.
+        for request in unallocated_requests {
+            if request.n_remaining_scheduling_attempts == 0 {
+                if let Some(report) = request.report {
+                    let batched_report = BatchedReport {
+                        request_id: request.request_id,
+                        report,
+                    };
+                    self.delayed_reports
+                        .entry(self.current_scheduling_interval)
+                        .or_default()
+                        .push(batched_report);
+                } else {
+                    bail!(
+                        "Request {:?} was not allocated and has no report. This should not happen.",
+                        request
+                    );
+                }
+            } else {
+                self.batched_requests.push(request);
+            }
+        }
+
         Ok(())
     }
 
@@ -277,26 +302,18 @@ impl BatchPrivateDataService {
     ) -> Result<Vec<BatchedRequest>> {
         // Go through requests one by one and try to allocate them.
         let mut unallocated_requests = vec![];
-        for request in requests {
+        for mut request in requests {
             let report = self.pds.compute_report(&request.request)?;
 
             info!("Report for request {}: {:?}", request.request_id, report);
 
-            // if (report.error_cause().is_none() || (end_of_scheduling_interval && request.n_remaining_scheduling_attempts == 0)) {
-            //     if report.error_cause().is_none() {
-            //     debug!(
-            //         "Request {} was successfully allocated: {:?}",
-            //         request.request_id, report
-            //     );
-            // }
-            // else {
-            //     debug!("Request was not allocated but ")
-            // }
-            //     // Request was successfully allocated.
-
             if report.error_cause().is_none() {
-                // Keep the result for when
-                // the time is right.
+                debug!(
+                    "Request {} was successfully allocated: {:?}",
+                    request.request_id, report
+                );
+
+                // Keep the result for when the time is right.
                 let batched_report = BatchedReport {
                     request_id: request.request_id,
                     report,
@@ -314,7 +331,8 @@ impl BatchPrivateDataService {
                     .or_default()
                     .push(batched_report);
             } else {
-                // Keep the request for the batch phase.
+                // Keep the request for later. Cache the report in case we need it.
+                request.report = Some(report);
                 unallocated_requests.push(request);
             }
         }

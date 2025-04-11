@@ -18,6 +18,10 @@ pub struct EventUris<U> {
     /// URI of entities that can trigger the computation of a report
     pub trigger_uris: Vec<U>,
 
+    /// URI of entities that are embedded in the source/trigger sites
+    /// and can receive reports that include this event.
+    pub intermediary_uris: Vec<U>,
+
     /// URI of entities that can receive reports that include this event.
     pub querier_uris: Vec<U>,
 }
@@ -27,7 +31,6 @@ pub struct EventUris<U> {
 pub trait Event: Debug + Clone {
     type EpochId: EpochId;
     type Uri: Clone + Eq + Hash + Debug;
-    // TODO(https://github.com/columbia/pdslib/issues/18): add source/trigger information for Big Bird / Level 2.
 
     fn epoch_id(&self) -> Self::EpochId;
 
@@ -36,9 +39,15 @@ pub trait Event: Debug + Clone {
 
 /// Collection of events for a given epoch.
 pub trait EpochEvents: Debug {
+    type Event: Event;
+
     fn new() -> Self;
 
     fn is_empty(&self) -> bool;
+
+    fn push(&mut self, event: Self::Event);
+
+    fn iter(&self) -> std::slice::Iter<Self::Event>;
 }
 
 /// Selector that can tag relevant events one by one or in bulk.

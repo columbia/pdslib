@@ -1,9 +1,31 @@
-use std::{collections::HashMap, fmt::Debug, hash::Hash};
+use std::{
+    collections::HashMap,
+    fmt::Debug,
+    hash::Hash,
+};
 
 use crate::{
     events::traits::{EpochEvents, EpochId, Event, RelevantEventSelector},
     mechanisms::{NoiseScale, NormType},
 };
+
+pub struct QueryComputeResult<U, R> {
+    pub bucket_uri_map: HashMap<usize, U>,
+    pub uri_report_map: HashMap<U, R>,
+}
+
+impl<U, R> QueryComputeResult<U, R> {
+    // Example methods, if you need them
+    pub fn new(
+        bucket_uri_map: HashMap<usize, U>,
+        uri_report_map: HashMap<U, R>,
+    ) -> Self {
+        Self {
+            bucket_uri_map,
+            uri_report_map,
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct ReportRequestUris<U> {
@@ -12,6 +34,10 @@ pub struct ReportRequestUris<U> {
 
     /// Source URIs that can be used to compute the report
     pub source_uris: Vec<U>,
+
+    /// Intermediary URIs that are embedded in the source/trigger sites
+    /// and will receive encrypted reports
+    pub intermediary_uris: Vec<U>,
 
     /// Queriers that will receive a report
     pub querier_uris: Vec<U>,
@@ -48,7 +74,7 @@ pub trait EpochReportRequest: Debug {
     fn compute_report(
         &self,
         relevant_events_per_epoch: &HashMap<Self::EpochId, Self::EpochEvents>,
-    ) -> Self::Report;
+    ) -> QueryComputeResult<Self::Uri, Self::Report>;
 
     /// Computes the individual sensitivity for the query when the report is
     /// computed over a single epoch.

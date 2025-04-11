@@ -1,16 +1,23 @@
-use std::{collections::HashMap, vec};
+use std::{
+    collections::{HashMap, HashSet},
+    vec,
+};
 
 use crate::{
     events::{
         hashmap_event_storage::VecEpochEvents, ppa_event::PpaEvent,
         traits::RelevantEventSelector,
     },
-    queries::{histogram::HistogramRequest, traits::ReportRequestUris},
+    queries::{
+        histogram::{HistogramReport, HistogramRequest},
+        traits::ReportRequestUris,
+    },
 };
 
 pub struct PpaRelevantEventSelector {
     pub report_request_uris: ReportRequestUris<String>,
     pub is_matching_event: Box<dyn Fn(u64) -> bool>,
+    pub bucket_intermediary_mapping: HashMap<usize, String>,
 }
 
 impl std::fmt::Debug for PpaRelevantEventSelector {
@@ -19,6 +26,16 @@ impl std::fmt::Debug for PpaRelevantEventSelector {
             .field("report_request_uris", &self.report_request_uris)
             .finish_non_exhaustive()
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct PpaHistogramConfig {
+    pub start_epoch: usize,
+    pub end_epoch: usize,
+    pub report_global_sensitivity: f64,
+    pub query_global_sensitivity: f64,
+    pub requested_epsilon: f64,
+    pub histogram_size: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -79,33 +96,52 @@ impl PpaHistogramRequest {
     /// - `report_global_sensitivity` and `query_global_sensitivity` are
     ///   non-negative.
     pub fn new(
-        start_epoch: usize,
-        end_epoch: usize,
-        report_global_sensitivity: f64,
-        query_global_sensitivity: f64,
-        requested_epsilon: f64,
-        histogram_size: usize,
+        config: PpaHistogramConfig,
         filters: PpaRelevantEventSelector,
     ) -> Result<Self, &'static str> {
-        if requested_epsilon <= 0.0 {
+        if config.requested_epsilon <= 0.0 {
             return Err("requested_epsilon must be greater than 0");
         }
-        if report_global_sensitivity < 0.0 || query_global_sensitivity < 0.0 {
+        if config.report_global_sensitivity < 0.0
+            || config.query_global_sensitivity < 0.0
+        {
             return Err("sensitivity values must be non-negative");
         }
-        if histogram_size == 0 {
+        if config.histogram_size == 0 {
             return Err("histogram_size must be greater than 0");
         }
         Ok(Self {
-            start_epoch,
-            end_epoch,
-            report_global_sensitivity,
-            query_global_sensitivity,
-            requested_epsilon,
-            histogram_size,
+            start_epoch: config.start_epoch,
+            end_epoch: config.end_epoch,
+            report_global_sensitivity: config.report_global_sensitivity,
+            query_global_sensitivity: config.query_global_sensitivity,
+            requested_epsilon: config.requested_epsilon,
+            histogram_size: config.histogram_size,
             filters,
             logic: AttributionLogic::LastTouch,
         })
+    }
+
+    pub fn get_bucket_intermediary_mapping(
+        &self,
+    ) -> &HashMap<usize, String> {
+        &self.filters.bucket_intermediary_mapping
+    }
+
+    // Helper to check if a bucket is for a specific intermediary
+    pub fn is_bucket_for_intermediary(
+        &self,
+        bucket_key: usize,
+        intermediary_uri: &str,
+    ) -> bool {
+        match self
+            .filters
+            .bucket_intermediary_mapping
+            .get(&bucket_key)
+        {
+            Some(intermediary) => intermediary == intermediary_uri,
+            None => false,
+        }
     }
 }
 
@@ -192,4 +228,61 @@ impl HistogramRequest for PpaHistogramRequest {
     fn report_uris(&self) -> ReportRequestUris<String> {
         self.filters.report_request_uris.clone()
     }
+
+    fn get_bucket_intermediary_mapping(
+        &self,
+    ) -> Option<&HashMap<usize, String>> {
+        Some(&self.filters.bucket_intermediary_mapping)
+    }
+
+    fn filter_report_for_intermediary(
+        &self,
+        report: &HistogramReport<Self::BucketKey>,
+        intermediary_uri: &str,
+        _relevant_events_per_epoch: &HashMap<Self::EpochId, Self::EpochEvents>,
+    ) -> Option<HistogramReport<Self::BucketKey>> {
+        // Collect all usize keys whose value matches intermediary_uri
+        let intermediary_buckets: HashSet<usize> = self
+            .filters
+            .bucket_intermediary_mapping
+            .iter()
+            .filter_map(|(bucket_id, uri)| {
+                if uri == intermediary_uri {
+                    Some(*bucket_id)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        // If none matched, return None; otherwise, filter and return Some(...)
+        if intermediary_buckets.is_empty() {
+            None
+        } else {
+            let filtered_bins = filter_histogram_for_intermediary(
+                &report.bin_values,
+                &intermediary_buckets,
+            );
+            Some(HistogramReport {
+                bin_values: filtered_bins,
+            })
+        }
+    }
+}
+
+// Utility function to filter histogram
+pub fn filter_histogram_for_intermediary<BK: std::hash::Hash + Eq + Clone>(
+    full_histogram: &HashMap<BK, f64>,
+    intermediary_buckets: &HashSet<BK>,
+) -> HashMap<BK, f64> {
+    full_histogram
+        .iter()
+        .filter_map(|(key, value)| {
+            if intermediary_buckets.contains(key) {
+                Some((key.clone(), *value))
+            } else {
+                None
+            }
+        })
+        .collect()
 }

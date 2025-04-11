@@ -23,6 +23,10 @@ impl EventUris<String> {
         Self {
             source_uri: "blog.com".to_string(),
             trigger_uris: vec!["shoes.com".to_string()],
+            intermediary_uris: vec![
+                "search.engine".to_string(),
+                "social.media".to_string(),
+            ],
             querier_uris: vec![
                 "shoes.com".to_string(),
                 "adtech.com".to_string(),
@@ -37,6 +41,10 @@ impl ReportRequestUris<String> {
         Self {
             trigger_uri: "shoes.com".to_string(),
             source_uris: vec!["blog.com".to_string()],
+            intermediary_uris: vec![
+                "search.engine".to_string(),
+                "social.media".to_string(),
+            ],
             querier_uris: vec!["adtech.com".to_string()],
         }
     }

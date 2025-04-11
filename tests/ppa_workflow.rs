@@ -42,7 +42,12 @@ fn main() -> Result<(), anyhow::Error> {
     };
 
     let sample_event_uris = EventUris::mock();
-    let sample_report_uris = ReportRequestUris::mock();
+    let sample_report_uris = ReportRequestUris {
+        trigger_uri: "shoes.com".to_string(),
+        source_uris: vec!["blog.com".to_string()],
+        intermediary_uris: vec!["search.engine.com".to_string()],
+        querier_uris: vec!["adtech.com".to_string()],
+    };
 
     // Create an impression (event, with very basic metadata).
     let event = SimpleEvent {
@@ -88,8 +93,13 @@ fn main() -> Result<(), anyhow::Error> {
 
     // Look at the histogram stored in the report (unencrypted here).
     assert_eq!(
-        report.filtered_report.bin_value,
+        report
+            .get(&report_request.report_uris.querier_uris[0].clone())
+            .unwrap()
+            .filtered_report
+            .bin_value,
         Some((event.event_key, 70.0))
     );
+
     Ok(())
 }

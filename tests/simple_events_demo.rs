@@ -44,7 +44,12 @@ fn main() -> Result<(), anyhow::Error> {
     };
 
     let sample_event_uris = EventUris::mock();
-    let sample_report_uris = ReportRequestUris::mock();
+    let sample_report_uris = ReportRequestUris {
+        trigger_uri: "shoes.com".to_string(),
+        source_uris: vec!["blog.com".to_string()],
+        intermediary_uris: vec!["search.engine.com".to_string()],
+        querier_uris: vec!["adtech.com".to_string()],
+    };
 
     let event = SimpleEvent {
         id: 1,
@@ -87,7 +92,14 @@ fn main() -> Result<(), anyhow::Error> {
     };
     let report = pds.compute_report(&report_request)?;
     let bucket = Some((event.event_key, 3.0));
-    assert_eq!(report.filtered_report.bin_value, bucket);
+    assert_eq!(
+        report
+            .get(&report_request.report_uris.querier_uris[0])
+            .unwrap()
+            .filtered_report
+            .bin_value,
+        bucket
+    );
 
     // Test having multiple events in one epoch
     pds.register_event(event2.clone())?;
@@ -109,7 +121,14 @@ fn main() -> Result<(), anyhow::Error> {
     // Allocated budget for epoch 1 is 3.0, but 3.0 has already been consumed in
     // the last request, so the budget is depleted. Now, the null report should
     // be returned for this additional query.
-    assert_eq!(report2.filtered_report.bin_value, None);
+    assert_eq!(
+        report2
+            .get(&report_request2.report_uris.querier_uris[0])
+            .unwrap()
+            .filtered_report
+            .bin_value,
+        None
+    );
 
     let report_request2 = SimpleLastTouchHistogramRequest {
         epoch_start: 1,
@@ -122,7 +141,14 @@ fn main() -> Result<(), anyhow::Error> {
     };
     let report2 = pds.compute_report(&report_request2)?;
     let bucket2 = Some((event2.event_key, 3.0));
-    assert_eq!(report2.filtered_report.bin_value, bucket2);
+    assert_eq!(
+        report2
+            .get(&report_request2.report_uris.querier_uris[0])
+            .unwrap()
+            .filtered_report
+            .bin_value,
+        bucket2
+    );
 
     // Test request for epoch empty yet.
     let report_request3_empty = SimpleLastTouchHistogramRequest {
@@ -135,7 +161,14 @@ fn main() -> Result<(), anyhow::Error> {
         report_uris: sample_report_uris.clone(),
     };
     let report3_empty = pds.compute_report(&report_request3_empty)?;
-    assert_eq!(report3_empty.filtered_report.bin_value, None);
+    assert_eq!(
+        report3_empty
+            .get(&report_request3_empty.report_uris.querier_uris[0])
+            .unwrap()
+            .filtered_report
+            .bin_value,
+        None
+    );
 
     // Test restricting report_global_sensitivity
     pds.register_event(event4.clone())?;
@@ -150,7 +183,14 @@ fn main() -> Result<(), anyhow::Error> {
     };
     let report3_over_budget =
         pds.compute_report(&report_request3_over_budget)?;
-    assert_eq!(report3_over_budget.filtered_report.bin_value, None);
+    assert_eq!(
+        report3_over_budget
+            .get(&report_request3_over_budget.report_uris.querier_uris[0])
+            .unwrap()
+            .filtered_report
+            .bin_value,
+        None
+    );
 
     // This tests the case where we meet the first event in epoch 3, below the
     // budget not used.
@@ -165,7 +205,14 @@ fn main() -> Result<(), anyhow::Error> {
     };
     let report3 = pds.compute_report(&report_request3)?;
     let bucket3 = Some((event3.event_key, 3.0));
-    assert_eq!(report3.filtered_report.bin_value, bucket3);
+    assert_eq!(
+        report3
+            .get(&report_request3.report_uris.querier_uris[0])
+            .unwrap()
+            .filtered_report
+            .bin_value,
+        bucket3
+    );
 
     // Check that irrelevant events are ignored
     let report_request4 = SimpleLastTouchHistogramRequest {
@@ -181,7 +228,14 @@ fn main() -> Result<(), anyhow::Error> {
     };
     let report4 = pds.compute_report(&report_request4)?;
     let bucket4: Option<(usize, f64)> = None;
-    assert_eq!(report4.filtered_report.bin_value, bucket4);
+    assert_eq!(
+        report4
+            .get(&report_request4.report_uris.querier_uris[0])
+            .unwrap()
+            .filtered_report
+            .bin_value,
+        bucket4
+    );
 
     Ok(())
 }

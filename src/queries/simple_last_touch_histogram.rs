@@ -7,7 +7,9 @@ use crate::{
         traits::RelevantEventSelector,
     },
     mechanisms::{NoiseScale, NormType},
-    queries::traits::{EpochReportRequest, Report, ReportRequestUris},
+    queries::traits::{
+        EpochReportRequest, QueryComputeResult, Report, ReportRequestUris,
+    },
 };
 
 #[derive(Debug)]
@@ -77,7 +79,7 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
     fn compute_report(
         &self,
         relevant_epochs_per_epoch: &HashMap<usize, Self::EpochEvents>,
-    ) -> Self::Report {
+    ) -> QueryComputeResult<Self::Uri, Self::Report> {
         // Browse epochs in the order given by `epoch_ids, most recent
         // epoch first. Within each epoch, we assume that events are
         // stored in the order that they occured
@@ -94,15 +96,31 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
                     // Just use event_key as the bucket key.
                     // See `ara_histogram` for a more general impression_key ->
                     // bucket_key mapping.
-                    return SimpleLastTouchHistogramReport {
-                        bin_value: Some((event_key, attributed_value)),
-                    };
+                    return QueryComputeResult::new(
+                        HashMap::new(),
+                        HashMap::from([(
+                            self.report_uris
+                                .querier_uris
+                                .first()
+                                .unwrap()
+                                .clone(),
+                            SimpleLastTouchHistogramReport {
+                                bin_value: Some((event_key, attributed_value)),
+                            },
+                        )]),
+                    );
                 }
             }
         }
 
         // No impressions were found so we return a report with a None bucket.
-        SimpleLastTouchHistogramReport { bin_value: None }
+        QueryComputeResult::new(
+            HashMap::new(),
+            HashMap::from([(
+                self.report_uris.querier_uris.first().unwrap().clone(),
+                SimpleLastTouchHistogramReport { bin_value: None },
+            )]),
+        )
     }
 
     fn single_epoch_individual_sensitivity(

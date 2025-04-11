@@ -555,7 +555,7 @@ mod tests {
     };
 
     #[test]
-    fn schedule_one_batch() -> Result<(), anyhow::Error> {
+    fn schedule_one_batch() -> Result<()> {
         log4rs::init_file("logging_config.yaml", Default::default())?;
 
         let capacities = StaticCapacities::new(
@@ -660,6 +660,110 @@ mod tests {
             reports[0].report.error_cause()
         );
 
+        Ok(())
+    }
+
+    /// Test that mimics the example from the paper that motivates batching.
+    #[test]
+    fn order_fairness() -> Result<()> {
+        log4rs::init_file("logging_config.yaml", Default::default())?;
+
+        let capacities = StaticCapacities::new(
+            PureDPBudget::Epsilon(1.0),
+            PureDPBudget::Epsilon(10.0),
+            PureDPBudget::Epsilon(1.0),
+            PureDPBudget::Epsilon(5.0),
+        );
+
+        // Using a single release here.
+        let mut batch_pds = BatchPrivateDataService::new(capacities, 1)?;
+
+        let mut trigger_uris = vec![];
+        for i in 1..=9 {
+            trigger_uris.push(format!("shoes-{i}.ex"));
+        }
+
+        // Event relevant to all the shoes websites. Could also register 10 different events, with one querier each.
+        batch_pds.register_event(PpaEvent {
+            id: 1,
+            timestamp: 0,
+            epoch_number: 1,
+            histogram_index: 0,
+            uris: EventUris {
+                source_uri: "news.ex".to_string(),
+                trigger_uris: trigger_uris.clone(),
+                querier_uris: trigger_uris.clone(),
+            },
+            filter_data: 1,
+        })?;
+
+        batch_pds.register_event(PpaEvent {
+            id: 1,
+            timestamp: 0,
+            epoch_number: 1,
+            histogram_index: 0,
+            uris: EventUris {
+                source_uri: "blog.ex".to_string(),
+                trigger_uris: vec!["hats-1.ex".to_string()],
+                querier_uris: vec!["hats-1.ex".to_string()],
+            },
+            filter_data: 1,
+        })?;
+
+        // Every single conversion sites gets a conversion.
+        for i in 1..=9 {
+            batch_pds.register_report_request(BatchedRequest::new(
+                i,
+                1,
+                PpaHistogramRequest::new(
+                    1,
+                    1,
+                    1.0,
+                    1.0,
+                    0.9 + 0.01 * i as f64,
+                    5,
+                    PpaRelevantEventSelector {
+                        report_request_uris: ReportRequestUris {
+                            trigger_uri: format!("shoes-{i}.ex"),
+                            source_uris: vec!["news.ex".to_string()],
+                            querier_uris: vec![format!("shoes-{i}.ex")],
+                        },
+                        is_matching_event: Box::new(|_: u64| true),
+                    },
+                )?,
+            )?)?;
+        }
+        batch_pds.register_report_request(BatchedRequest::new(
+            6,
+            1,
+            PpaHistogramRequest::new(
+                1,
+                1,
+                1.0,
+                1.0,
+                0.96,
+                5,
+                PpaRelevantEventSelector {
+                    report_request_uris: ReportRequestUris {
+                        trigger_uri: "hats-1.ex".to_string(),
+                        source_uris: vec!["blog.ex".to_string()],
+                        querier_uris: vec!["hats-1.ex".to_string()],
+                    },
+                    is_matching_event: Box::new(|_: u64| true),
+                },
+            )?,
+        )?)?;
+
+        let reports = batch_pds.schedule_batch()?;
+        assert_eq!(reports.len(), 10);
+
+        debug!("Reports: {:?}", reports);
+
+        Ok(())
+    }
+
+    #[test]
+    fn more_epochs_and_sources() -> Result<()> {
         Ok(())
     }
 }

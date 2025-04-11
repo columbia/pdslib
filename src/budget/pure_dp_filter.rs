@@ -1,5 +1,6 @@
 use core::f64;
 
+use anyhow::{Error, Result};
 use log::debug;
 use serde::Serialize;
 
@@ -54,19 +55,19 @@ impl Serialize for PureDPBudget {
 impl Budget for PureDPBudget {}
 
 /// A filter for pure differential privacy.
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct PureDPBudgetFilter {
     pub remaining_budget: PureDPBudget,
 }
 
-impl Serialize for PureDPBudgetFilter {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        self.remaining_budget.serialize(serializer)
-    }
-}
+// impl Serialize for PureDPBudgetFilter {
+//     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+//     where
+//         S: serde::Serializer,
+//     {
+//         self.remaining_budget.serialize(serializer)
+//     }
+// }
 
 impl Filter<PureDPBudget> for PureDPBudgetFilter {
     type Error = anyhow::Error;
@@ -78,6 +79,7 @@ impl Filter<PureDPBudget> for PureDPBudgetFilter {
         Ok(this)
     }
 
+    /// TODO: seems a bit convoluted.
     fn can_consume(&self, budget: &PureDPBudget) -> Result<bool, Self::Error> {
         match (&self.remaining_budget, budget) {
             (PureDPBudget::Infinite, _) => Ok(true),
@@ -128,6 +130,14 @@ impl Filter<PureDPBudget> for PureDPBudgetFilter {
         Ok(self.remaining_budget.clone())
     }
 }
+
+// impl PureDPBudgetFilter {
+//     fn release(&mut self, additional_capacity: PureDPBudget) -> Result<Error> {
+//         // Release more budget.
+//         self.capacity += additional_capacity;
+//         Ok(())
+//     }
+// }
 
 #[cfg(test)]
 mod tests {

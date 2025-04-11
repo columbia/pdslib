@@ -11,5 +11,6 @@ demo:
     cargo test --package pdslib --test ppa_demo -- --nocapture 
 
 format:
+    cargo clippy --fix --allow-dirty
     cargo +nightly fmt
     cargo clippy --tests  -- -D warnings

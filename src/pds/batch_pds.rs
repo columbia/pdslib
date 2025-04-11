@@ -1,6 +1,7 @@
 use std::{collections::HashMap, fmt::Debug, mem::take, vec};
 
 use anyhow::{bail, Result};
+use log::{debug, info};
 
 use super::utils::PpaCapacities;
 use crate::{
@@ -115,9 +116,37 @@ impl BatchPrivateDataService {
         // pending requests by deadline.
 
         // TODO: move this to another function?
+
+        info!(
+            "Scheduling batch for interval {}",
+            self.current_scheduling_interval
+        );
+
+        info!(
+            "Queries already in the batch before initialization: {:?}",
+            self.batched_requests
+        );
+
         self.initialization_phase()?;
 
+        info!(
+            "Queries in the batch after initialization: {:?}",
+            self.batched_requests
+        );
+
+        info!("New queries that arrived since the previous scheduling attempt: {:?}", self.new_pending_requests);
+
         self.online_phase()?;
+
+        info!(
+            "Queries in the batch after online phase: {:?}",
+            self.batched_requests
+        );
+
+        assert!(
+            self.new_pending_requests.is_empty(),
+            "New requests should be empty after the online phase, since unallocated ones are moved to the batch."
+        );
 
         // We are about to finish the scheduling interval. Decrement the number
         // of remaining attempts for all requests.
@@ -129,11 +158,21 @@ impl BatchPrivateDataService {
         // removed from the batch.
         self.batch_phase()?;
 
+        info!(
+            "Queries in the batch after batch phase: {:?}",
+            self.batched_requests
+        );
+
         // Take all the reports that are ready to be released.
         let reports = self
             .delayed_reports
             .remove(&self.current_scheduling_interval)
             .unwrap_or_default();
+
+        info!(
+            "Reports to be released at the end of scheduling interval {}: {:?}",
+            self.current_scheduling_interval, reports
+        );
 
         self.current_scheduling_interval += 1;
 
@@ -195,7 +234,13 @@ impl BatchPrivateDataService {
         for request in requests {
             let report = self.pds.compute_report(&request.request)?;
 
+            info!("Report for request {}: {:?}", request.request_id, report);
+
             if report.error_cause().is_none() {
+                debug!(
+                    "Request {} was successfully allocated: {:?}",
+                    request.request_id, report
+                );
                 // Request was successfully allocated. Keep the result for when
                 // the time is right.
                 let batched_report = BatchedReport {
@@ -232,20 +277,9 @@ mod tests {
 
     use super::*;
     use crate::{
-        budget::{
-            hashmap_filter_storage::HashMapFilterStorage,
-            pure_dp_filter::{PureDPBudget, PureDPBudgetFilter},
-        },
-        events::{
-            hashmap_event_storage::HashMapEventStorage, ppa_event::PpaEvent,
-            traits::EventUris,
-        },
-        pds::{batch_pds, epoch_pds::StaticCapacities, utils::PpaPds},
-        queries::{
-            ppa_histogram::{PpaHistogramRequest, PpaRelevantEventSelector},
-            simple_last_touch_histogram::SimpleLastTouchHistogramRequest,
-            traits::{PassivePrivacyLossRequest, ReportRequestUris},
-        },
+        events::{ppa_event::PpaEvent, traits::EventUris},
+        pds::epoch_pds::StaticCapacities,
+        queries::ppa_histogram::PpaHistogramRequest,
     };
 
     #[test]
@@ -269,23 +303,26 @@ mod tests {
 
         batch_pds.register_event(event1.clone())?;
 
-        batch_pds.register_report_request(BatchedRequest {
-            request_id: 1,
-            n_remaining_scheduling_attempts: 1,
-            request: PpaHistogramRequest::mock()?,
-        })?;
+        // Request that will be answered in the first scheduling attempt.
+        batch_pds.register_report_request(BatchedRequest::new(
+            1,
+            1,
+            PpaHistogramRequest::mock()?,
+        )?)?;
 
-        batch_pds.register_report_request(BatchedRequest {
-            request_id: 2,
-            n_remaining_scheduling_attempts: 1,
-            request: PpaHistogramRequest::mock()?,
-        })?;
+        // Another request with one scheduling attempt.
+        batch_pds.register_report_request(BatchedRequest::new(
+            2,
+            1,
+            PpaHistogramRequest::mock()?,
+        )?)?;
 
-        batch_pds.register_report_request(BatchedRequest {
-            request_id: 3,
-            n_remaining_scheduling_attempts: 2,
-            request: PpaHistogramRequest::mock()?,
-        })?;
+        // A request that will try two scheduling attempts. It requests too much so should wait for more budget to be released.
+        batch_pds.register_report_request(BatchedRequest::new(
+            3,
+            2,
+            PpaHistogramRequest::mock()?,
+        )?)?;
 
         let reports = batch_pds.schedule_batch()?;
         assert_eq!(reports.len(), 2);

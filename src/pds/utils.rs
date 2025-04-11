@@ -2,8 +2,6 @@
 //! config param? Or make things a bit more generic, only for those who
 //! implement the right traits.
 
-use std::hash::Hash;
-
 use anyhow::{Context, Result};
 use serde::{ser::SerializeStruct, Serialize};
 
@@ -117,7 +115,8 @@ impl FilterStorage for PpaFilterStorage {
         let capacity = self.storage.capacities.capacity(&filter_id)?;
         let mut filter = PureDPBudgetReleaseFilter::new(capacity)?;
 
-        // TODO: Hacky logic to have some filters locked and others unlocked at initialization time.
+        // TODO: Hacky logic to have some filters locked and others unlocked at
+        // initialization time.
         if !matches!(filter_id, FilterId::C(_)) {
             // Set the unlocked budget to capacity.
             filter.release(f64::INFINITY);
@@ -171,6 +170,17 @@ impl PpaFilterStorage {
             .context("Filter for epoch not initialized")?;
 
         filter.release(budget);
+        Ok(())
+    }
+
+    pub fn reset(&mut self, filter_id: &PpaFilterId) -> Result<()> {
+        let filter = self
+            .storage
+            .filters
+            .get_mut(filter_id)
+            .context("Filter for epoch not initialized")?;
+
+        filter.consumed = 0.0;
         Ok(())
     }
 }

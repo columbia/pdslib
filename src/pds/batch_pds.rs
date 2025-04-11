@@ -1,4 +1,9 @@
-use std::{collections::HashMap, fmt::Debug, mem::take, vec};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Debug,
+    mem::take,
+    vec,
+};
 
 use anyhow::{bail, Result};
 use log::{debug, info, warn};
@@ -28,7 +33,8 @@ pub struct BatchedRequest {
     /// TODO: make generic.
     request: PpaHistogramRequest,
 
-    /// Cache the most recent result received for this request, even if it was a null report.
+    /// Cache the most recent result received for this request, even if it was
+    /// a null report.
     report: Option<PdsReport<PpaHistogramRequest>>,
 }
 
@@ -72,11 +78,18 @@ pub struct BatchPrivateDataService {
 
     /// Epochs present in the system
     /// Range of epochs from start to end (included).
-    /// TODO: formalize a bit more the invariants, use  HashSet<u64>, or connect to time?
+    /// TODO: formalize a bit more the invariants, use  HashSet<u64>, or
+    /// connect to time?
     pub epochs: Option<(usize, usize)>,
+
+    /// List of all the different sources that appear in each epoch.
+    pub sources_per_epoch: HashMap<usize, HashSet<String>>,
 
     /// Amount of c-filter budget to be released per scheduling interval.
     pub eps_c_per_release: f64,
+
+    /// Copy of the capacities passed to pds
+    pub capacities: PpaCapacities,
 
     /// Base private data service.
     /// Filters need to have functionality to unlock budget.
@@ -107,7 +120,7 @@ impl BatchPrivateDataService {
             }
         };
 
-        let pds = PpaPds::new(capacities)?;
+        let pds = PpaPds::new(capacities.clone())?;
 
         Ok(BatchPrivateDataService {
             current_scheduling_interval: 0,
@@ -116,6 +129,8 @@ impl BatchPrivateDataService {
             delayed_reports: HashMap::new(),
             eps_c_per_release,
             epochs: None,
+            sources_per_epoch: HashMap::new(),
+            capacities,
             pds,
         })
     }
@@ -141,7 +156,12 @@ impl BatchPrivateDataService {
             }
         }
 
-        // TODO(P1): also keep track of impression sites, maybe per epoch, or just in total.
+        // Update the sources for that epoch
+        let source = event.event_uris().source_uri.clone();
+        self.sources_per_epoch
+            .entry(epoch)
+            .or_default()
+            .insert(source);
 
         self.pds.register_event(event)
     }
@@ -225,24 +245,26 @@ impl BatchPrivateDataService {
         Ok(reports) // TODO(P1): only answer by the deadline.
     }
 
+    /// Unlock fresh eps_c, enable imp quota with fresh capacity, and try to allocate requests from the previous batch.
     fn initialization_phase(&mut self) -> Result<()> {
-        // TODO(P1): first unlock eps_C. Browse all epochs, or up to some max
-        // number of iterations that we know are enough to unlock everything.
-        // Shove this to another function then, and for now really just try all
-        // the past epochs since our implementations just have a few. Use events
-        // or reports to check whether an epoch exists, otherwise could expose
-        // from filter storage.
+        // Just try all the past epochs since our implementations just have a few. Could eventually discard epochs that have reached their lifetime.
         if let Some((start, end)) = self.epochs {
             for epoch in start..=end {
                 self.release_budget(epoch)?;
+
+                // Reset imp quota for all sources in the epoch
+                if let Some(sources) = self.sources_per_epoch.get(&epoch) {
+                    for source in sources {
+                        let filter_id =
+                            FilterId::QSource(epoch, source.clone());
+                        self.pds.initialize_filter_if_necessary(
+                            filter_id.clone(),
+                        )?;
+                        self.pds.filter_storage.reset(&filter_id)?;
+                    }
+                }
             }
         }
-
-        //TODO(P1): Fresh quotas, need to update
-        // abstractions here too... TODO: what happens when some epochs
-        // in the attribution have unlocked their whole budget but not
-        // others? TODO(later): some basic caching to avoid checking
-        // queries that have zero chance of being fair?
 
         let batched_requests = take(&mut self.batched_requests);
         let unallocated_requests = self.try_allocate(batched_requests)?;
@@ -253,10 +275,9 @@ impl BatchPrivateDataService {
         Ok(())
     }
 
+    /// Browse newly arrived requests one by one, try to allocate under
+    /// regular quotas.
     fn online_phase(&mut self) -> Result<()> {
-        // browse newly arrived requests one by one, try to allocate with
-        // regular quotas.
-
         let new_pending_requests = take(&mut self.new_pending_requests);
         let unallocated_requests = self.try_allocate(new_pending_requests)?;
 
@@ -344,7 +365,8 @@ impl BatchPrivateDataService {
                     .or_default()
                     .push(batched_report);
             } else {
-                // Keep the request for later. Cache the report in case we need it.
+                // Keep the request for later. Cache the report in case we need
+                // it.
                 request.report = Some(report);
                 unallocated_requests.push(request);
             }
@@ -353,7 +375,8 @@ impl BatchPrivateDataService {
         Ok(unallocated_requests)
     }
 
-    /// Release budget for the given epoch. This is a no-op when the epoch's unlocked budget has reached the capacity.
+    /// Release budget for the given epoch. This is a no-op when the epoch's
+    /// unlocked budget has reached the capacity.
     fn release_budget(&mut self, epoch: usize) -> Result<()> {
         let filter_id = FilterId::C(epoch);
         self.pds.initialize_filter_if_necessary(filter_id.clone())?;

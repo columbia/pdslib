@@ -186,6 +186,8 @@ impl BatchPrivateDataService {
         // caching to avoid checking queries that have zero chance of being
         // fair?
 
+        // TODO(P1): release some budget for all the epochs.
+
         let batched_requests = take(&mut self.batched_requests);
         let unallocated_requests = self.try_allocate(batched_requests)?;
 

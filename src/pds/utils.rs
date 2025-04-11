@@ -2,14 +2,16 @@
 //! config param? Or make things a bit more generic, only for those who
 //! implement the right traits.
 
+use anyhow::{Context, Result};
 use serde::{ser::SerializeStruct, Serialize};
+use std::hash::Hash;
 
 use super::epoch_pds::StaticCapacities;
 use crate::{
     budget::{
         hashmap_filter_storage::HashMapFilterStorage,
-        pure_dp_filter::{PureDPBudget, PureDPBudgetFilter},
-        traits::FilterStorage,
+        pure_dp_filter::PureDPBudget,
+        release_filter::PureDPBudgetReleaseFilter, traits::FilterStorage,
     },
     events::{
         hashmap_event_storage::HashMapEventStorage, ppa_event::PpaEvent,
@@ -25,7 +27,7 @@ pub type PpaCapacities =
 pub type PpaPds = EpochPrivateDataService<
     HashMapFilterStorage<
         FilterId<usize, String>,
-        PureDPBudgetFilter,
+        PureDPBudgetReleaseFilter,
         PureDPBudget,
         PpaCapacities,
     >,
@@ -39,7 +41,7 @@ impl PpaPds {
         let events =
             HashMapEventStorage::<PpaEvent, PpaRelevantEventSelector>::new();
 
-        let filters: HashMapFilterStorage<_, PureDPBudgetFilter, _, _> =
+        let filters: HashMapFilterStorage<_, PureDPBudgetReleaseFilter, _, _> =
             HashMapFilterStorage::new(capacities)?;
 
         let pds = EpochPrivateDataService {
@@ -56,7 +58,7 @@ impl PpaPds {
 impl<E, U> Serialize
     for HashMapFilterStorage<
         FilterId<E, U>,
-        PureDPBudgetFilter,
+        PureDPBudgetReleaseFilter,
         PureDPBudget,
         StaticCapacities<FilterId<E, U>, PureDPBudget>,
     >
@@ -87,5 +89,24 @@ impl<E, U> Serialize
         state.serialize_field("qtriggers", &qtriggers)?;
         state.serialize_field("qsources", &qsources)?;
         state.end()
+    }
+}
+
+impl<FID: Eq + Hash>
+    HashMapFilterStorage<
+        FID,
+        PureDPBudgetReleaseFilter,
+        PureDPBudget,
+        StaticCapacities<FID, PureDPBudget>,
+    >
+{
+    pub fn release(&mut self, filter_id: &FID, budget: f64) -> Result<()> {
+        let filter = self
+            .filters
+            .get_mut(filter_id)
+            .context("Filter for epoch not initialized")?;
+
+        filter.release(budget);
+        Ok(())
     }
 }

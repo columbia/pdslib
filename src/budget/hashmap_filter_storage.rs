@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+use std::hash::Hash;
 use std::{collections::HashMap, marker::PhantomData};
 
 use anyhow::Context;
@@ -20,7 +22,7 @@ pub struct HashMapFilterStorage<FID, F, B, C> {
 
 impl<FID, F, B, C> FilterStorage for HashMapFilterStorage<FID, F, B, C>
 where
-    FID: Clone + Eq + std::hash::Hash + std::fmt::Debug,
+    FID: Clone + Eq + Hash + Debug,
     F: Filter<B, Error = anyhow::Error>,
     B: Budget,
     C: FilterCapacities<FilterId = FID, Budget = B, Error = anyhow::Error>,

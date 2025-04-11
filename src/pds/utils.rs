@@ -173,6 +173,26 @@ impl PpaFilterStorage {
         Ok(())
     }
 
+    pub fn remove(
+        &mut self,
+        filter_id: &PpaFilterId,
+    ) -> Result<Option<PureDPBudgetReleaseFilter>> {
+        Ok(self.storage.filters.remove(filter_id))
+    }
+
+    pub fn set_capacity_to_infinity(
+        &mut self,
+        filter_id: &PpaFilterId,
+    ) -> Result<()> {
+        let filter = self
+            .storage
+            .filters
+            .get_mut(filter_id)
+            .context("Filter for epoch not initialized")?;
+        filter.capacity = PureDPBudget::Infinite;
+        Ok(())
+    }
+
     pub fn reset(&mut self, filter_id: &PpaFilterId) -> Result<()> {
         let filter = self
             .storage

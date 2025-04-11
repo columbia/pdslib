@@ -1,10 +1,12 @@
+use std::fmt::Debug;
+
 /// Trait for privacy budgets
-pub trait Budget: Clone {
+pub trait Budget: Clone + Debug {
     // For now just a marker trait requiring Clone
 }
 
 /// Trait for a privacy filter.
-pub trait Filter<T: Budget> {
+pub trait Filter<T: Budget>: Debug {
     type Error;
 
     /// Initializes a new filter with a given capacity.

@@ -30,10 +30,15 @@ impl Filter<PureDPBudget> for PureDPBudgetReleaseFilter {
     }
 
     fn can_consume(&self, budget: &PureDPBudget) -> Result<bool, Self::Error> {
+        // Infinite filters accept all requests, even if they are infinite too.
+        if self.capacity == PureDPBudget::Infinite {
+            return Ok(true);
+        }
+
         match budget {
             PureDPBudget::Infinite => {
-                // Infinite requests are accepted iff capacity is infinite
-                Ok(self.capacity == PureDPBudget::Infinite)
+                // Finite capacity can't allow infinite requests
+                Ok(false)
             }
             PureDPBudget::Epsilon(requested) => {
                 Ok(self.consumed + *requested <= self.unlocked)
@@ -45,11 +50,6 @@ impl Filter<PureDPBudget> for PureDPBudgetReleaseFilter {
         &mut self,
         budget: &PureDPBudget,
     ) -> Result<FilterStatus, Self::Error> {
-        debug!(
-            "Filter: {:?}. We need to consume this much budget {:?}",
-            self, budget
-        );
-
         // Infinite filters accept all requests, even if they are infinite too.
         if self.capacity == PureDPBudget::Infinite {
             return Ok(FilterStatus::Continue);

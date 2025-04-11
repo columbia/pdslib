@@ -176,7 +176,7 @@ impl BatchPrivateDataService {
 
     pub fn schedule_batch(&mut self) -> Result<Vec<BatchedReport>> {
         info!(
-            "Scheduling batch for interval {}",
+            "\n\n\nScheduling batch for interval {}",
             self.current_scheduling_interval
         );
 
@@ -194,6 +194,7 @@ impl BatchPrivateDataService {
             request.n_remaining_scheduling_attempts -= 1;
         }
 
+        info!("\n\n 1. Starting initialization phase.");
         self.initialization_phase()?;
 
         info!(
@@ -203,6 +204,7 @@ impl BatchPrivateDataService {
 
         info!("New queries that arrived since the previous scheduling attempt: {:?}", self.new_pending_requests);
 
+        info!("\n\n 2. Starting online phase.");
         self.online_phase()?;
 
         info!(
@@ -217,6 +219,7 @@ impl BatchPrivateDataService {
 
         // Any request with 0 remaining attempts will be answered here and
         // removed from the batch.
+        info!("\n\n 3. Starting batch phase.");
         self.batch_phase()?;
 
         info!(
@@ -257,10 +260,11 @@ impl BatchPrivateDataService {
                     for source in sources {
                         let filter_id =
                             FilterId::QSource(epoch, source.clone());
+                        self.pds.filter_storage.remove(&filter_id)?;
                         self.pds.initialize_filter_if_necessary(
                             filter_id.clone(),
                         )?;
-                        self.pds.filter_storage.reset(&filter_id)?;
+                        // self.pds.filter_storage.reset(&filter_id)?;
                     }
                 }
             }
@@ -286,10 +290,33 @@ impl BatchPrivateDataService {
         Ok(())
     }
 
+    /// Disable the imp quotas, sort the requests, and try to allocate them.
     fn batch_phase(&mut self) -> Result<()> {
         //  next, reach out to the filters to deactivate qimp or set the
         // capacity to infinity. Let's keep a fixed qconv for now.
-        // Sort and try to allocate.
+
+        if let Some((start, end)) = self.epochs {
+            for epoch in start..=end {
+                // Set all imp quotas to infinity for all sources in the epoch
+                if let Some(sources) = self.sources_per_epoch.get(&epoch) {
+                    for source in sources {
+                        let filter_id =
+                            FilterId::QSource(epoch, source.clone());
+
+                        // TODO: initialize if necessary, but let's see if we get an error first.
+                        self.pds
+                            .filter_storage
+                            .set_capacity_to_infinity(&filter_id)?;
+
+                        debug!(
+                            "Set filter {:?} to infinite capacity. Filter state: {:?}",
+                            filter_id,
+                            self.pds.filter_storage.storage.filters.get(&filter_id)
+                        );
+                    }
+                }
+            }
+        }
 
         // TODO(P1): implement the actual logic here.
         let sorted_batched_requests = take(&mut self.batched_requests);
@@ -414,9 +441,9 @@ mod tests {
 
         let capacities = StaticCapacities::new(
             PureDPBudget::Epsilon(10.0),
-            PureDPBudget::Epsilon(4.0),
+            PureDPBudget::Epsilon(5.0),
             PureDPBudget::Epsilon(10.0),
-            PureDPBudget::Epsilon(10.0),
+            PureDPBudget::Epsilon(2.0),
         );
 
         let mut batch_pds = BatchPrivateDataService::new(capacities, 2)?;
@@ -443,7 +470,7 @@ mod tests {
                 1,
                 1.0,
                 1.0,
-                1.0,
+                1.1,
                 5,
                 PpaRelevantEventSelector {
                     report_request_uris: ReportRequestUris::mock(),
@@ -452,7 +479,7 @@ mod tests {
             )?,
         )?)?;
 
-        // Another request with one scheduling attempt.
+        // Another request with one scheduling attempt. But it doesn't go through the online phase because of qimp, instead it has to wait until the batch phase for the quotas to be disabled.
         batch_pds.register_report_request(BatchedRequest::new(
             2,
             1,
@@ -461,7 +488,7 @@ mod tests {
                 1,
                 1.0,
                 1.0,
-                1.0,
+                1.2,
                 5,
                 PpaRelevantEventSelector {
                     report_request_uris: ReportRequestUris::mock(),
@@ -480,7 +507,7 @@ mod tests {
                 1,
                 1.0,
                 1.0,
-                1.0,
+                1.3,
                 5,
                 PpaRelevantEventSelector {
                     report_request_uris: ReportRequestUris::mock(),
@@ -494,11 +521,23 @@ mod tests {
 
         info!("Reports: {:?}", reports);
 
+        for report in reports {
+            assert!(
+                report.report.error_cause().is_none(),
+                "Report should not have an error cause. Got: {:?}",
+                report.report.error_cause()
+            );
+        }
+
         let reports = batch_pds.schedule_batch()?;
         assert_eq!(reports.len(), 1);
         info!("Reports again: {:?}", reports);
 
-        // TODO: check ull reports, etc.
+        assert!(
+            reports[0].report.error_cause().is_none(),
+            "Report should not have an error cause. Got: {:?}",
+            reports[0].report.error_cause()
+        );
 
         Ok(())
     }

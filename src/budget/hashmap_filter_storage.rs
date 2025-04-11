@@ -1,6 +1,7 @@
 use std::{collections::HashMap, fmt::Debug, hash::Hash, marker::PhantomData};
 
 use anyhow::Context;
+use log::debug;
 
 use crate::budget::traits::{
     Budget, Filter, FilterCapacities, FilterStatus, FilterStorage,
@@ -68,6 +69,11 @@ where
             .get(filter_id)
             .context("Filter for epoch not initialized")?;
 
+        debug!(
+            "Check if we can consume {:?} from filter {:?}: {:?}",
+            budget, filter_id, filter
+        );
+
         filter.can_consume(budget)
     }
 
@@ -80,6 +86,11 @@ where
             .filters
             .get_mut(filter_id)
             .context("Filter for epoch not initialized")?;
+
+        debug!(
+            "Trying to consume {:?} from filter {:?}: {:?}",
+            budget, filter_id, filter
+        );
 
         filter.try_consume(budget)
     }

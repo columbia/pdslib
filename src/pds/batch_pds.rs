@@ -166,8 +166,11 @@ impl BatchPrivateDataService {
         );
 
         // We are entering a new scheduling interval. Decrement the number
-        // of remaining attempts for all requests.
+        // of remaining attempts for all requests in the system..
         for request in &mut self.batched_requests {
+            request.n_remaining_scheduling_attempts -= 1;
+        }
+        for request in &mut self.new_pending_requests {
             request.n_remaining_scheduling_attempts -= 1;
         }
 
@@ -199,6 +202,11 @@ impl BatchPrivateDataService {
         info!(
             "Queries in the batch after batch phase: {:?}",
             self.batched_requests
+        );
+
+        info!(
+            "All delayed reports: {:?}. Current interval is {}",
+            self.delayed_reports, self.current_scheduling_interval
         );
 
         // Take all the reports that are ready to be released.
@@ -325,6 +333,11 @@ impl BatchPrivateDataService {
                 let target_scheduling_interval = self
                     .current_scheduling_interval
                     + request.n_remaining_scheduling_attempts;
+
+                debug!(
+                    "Target scheduling interval: {}",
+                    target_scheduling_interval
+                );
 
                 self.delayed_reports
                     .entry(target_scheduling_interval)

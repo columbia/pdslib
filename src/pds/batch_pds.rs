@@ -176,11 +176,11 @@ impl BatchPrivateDataService {
 
     pub fn schedule_batch(&mut self) -> Result<Vec<BatchedReport>> {
         info!(
-            "\n\n\nScheduling batch for interval {}",
+            "Scheduling batch for interval {}",
             self.current_scheduling_interval
         );
 
-        info!(
+        debug!(
             "Queries already in the batch before initialization: {:?}",
             self.batched_requests
         );
@@ -194,20 +194,25 @@ impl BatchPrivateDataService {
             request.n_remaining_scheduling_attempts -= 1;
         }
 
-        info!("\n\n 1. Starting initialization phase.");
-        self.initialization_phase()?;
+        debug!("\n\n 1. Starting initialization phase.");
+        let batched_requests = take(&mut self.batched_requests);
+        let unallocated_requests =
+            self.initialization_phase(batched_requests)?;
+        self.batched_requests.extend(unallocated_requests);
 
-        info!(
+        debug!(
             "Queries in the batch after initialization: {:?}",
             self.batched_requests
         );
 
-        info!("New queries that arrived since the previous scheduling attempt: {:?}", self.new_pending_requests);
+        debug!("New queries that arrived since the previous scheduling attempt: {:?}", self.new_pending_requests);
 
-        info!("\n\n 2. Starting online phase.");
-        self.online_phase()?;
+        debug!("\n\n 2. Starting online phase.");
+        let new_requests = take(&mut self.new_pending_requests);
+        let unallocated_requests = self.online_phase(new_requests)?;
+        self.batched_requests.extend(unallocated_requests);
 
-        info!(
+        debug!(
             "Queries in the batch after online phase: {:?}",
             self.batched_requests
         );
@@ -219,15 +224,17 @@ impl BatchPrivateDataService {
 
         // Any request with 0 remaining attempts will be answered here and
         // removed from the batch.
-        info!("\n\n 3. Starting batch phase.");
-        self.batch_phase()?;
+        debug!("\n\n 3. Starting batch phase.");
+        let batched_requests = take(&mut self.batched_requests);
+        let unallocated_requests = self.batch_phase(batched_requests)?;
+        self.batched_requests.extend(unallocated_requests);
 
-        info!(
+        debug!(
             "Queries in the batch after batch phase: {:?}",
             self.batched_requests
         );
 
-        info!(
+        debug!(
             "All delayed reports: {:?}. Current interval is {}",
             self.delayed_reports, self.current_scheduling_interval
         );
@@ -238,7 +245,7 @@ impl BatchPrivateDataService {
             .remove(&self.current_scheduling_interval)
             .unwrap_or_default();
 
-        info!(
+        debug!(
             "Reports to be released at the end of scheduling interval {}: {:?}",
             self.current_scheduling_interval, reports
         );
@@ -248,9 +255,15 @@ impl BatchPrivateDataService {
         Ok(reports) // TODO(P1): only answer by the deadline.
     }
 
-    /// Unlock fresh eps_c, enable imp quota with fresh capacity, and try to allocate requests from the previous batch.
-    fn initialization_phase(&mut self) -> Result<()> {
-        // Just try all the past epochs since our implementations just have a few. Could eventually discard epochs that have reached their lifetime.
+    /// Unlock fresh eps_c, enable imp quota with fresh capacity, and try to
+    /// allocate requests from the previous batch.
+    fn initialization_phase(
+        &mut self,
+        batched_requests: Vec<BatchedRequest>,
+    ) -> Result<Vec<BatchedRequest>> {
+        // Just try all the past epochs since our implementations just have a
+        // few. Could eventually discard epochs that have reached their
+        // lifetime.
         if let Some((start, end)) = self.epochs {
             for epoch in start..=end {
                 self.release_budget(epoch)?;
@@ -264,34 +277,30 @@ impl BatchPrivateDataService {
                         self.pds.initialize_filter_if_necessary(
                             filter_id.clone(),
                         )?;
-                        // self.pds.filter_storage.reset(&filter_id)?;
                     }
                 }
             }
         }
 
-        let batched_requests = take(&mut self.batched_requests);
         let unallocated_requests = self.try_allocate(batched_requests)?;
-
-        // Put unallocated requests back into the batch.
-        self.batched_requests = unallocated_requests;
-
-        Ok(())
+        Ok(unallocated_requests)
     }
 
     /// Browse newly arrived requests one by one, try to allocate under
     /// regular quotas.
-    fn online_phase(&mut self) -> Result<()> {
-        let new_pending_requests = take(&mut self.new_pending_requests);
-        let unallocated_requests = self.try_allocate(new_pending_requests)?;
-
-        // Put unallocated requests into the batch.
-        self.batched_requests.extend(unallocated_requests);
-        Ok(())
+    fn online_phase(
+        &mut self,
+        new_requests: Vec<BatchedRequest>,
+    ) -> Result<Vec<BatchedRequest>> {
+        let unallocated_requests = self.try_allocate(new_requests)?;
+        Ok(unallocated_requests)
     }
 
     /// Disable the imp quotas, sort the requests, and try to allocate them.
-    fn batch_phase(&mut self) -> Result<()> {
+    fn batch_phase(
+        &mut self,
+        batched_requests: Vec<BatchedRequest>,
+    ) -> Result<Vec<BatchedRequest>> {
         //  next, reach out to the filters to deactivate qimp or set the
         // capacity to infinity. Let's keep a fixed qconv for now.
 
@@ -303,7 +312,8 @@ impl BatchPrivateDataService {
                         let filter_id =
                             FilterId::QSource(epoch, source.clone());
 
-                        // TODO: initialize if necessary, but let's see if we get an error first.
+                        // TODO: initialize if necessary, but let's see if we
+                        // get an error first.
                         self.pds
                             .filter_storage
                             .set_capacity_to_infinity(&filter_id)?;
@@ -319,7 +329,7 @@ impl BatchPrivateDataService {
         }
 
         // TODO(P1): implement the actual logic here.
-        let sorted_batched_requests = take(&mut self.batched_requests);
+        let sorted_batched_requests = batched_requests;
 
         // Try to allocate the requests.
         let unallocated_requests =
@@ -327,6 +337,7 @@ impl BatchPrivateDataService {
 
         // Requests with 0 remaining attemps will be answered with a null.
         // Put other unallocated requests back into the batch.
+        let mut remaining_unallocated_requests = vec![];
         for request in unallocated_requests {
             if request.n_remaining_scheduling_attempts == 0 {
                 if let Some(report) = request.report {
@@ -345,11 +356,11 @@ impl BatchPrivateDataService {
                     );
                 }
             } else {
-                self.batched_requests.push(request);
+                remaining_unallocated_requests.push(request);
             }
         }
 
-        Ok(())
+        Ok(remaining_unallocated_requests)
     }
 
     fn try_allocate(
@@ -361,7 +372,7 @@ impl BatchPrivateDataService {
         for mut request in requests {
             let report = self.pds.compute_report(&request.request)?;
 
-            info!("Report for request {}: {:?}", request.request_id, report);
+            debug!("Report for request {}: {:?}", request.request_id, report);
 
             if report.error_cause().is_none() {
                 debug!(
@@ -410,7 +421,7 @@ impl BatchPrivateDataService {
         self.pds
             .filter_storage
             .release(&filter_id, self.eps_c_per_release)?;
-        info!(
+        debug!(
             "Released budget for epoch {}. Filter state: {:?}",
             epoch,
             self.pds.filter_storage.storage.filters.get(&filter_id)
@@ -422,7 +433,7 @@ impl BatchPrivateDataService {
 #[cfg(test)]
 mod tests {
     // use common::logging;
-    use log::info;
+
     use log4rs;
 
     use super::*;
@@ -448,7 +459,7 @@ mod tests {
 
         let mut batch_pds = BatchPrivateDataService::new(capacities, 2)?;
 
-        info!("Registering events");
+        debug!("Registering events");
 
         let event1 = PpaEvent {
             id: 1,
@@ -479,7 +490,9 @@ mod tests {
             )?,
         )?)?;
 
-        // Another request with one scheduling attempt. But it doesn't go through the online phase because of qimp, instead it has to wait until the batch phase for the quotas to be disabled.
+        // Another request with one scheduling attempt. But it doesn't go
+        // through the online phase because of qimp, instead it has to wait
+        // until the batch phase for the quotas to be disabled.
         batch_pds.register_report_request(BatchedRequest::new(
             2,
             1,
@@ -519,7 +532,7 @@ mod tests {
         let reports = batch_pds.schedule_batch()?;
         assert_eq!(reports.len(), 2);
 
-        info!("Reports: {:?}", reports);
+        debug!("Reports: {:?}", reports);
 
         for report in reports {
             assert!(
@@ -531,7 +544,7 @@ mod tests {
 
         let reports = batch_pds.schedule_batch()?;
         assert_eq!(reports.len(), 1);
-        info!("Reports again: {:?}", reports);
+        debug!("Reports again: {:?}", reports);
 
         assert!(
             reports[0].report.error_cause().is_none(),

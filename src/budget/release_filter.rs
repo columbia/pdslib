@@ -1,5 +1,4 @@
 use anyhow::Result;
-use log::debug;
 use serde::Serialize;
 
 use super::{

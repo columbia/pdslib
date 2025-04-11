@@ -1,7 +1,6 @@
 use core::f64;
 
 use anyhow::Result;
-use log::debug;
 use serde::Serialize;
 
 use crate::budget::traits::{Budget, Filter, FilterStatus};

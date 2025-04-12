@@ -84,6 +84,7 @@ impl<E, U> Serialize
     }
 }
 
+#[derive(Debug, Serialize)]
 pub struct PpaFilterStorage {
     pub storage: HashMapFilterStorage<
         PpaFilterId,

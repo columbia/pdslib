@@ -233,7 +233,8 @@ impl BatchPrivateDataService {
         batched_requests.extend(unallocated_from_previous_batch);
         batched_requests.extend(unallocated_new_requests);
 
-        // Requests with 0 remaining attempts will be answered and removed from the batch.
+        // Requests with 0 remaining attempts will be answered and removed from
+        // the batch.
         let unallocated_requests = self.batch_phase(batched_requests)?;
 
         // Store the batch for next scheduling interval.
@@ -269,7 +270,10 @@ impl BatchPrivateDataService {
                 self.release_budget(epoch)?;
 
                 // Reset imp quota for all sources in the epoch
-                // TODO(P2): if we find this is a problem, could release Qimp too, but be a bit weird since the consmed budget might be higher than the unlocked budget, because of the batch phase where we temporarily set the capacity to infinity.
+                // TODO(P2): if we find this is a problem, could release Qimp
+                // too, but be a bit weird since the consmed budget might be
+                // higher than the unlocked budget, because of the batch phase
+                // where we temporarily set the capacity to infinity.
                 if let Some(sources) = self.sources_per_epoch.get(&epoch) {
                     for source in sources {
                         let filter_id =
@@ -317,7 +321,8 @@ impl BatchPrivateDataService {
 
         if let Some((start, end)) = self.epochs {
             for epoch in start..=end {
-                // Set all imp quotas to infinity for all sources in the epoch. Keep a fixed qconv for now.
+                // Set all imp quotas to infinity for all sources in the epoch.
+                // Keep a fixed qconv for now.
                 if let Some(sources) = self.sources_per_epoch.get(&epoch) {
                     for source in sources {
                         let filter_id =
@@ -445,19 +450,19 @@ impl BatchPrivateDataService {
     /// beneficiary, break ties by request budget.
     ///
     /// NOTE: this is just one possible heuristic.
-    /// Other ideas: if we allocated that request, what would be the new value for
-    /// `budget_per_source` for each source?
+    /// Other ideas: if we allocated that request, what would be the new value
+    /// for `budget_per_source` for each source?
     /// Then, try to minimize the maximum value across all sources, and break
     /// ties by request epsilon. This is not perfect since it could allocate to
     /// sources that are already quite big, but not the biggest.
     /// But maximizing the minimum allocation doesn't look too great either. A
     /// large request can be allocated if it also boosts a small one? A request
     /// that asks for zero budget is not prioritized?
-    /// Some problems with max min or min max: it sounds tighter to look at the actual individual
-    /// budget, instead of the requested budget. Because IDP optimizations
-    /// tell us that sometimes a request actually consumes zero budget, so it
-    /// should probably be ordered first. It's just a bit weird
-    /// because we would need to cache `source_losses` or call
+    /// Some problems with max min or min max: it sounds tighter to look at the
+    /// actual individual budget, instead of the requested budget. Because
+    /// IDP optimizations tell us that sometimes a request actually consumes
+    /// zero budget, so it should probably be ordered first. It's just a bit
+    /// weird because we would need to cache `source_losses` or call
     /// `compute_epoch_source_losses`. Cheap optimization: use the
     /// list of source IDs to approximate.
     fn sort_batch(
@@ -714,7 +719,8 @@ mod tests {
             trigger_uris.push(format!("shoes-{i}.ex"));
         }
 
-        // Event relevant to all the shoes websites. Could also register 10 different events, with one querier each.
+        // Event relevant to all the shoes websites. Could also register 10
+        // different events, with one querier each.
         batch_pds.register_event(PpaEvent {
             id: 1,
             timestamp: 0,
@@ -805,7 +811,8 @@ mod tests {
 
         let unallocated_new_requests = batch_pds.online_phase(new_requests)?;
 
-        // Because of qimp, news.ex can't accept all the queries. Also tried to allocate in order.
+        // Because of qimp, news.ex can't accept all the queries. Also tried to
+        // allocate in order.
         assert_eq!(
             batch_pds.collect_request_ids(&unallocated_new_requests),
             vec![6, 7, 8, 9]
@@ -844,24 +851,28 @@ mod tests {
         Ok(())
     }
 
-    /// Start with the utilization example, but add more queries from different impsites.
-    /// The system will not be able to allocate everyone. We want to verify that it is at least
-    /// "fair" in the sense that it doesn't let a single site take all the budget.
+    /// Start with the utilization example, but add more queries from different
+    /// impsites. The system will not be able to allocate everyone. We want
+    /// to verify that it is at least "fair" in the sense that it doesn't
+    /// let a single site take all the budget.
     #[test]
     fn order_fairness() -> Result<()> {
         let _ = log4rs::init_file("logging_config.yaml", Default::default());
 
         let capacities = StaticCapacities::new(
             PureDPBudget::Epsilon(1.0),
-            PureDPBudget::Epsilon(10.0), // We'll do two releases, so not enough space for all the queries at the first attempt.
+            PureDPBudget::Epsilon(10.0), /* We'll do two releases, so not
+                                          * enough space for all the queries
+                                          * at the first attempt. */
             PureDPBudget::Epsilon(1.0),
-            PureDPBudget::Epsilon(2.0), // Also tighter quota for online phase. So the batch will have to decide what to do. Gotta be fair.
+            PureDPBudget::Epsilon(2.0), /* Also tighter quota for online phase. So the batch will have to decide what to do. Gotta be fair. */
         );
 
         // Using a single release here.
         let mut batch_pds = BatchPrivateDataService::new(capacities, 2)?;
 
-        // Event relevant to all the shoes websites. Could also register 10 different events, with one querier each.
+        // Event relevant to all the shoes websites. Could also register 10
+        // different events, with one querier each.
         let mut trigger_uris = vec![];
         for i in 1..=10 {
             trigger_uris.push(format!("shoes-{i}.ex"));
@@ -897,12 +908,15 @@ mod tests {
             filter_data: 1,
         })?;
 
-        // Every single conversion sites gets a conversion. But news.ex comes first! If we only allocated online that could be terribly unfair for blog.ex.
+        // Every single conversion sites gets a conversion. But news.ex comes
+        // first! If we only allocated online that could be terribly unfair for
+        // blog.ex.
         for i in 1..=10 {
             let shoes_conv = format!("shoes-{i}.ex");
 
             let epsilon = if i == 3 {
-                0.99 // We want this request to be smaller than the others in the tests.
+                0.99 // We want this request to be smaller than the others in
+                     // the tests.
             } else {
                 0.99 + 0.0001 * i as f64
             };
@@ -958,7 +972,8 @@ mod tests {
         // No report should be released just yet
         assert_eq!(reports.len(), 0);
 
-        // Only 5 reports should have been allocated from the released global budget.
+        // Only 5 reports should have been allocated from the released global
+        // budget.
         assert_eq!(batch_pds.batched_requests.len(), 20 - 5);
 
         info!(
@@ -972,7 +987,8 @@ mod tests {
             .remove(&batch_pds.current_scheduling_interval)
             .unwrap_or_default();
 
-        // Requests should be balanced across both sources. For the 5th request, break ties by smallest request.
+        // Requests should be balanced across both sources. For the 5th request,
+        // break ties by smallest request.
         let mut report_ids = batch_pds.collect_report_ids(&allocated_reports);
         report_ids.sort();
         assert_eq!(report_ids, vec![1, 2, 3, 11, 12]);

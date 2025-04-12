@@ -11,7 +11,8 @@ use crate::{
 };
 
 // TODO: simpler matching logic, and then implement Clone for the struct.
-// TODO: implement new() and default(). E.g. default querier, default source. Maybe take a Config argument that should be serializable or Cloneable.
+// TODO: implement new() and default(). E.g. default querier, default source.
+// Maybe take a Config argument that should be serializable or Cloneable.
 pub struct PpaRelevantEventSelector {
     pub report_request_uris: ReportRequestUris<String>,
     pub is_matching_event: Box<dyn Fn(u64) -> bool>,

@@ -118,13 +118,29 @@ pub struct BatchedReport {
 
 impl BatchPrivateDataService {
     /// Create a new batch private data service.
-    pub fn new(capacities: PpaCapacities, n_releases: usize) -> Result<Self> {
+    pub fn new(
+        mut capacities: PpaCapacities,
+        n_releases: usize,
+    ) -> Result<Self> {
         // Release the c-filter over T scheduling intervals.
         let eps_c_per_release = match capacities.c {
             PureDPBudget::Epsilon(eps_c) => eps_c / (n_releases as f64),
             PureDPBudget::Infinite => {
                 warn!("C-filter has infinite capacity. Release is a no-op");
                 0.0
+            }
+        };
+
+        // Divide the imp budget by the number of releases.
+        capacities.qsource = match capacities.qsource {
+            PureDPBudget::Epsilon(eps_q) => {
+                PureDPBudget::Epsilon(eps_q / (n_releases as f64))
+            }
+            PureDPBudget::Infinite => {
+                warn!(
+                    "Q-source filter has infinite capacity. Release is a no-op"
+                );
+                PureDPBudget::Infinite
             }
         };
 
@@ -189,7 +205,7 @@ impl BatchPrivateDataService {
         );
 
         // We are entering a new scheduling interval. Decrement the number
-        // of remaining attempts for all requests in the system..
+        // of remaining attempts for all requests in the system.
         for request in &mut self.batched_requests {
             request.n_remaining_scheduling_attempts -= 1;
         }
@@ -197,29 +213,16 @@ impl BatchPrivateDataService {
             request.n_remaining_scheduling_attempts -= 1;
         }
 
-        debug!(
-            "\n\n 1. Starting initialization phase. Existing requests: {:?}",
-            self.collect_request_ids(&self.batched_requests)
-        );
         let batched_requests = take(&mut self.batched_requests);
         let unallocated_requests =
             self.initialization_phase(batched_requests)?;
         self.batched_requests.extend(unallocated_requests);
 
-        debug!(
-            "\n\n 2. Starting online phase. New requests: {:?}",
-            self.collect_request_ids(&self.new_pending_requests)
-        );
         let new_requests = take(&mut self.new_pending_requests);
         let unallocated_requests = self.online_phase(new_requests)?;
         self.batched_requests.extend(unallocated_requests);
 
-        // Any request with 0 remaining attempts will be answered here and
-        // removed from the batch.
-        debug!(
-            "\n\n 3. Starting batch phase. Batch: {:?}",
-            self.collect_request_ids(&self.batched_requests)
-        );
+        //  Requests with 0 remaining attempts will be answered and removed from the batch.
         let batched_requests = take(&mut self.batched_requests);
         let unallocated_requests = self.batch_phase(batched_requests)?;
         self.batched_requests.extend(unallocated_requests);
@@ -241,6 +244,11 @@ impl BatchPrivateDataService {
         &mut self,
         batched_requests: Vec<BatchedRequest>,
     ) -> Result<Vec<BatchedRequest>> {
+        debug!(
+            "\n\n 1. Starting initialization phase. Existing requests: {:?}",
+            self.collect_request_ids(&batched_requests)
+        );
+
         // Just try all the past epochs since our experiments just have a
         // few. Could eventually discard epochs that have reached their
         // lifetime if that becomes a bottleneck.
@@ -249,6 +257,7 @@ impl BatchPrivateDataService {
                 self.release_budget(epoch)?;
 
                 // Reset imp quota for all sources in the epoch
+                // TODO(P2): if we find this is a problem, could release Qimp too, but be a bit weird since the consmed budget might be higher than the unlocked budget, because of the batch phase where we temporarily set the capacity to infinity.
                 if let Some(sources) = self.sources_per_epoch.get(&epoch) {
                     for source in sources {
                         let filter_id =
@@ -273,6 +282,11 @@ impl BatchPrivateDataService {
         &mut self,
         new_requests: Vec<BatchedRequest>,
     ) -> Result<Vec<BatchedRequest>> {
+        debug!(
+            "\n\n 2. Starting online phase. New requests: {:?}",
+            self.collect_request_ids(&new_requests)
+        );
+
         let unallocated_requests = self.try_allocate(new_requests)?;
         Ok(unallocated_requests)
     }
@@ -284,19 +298,19 @@ impl BatchPrivateDataService {
         &mut self,
         batched_requests: Vec<BatchedRequest>,
     ) -> Result<Vec<BatchedRequest>> {
-        //  next, reach out to the filters to deactivate qimp or set the
-        // capacity to infinity. Let's keep a fixed qconv for now.
+        debug!(
+            "\n\n 3. Starting batch phase. Batch: {:?}",
+            self.collect_request_ids(&batched_requests)
+        );
 
         if let Some((start, end)) = self.epochs {
             for epoch in start..=end {
-                // Set all imp quotas to infinity for all sources in the epoch
+                // Set all imp quotas to infinity for all sources in the epoch. Keep a fixed qconv for now.
                 if let Some(sources) = self.sources_per_epoch.get(&epoch) {
                     for source in sources {
                         let filter_id =
                             FilterId::QSource(epoch, source.clone());
 
-                        // TODO: initialize if necessary, but let's see if we
-                        // get an error first.
                         self.pds
                             .filter_storage
                             .set_capacity_to_infinity(&filter_id)?;
@@ -556,13 +570,13 @@ mod tests {
 
     #[test]
     fn schedule_one_batch() -> Result<()> {
-        log4rs::init_file("logging_config.yaml", Default::default())?;
+        let _ = log4rs::init_file("logging_config.yaml", Default::default());
 
         let capacities = StaticCapacities::new(
             PureDPBudget::Epsilon(10.0),
             PureDPBudget::Epsilon(5.0),
             PureDPBudget::Epsilon(10.0),
-            PureDPBudget::Epsilon(2.0),
+            PureDPBudget::Epsilon(4.0),
         );
 
         let mut batch_pds = BatchPrivateDataService::new(capacities, 2)?;
@@ -666,7 +680,7 @@ mod tests {
     /// Test that mimics the example from the paper that motivates batching.
     #[test]
     fn order_fairness() -> Result<()> {
-        log4rs::init_file("logging_config.yaml", Default::default())?;
+        let _ = log4rs::init_file("logging_config.yaml", Default::default());
 
         let capacities = StaticCapacities::new(
             PureDPBudget::Epsilon(1.0),

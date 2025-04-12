@@ -144,6 +144,11 @@ impl BatchPrivateDataService {
             }
         };
 
+        debug!(
+            "BatchPDS: capacities after dividing by {} releases: {:?}",
+            n_releases, capacities
+        );
+
         let pds = PpaPds::new(capacities.clone())?;
 
         Ok(BatchPrivateDataService {
@@ -557,6 +562,11 @@ impl BatchPrivateDataService {
     fn collect_request_ids(&self, requests: &[BatchedRequest]) -> Vec<u64> {
         requests.iter().map(|r| r.request_id).collect::<Vec<_>>()
     }
+
+    #[allow(dead_code)]
+    fn collect_report_ids(&self, reports: &[BatchedReport]) -> Vec<u64> {
+        reports.iter().map(|r| r.request_id).collect::<Vec<_>>()
+    }
 }
 
 #[cfg(test)]
@@ -834,8 +844,157 @@ mod tests {
         Ok(())
     }
 
+    /// Start with the utilization example, but add more queries from different impsites.
+    /// The system will not be able to allocate everyone. We want to verify that it is at least
+    /// "fair" in the sense that it doesn't let a single site take all the budget.
     #[test]
     fn order_fairness() -> Result<()> {
+        let _ = log4rs::init_file("logging_config.yaml", Default::default());
+
+        let capacities = StaticCapacities::new(
+            PureDPBudget::Epsilon(1.0),
+            PureDPBudget::Epsilon(10.0), // We'll do two releases, so not enough space for all the queries at the first attempt.
+            PureDPBudget::Epsilon(1.0),
+            PureDPBudget::Epsilon(2.0), // Also tighter quota for online phase. So the batch will have to decide what to do. Gotta be fair.
+        );
+
+        // Using a single release here.
+        let mut batch_pds = BatchPrivateDataService::new(capacities, 2)?;
+
+        // Event relevant to all the shoes websites. Could also register 10 different events, with one querier each.
+        let mut trigger_uris = vec![];
+        for i in 1..=10 {
+            trigger_uris.push(format!("shoes-{i}.ex"));
+        }
+        batch_pds.register_event(PpaEvent {
+            id: 1,
+            timestamp: 0,
+            epoch_number: 1,
+            histogram_index: 0,
+            uris: EventUris {
+                source_uri: "news.ex".to_string(),
+                trigger_uris: trigger_uris.clone(),
+                querier_uris: trigger_uris.clone(),
+            },
+            filter_data: 1,
+        })?;
+
+        // Site with a lot of requests, but not as many as news.ex.
+        let mut trigger_uris = vec![];
+        for i in 1..=10 {
+            trigger_uris.push(format!("hats-{i}.ex"));
+        }
+        batch_pds.register_event(PpaEvent {
+            id: 1,
+            timestamp: 0,
+            epoch_number: 1,
+            histogram_index: 0,
+            uris: EventUris {
+                source_uri: "blog.ex".to_string(),
+                trigger_uris: trigger_uris.clone(),
+                querier_uris: trigger_uris.clone(),
+            },
+            filter_data: 1,
+        })?;
+
+        // Every single conversion sites gets a conversion. But news.ex comes first! If we only allocated online that could be terribly unfair for blog.ex.
+        for i in 1..=10 {
+            let shoes_conv = format!("shoes-{i}.ex");
+
+            let epsilon = if i == 3 {
+                0.99 // We want this request to be smaller than the others in the tests.
+            } else {
+                0.99 + 0.0001 * i as f64
+            };
+
+            batch_pds.register_report_request(BatchedRequest::new(
+                i,
+                2, // Space for one more time. Easier to check the batch.
+                PpaHistogramRequest::new(
+                    1,
+                    1,
+                    1.0,
+                    1.0,
+                    epsilon,
+                    5,
+                    PpaRelevantEventSelector {
+                        report_request_uris: ReportRequestUris {
+                            trigger_uri: shoes_conv.clone(),
+                            source_uris: vec!["news.ex".to_string()],
+                            querier_uris: vec![shoes_conv.clone()],
+                        },
+                        is_matching_event: Box::new(|_: u64| true),
+                    },
+                )?,
+            )?)?;
+        }
+        for i in 1..=10 {
+            let hats_conv = format!("hats-{i}.ex");
+
+            batch_pds.register_report_request(BatchedRequest::new(
+                10 + i,
+                2,
+                PpaHistogramRequest::new(
+                    1,
+                    1,
+                    1.0,
+                    1.0,
+                    0.99 + 0.0001 * i as f64,
+                    5,
+                    PpaRelevantEventSelector {
+                        report_request_uris: ReportRequestUris {
+                            trigger_uri: hats_conv.clone(),
+                            source_uris: vec!["blog.ex".to_string()],
+                            querier_uris: vec![hats_conv.clone()],
+                        },
+                        is_matching_event: Box::new(|_: u64| true),
+                    },
+                )?,
+            )?)?;
+        }
+
+        let reports = batch_pds.schedule_batch()?;
+
+        // No report should be released just yet
+        assert_eq!(reports.len(), 0);
+
+        // Only 5 reports should have been allocated from the released global budget.
+        assert_eq!(batch_pds.batched_requests.len(), 20 - 5);
+
+        info!(
+            "Delayed reports after first scheduling: {:?}",
+            batch_pds.delayed_reports
+        );
+
+        // Forcefully take the delayed reports to look at them.
+        let allocated_reports = batch_pds
+            .delayed_reports
+            .remove(&batch_pds.current_scheduling_interval)
+            .unwrap_or_default();
+
+        // Requests should be balanced across both sources. For the 5th request, break ties by smallest request.
+        let mut report_ids = batch_pds.collect_report_ids(&allocated_reports);
+        report_ids.sort();
+        assert_eq!(report_ids, vec![1, 2, 3, 11, 12]);
+
+        debug!("Reports: {:?}", reports);
+
+        // Run a second batch.
+        let reports = batch_pds.schedule_batch()?;
+
+        // All the queries get answered. We already removed 5.
+        assert_eq!(reports.len(), 15);
+
+        // Only 5 reports should be non-null.
+        let mut n_non_null_reports = 0;
+        for report in &reports {
+            if report.report.error_cause().is_none() {
+                n_non_null_reports += 1;
+            }
+        }
+        assert_eq!(n_non_null_reports, 5);
+        debug!("Reports: {:?}", reports);
+
         Ok(())
     }
 

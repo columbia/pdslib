@@ -204,28 +204,35 @@ impl BatchPrivateDataService {
             self.current_scheduling_interval
         );
 
-        // We are entering a new scheduling interval. Decrement the number
+        let mut previous_batch = take(&mut self.batched_requests);
+        let mut new_requests = take(&mut self.new_pending_requests);
+
+        // We are starting a scheduling attempt. Decrement the number
         // of remaining attempts for all requests in the system.
-        for request in &mut self.batched_requests {
+        for request in &mut previous_batch {
             request.n_remaining_scheduling_attempts -= 1;
         }
-        for request in &mut self.new_pending_requests {
+        for request in &mut new_requests {
             request.n_remaining_scheduling_attempts -= 1;
         }
 
-        let batched_requests = take(&mut self.batched_requests);
-        let unallocated_requests =
-            self.initialization_phase(batched_requests)?;
-        self.batched_requests.extend(unallocated_requests);
+        // Previous batch gets the first shot.
+        let unallocated_from_previous_batch =
+            self.initialization_phase(previous_batch)?;
 
-        let new_requests = take(&mut self.new_pending_requests);
-        let unallocated_requests = self.online_phase(new_requests)?;
-        self.batched_requests.extend(unallocated_requests);
+        // New online queries try next.
+        let unallocated_new_requests = self.online_phase(new_requests)?;
 
-        //  Requests with 0 remaining attempts will be answered and removed from the batch.
-        let batched_requests = take(&mut self.batched_requests);
+        // Put all the unallocated requests into the batch.
+        let mut batched_requests = vec![];
+        batched_requests.extend(unallocated_from_previous_batch);
+        batched_requests.extend(unallocated_new_requests);
+
+        // Requests with 0 remaining attempts will be answered and removed from the batch.
         let unallocated_requests = self.batch_phase(batched_requests)?;
-        self.batched_requests.extend(unallocated_requests);
+
+        // Store the batch for next scheduling interval.
+        self.batched_requests = unallocated_requests;
 
         // Take all the reports that are ready to be released.
         let reports = self
@@ -679,7 +686,7 @@ mod tests {
 
     /// Test that mimics the example from the paper that motivates batching.
     #[test]
-    fn order_fairness() -> Result<()> {
+    fn utilization_example() -> Result<()> {
         let _ = log4rs::init_file("logging_config.yaml", Default::default());
 
         let capacities = StaticCapacities::new(
@@ -768,11 +775,67 @@ mod tests {
             )?,
         )?)?;
 
-        let reports = batch_pds.schedule_batch()?;
+        // We open up `schedule_batch` to check step by step.
+        let mut previous_batch = take(&mut batch_pds.batched_requests);
+        let mut new_requests = take(&mut batch_pds.new_pending_requests);
+        for request in &mut previous_batch {
+            request.n_remaining_scheduling_attempts -= 1;
+        }
+        for request in &mut new_requests {
+            request.n_remaining_scheduling_attempts -= 1;
+        }
+
+        assert!(previous_batch.is_empty());
+
+        let unallocated_from_previous_batch =
+            batch_pds.initialization_phase(previous_batch)?;
+
+        assert!(unallocated_from_previous_batch.is_empty());
+        assert_eq!(new_requests.len(), 10);
+
+        let unallocated_new_requests = batch_pds.online_phase(new_requests)?;
+
+        // Because of qimp, news.ex can't accept all the queries. Also tried to allocate in order.
+        assert_eq!(
+            batch_pds.collect_request_ids(&unallocated_new_requests),
+            vec![6, 7, 8, 9]
+        );
+
+        let mut batched_requests = vec![];
+        batched_requests.extend(unallocated_from_previous_batch);
+        batched_requests.extend(unallocated_new_requests);
+
+        let unallocated_requests = batch_pds.batch_phase(batched_requests)?;
+
+        // Requests have to all allocated or answered with a null report.
+        assert!(unallocated_requests.is_empty());
+
+        // Take all the reports that are ready to be released.
+        let reports = batch_pds
+            .delayed_reports
+            .remove(&batch_pds.current_scheduling_interval)
+            .unwrap_or_default();
+
+        batch_pds.current_scheduling_interval += 1;
+
         assert_eq!(reports.len(), 10);
+
+        // No report should be null
+        for report in &reports {
+            assert!(
+                report.report.error_cause().is_none(),
+                "Report should not have an error cause. Got: {:?}",
+                report.report.error_cause()
+            );
+        }
 
         debug!("Reports: {:?}", reports);
 
+        Ok(())
+    }
+
+    #[test]
+    fn order_fairness() -> Result<()> {
         Ok(())
     }
 

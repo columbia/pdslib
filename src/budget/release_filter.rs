@@ -51,6 +51,10 @@ impl Filter<PureDPBudget> for PureDPBudgetReleaseFilter {
     ) -> Result<FilterStatus, Self::Error> {
         // Infinite filters accept all requests, even if they are infinite too.
         if self.capacity == PureDPBudget::Infinite {
+            if let PureDPBudget::Epsilon(requested) = budget {
+                // Still update the consumed budget to track usage.
+                self.consumed += *requested;
+            }
             return Ok(FilterStatus::Continue);
         }
 

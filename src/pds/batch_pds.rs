@@ -342,13 +342,33 @@ impl BatchPrivateDataService {
             }
         }
 
-        // TODO(P1): actually re-sort after every successful allocation? Sounds
-        // pretty expensive, but can pass a param to try_allocate.
+        // Repeatedly sort and try to allocate. Re-sort each time a request is allocated.
+        // Exit the loop when no more request can be allocated.
         let sorted_batched_requests = self.sort_batch(batched_requests)?;
+        let mut k = sorted_batched_requests.len();
+        let (mut unallocated_requests, mut allocated_index) =
+            self.try_allocate_one(sorted_batched_requests)?;
+        debug!("Tried allocating one request.");
+        while let Some(i) = allocated_index {
+            if i == k - 1 {
+                // We allocated the last request. No need to sort again.
+                debug!("Allocated all the requests we could.");
+                break;
+            }
+            debug!(
+                "Allocated request {} from the unallocated ones. Sorting the remaining requests and trying to allocate again.",
+                i
+            );
+            let sorted_batched_requests =
+                self.sort_batch(unallocated_requests)?;
+            k = sorted_batched_requests.len();
+            (unallocated_requests, allocated_index) =
+                self.try_allocate_one(sorted_batched_requests)?;
+        }
 
         // Try to allocate the requests.
-        let unallocated_requests =
-            self.try_allocate(sorted_batched_requests)?;
+        // let unallocated_requests =
+        //     self.try_allocate(sorted_batched_requests)?;
 
         // Requests with 0 remaining attemps will be answered with a null.
         // Put other unallocated requests back into the batch.
@@ -428,6 +448,31 @@ impl BatchPrivateDataService {
         }
 
         Ok(unallocated_requests)
+    }
+
+    /// Browse the requests one by one, try to allocate them. If we allocate a request, stop trying allocating and return the index of the allocated request.
+    /// Otherwise, return None. Either way, also return all the unallocated requests.
+    fn try_allocate_one(
+        &mut self,
+        mut requests: Vec<BatchedRequest>,
+    ) -> Result<(Vec<BatchedRequest>, Option<usize>)> {
+        let mut i = 0;
+        let mut unallocated_requests = vec![];
+
+        while !requests.is_empty() {
+            let request = requests.remove(0);
+            let unallocated_request = self.try_allocate(vec![request])?;
+            if unallocated_request.is_empty() {
+                // We successfully allocated the request.
+                // Keep all the other requests as unallocated.
+                unallocated_requests.extend(requests);
+                return Ok((unallocated_requests, Some(i)));
+            }
+            unallocated_requests.extend(unallocated_request);
+            i += 1;
+        }
+
+        Ok((unallocated_requests, None))
     }
 
     /// Release budget for the given epoch. This is a no-op when the epoch's
@@ -530,14 +575,6 @@ impl BatchPrivateDataService {
             ));
         }
 
-        debug!(
-            "Requests and budgets after sorting: {:?}",
-            weighted_requests
-                .iter()
-                .map(|(r, b, c)| (r.request_id, b, c))
-                .collect::<Vec<_>>()
-        );
-
         // Sort by weight.
         weighted_requests.sort_by(|a, b| {
             let (a_min_source_budget, a_request_budget) = (a.1, a.2);
@@ -557,6 +594,14 @@ impl BatchPrivateDataService {
                 }
             }
         });
+
+        debug!(
+            "Requests and budgets after sorting: {:?}",
+            weighted_requests
+                .iter()
+                .map(|(r, b, c)| (r.request_id, b, c))
+                .collect::<Vec<_>>()
+        );
 
         let sorted_requests =
             weighted_requests.into_iter().map(|(r, _, _)| r).collect();

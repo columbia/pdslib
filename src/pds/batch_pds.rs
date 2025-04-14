@@ -7,7 +7,7 @@ use std::{
 };
 
 use anyhow::{bail, Result};
-use log::{debug, info, warn};
+use log::debug;
 
 use super::{epoch_pds::FilterId, utils::PpaCapacities};
 use crate::{
@@ -126,7 +126,7 @@ impl BatchPrivateDataService {
         let eps_c_per_release = match capacities.c {
             PureDPBudget::Epsilon(eps_c) => eps_c / (n_releases as f64),
             PureDPBudget::Infinite => {
-                warn!("C-filter has infinite capacity. Release is a no-op");
+                debug!("C-filter has infinite capacity. Release is a no-op");
                 0.0
             }
         };
@@ -137,7 +137,7 @@ impl BatchPrivateDataService {
                 PureDPBudget::Epsilon(eps_q / (n_releases as f64))
             }
             PureDPBudget::Infinite => {
-                warn!(
+                debug!(
                     "Q-source filter has infinite capacity. Release is a no-op"
                 );
                 PureDPBudget::Infinite
@@ -204,7 +204,7 @@ impl BatchPrivateDataService {
     }
 
     pub fn schedule_batch(&mut self) -> Result<Vec<BatchedReport>> {
-        info!(
+        debug!(
             "Scheduling batch for interval {}",
             self.current_scheduling_interval
         );
@@ -342,8 +342,9 @@ impl BatchPrivateDataService {
             }
         }
 
-        // Repeatedly sort and try to allocate. Re-sort each time a request is allocated.
-        // Exit the loop when no more request can be allocated.
+        // Repeatedly sort and try to allocate. Re-sort each time a request is
+        // allocated. Exit the loop when no more request can be
+        // allocated.
         let sorted_batched_requests = self.sort_batch(batched_requests)?;
         let mut k = sorted_batched_requests.len();
         let (mut unallocated_requests, mut allocated_index) =
@@ -450,8 +451,10 @@ impl BatchPrivateDataService {
         Ok(unallocated_requests)
     }
 
-    /// Browse the requests one by one, try to allocate them. If we allocate a request, stop trying allocating and return the index of the allocated request.
-    /// Otherwise, return None. Either way, also return all the unallocated requests.
+    /// Browse the requests one by one, try to allocate them. If we allocate a
+    /// request, stop trying allocating and return the index of the allocated
+    /// request. Otherwise, return None. Either way, also return all the
+    /// unallocated requests.
     fn try_allocate_one(
         &mut self,
         mut requests: Vec<BatchedRequest>,
@@ -623,6 +626,7 @@ impl BatchPrivateDataService {
 mod tests {
     // use common::logging;
 
+    use log::info;
     use log4rs;
 
     use super::*;

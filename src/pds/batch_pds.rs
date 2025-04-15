@@ -524,7 +524,7 @@ impl BatchPrivateDataService {
         &mut self,
         request: &PpaHistogramRequest,
     ) -> Result<()> {
-        info!("Updating allocation statistics for request {:?}. Previous state: {:?}", request, self.public_filters);
+        // info!("Updating allocation statistics for request {:?}. Previous state: {:?}", request, self.public_filters);
         self.deduct_budget(request, false)?;
         Ok(())
     }

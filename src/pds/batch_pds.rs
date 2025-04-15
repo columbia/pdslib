@@ -294,14 +294,27 @@ impl BatchPrivateDataService {
                 // too, but be a bit weird since the consmed budget might be
                 // higher than the unlocked budget, because of the batch phase
                 // where we temporarily set the capacity to infinity.
+
+                // TODO(P3): refactor this thing.
                 if let Some(sources) = self.sources_per_epoch.get(&epoch) {
-                    for source in sources {
-                        let filter_id =
-                            FilterId::QSource(epoch, source.clone());
+                    let filter_ids = sources
+                        .iter()
+                        .map(|source| FilterId::QSource(epoch, source.clone()))
+                        .collect::<Vec<_>>();
+
+                    for filter_id in filter_ids {
                         self.pds.filter_storage.remove(&filter_id)?;
                         self.pds.initialize_filter_if_necessary(
                             filter_id.clone(),
                         )?;
+
+                        // Also for the public filter
+                        if self.public_info {
+                            self.public_filters.remove(&filter_id)?;
+                            self.initialize_public_filter_if_necessary(
+                                filter_id.clone(),
+                            )?;
+                        }
                     }
                 }
             }
@@ -416,13 +429,6 @@ impl BatchPrivateDataService {
         Ok(remaining_unallocated_requests)
     }
 
-    fn can_probably_allocate(
-        &self,
-        request: &PpaHistogramRequest,
-    ) -> Result<bool> {
-        Ok(true)
-    }
-
     /// TODO(later): refactor and move this to the filter storage layer. Why are we sending Ok even after an error?
     pub fn initialize_public_filter_if_necessary(
         &mut self,
@@ -501,22 +507,23 @@ impl BatchPrivateDataService {
         info!("Updating allocation statistics for request {:?}. Previous state: {:?}", request, self.public_filters);
         self.deduct_budget(request, false)?;
         Ok(())
+    }
 
-        // for epoch in request.epoch_ids() {
-        //     let sources_state =
-        //         self.allocation_statistics.entry(epoch).or_default();
-        //     for source in
-        //         HistogramRequest::report_uris(request).source_uris.iter()
-        //     {
-        //         let budget = sources_state.entry(source.clone()).or_default();
-        //         *budget += request.requested_epsilon();
-        //     }
-        // }
-
-        // info!(
-        //     "Updated allocation statistics for request {:?}. New state: {:?}",
-        //     request, self.allocation_statistics
-        // );
+    fn can_probably_allocate(
+        &mut self,
+        request: &PpaHistogramRequest,
+    ) -> Result<bool> {
+        let filter_status = self.deduct_budget(request, true)?;
+        match filter_status {
+            PdsFilterStatus::Continue => Ok(true),
+            PdsFilterStatus::OutOfBudget(oob) => {
+                debug!(
+                    "Request {:?} might be out of budget for filters {:?}, so we can't guarantee it will run.",
+                    request, oob
+                );
+                Ok(false)
+            }
+        }
     }
 
     fn send_report_for_release(
@@ -557,6 +564,11 @@ impl BatchPrivateDataService {
         for mut request in requests {
             if self.public_info {
                 if self.can_probably_allocate(&request.request)? {
+                    debug!(
+                        "Request {} can probably be allocated: {:?}",
+                        request.request_id, request
+                    );
+
                     // Compute the actual report. It might be null though.
                     let report = self.pds.compute_report(&request.request)?;
 
@@ -631,6 +643,18 @@ impl BatchPrivateDataService {
             epoch,
             self.pds.filter_storage.storage.filters.get(&filter_id)
         );
+
+        if self.public_info {
+            self.initialize_public_filter_if_necessary(filter_id.clone())?;
+            self.public_filters
+                .release(&filter_id, self.eps_c_per_release)?;
+            debug!(
+                "Released public filter budget for epoch {}. Filter state: {:?}",
+                epoch,
+                self.public_filters.storage.filters.get(&filter_id)
+            );
+        }
+
         Ok(())
     }
 

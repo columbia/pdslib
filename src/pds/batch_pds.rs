@@ -320,7 +320,8 @@ impl BatchPrivateDataService {
             }
         }
 
-        let unallocated_requests = self.try_allocate(batched_requests)?;
+        let unallocated_requests =
+            self.try_allocate(batched_requests, false)?;
         Ok(unallocated_requests)
     }
 
@@ -336,7 +337,7 @@ impl BatchPrivateDataService {
             self.collect_request_ids(&new_requests)
         );
 
-        let unallocated_requests = self.try_allocate(new_requests)?;
+        let unallocated_requests = self.try_allocate(new_requests, false)?;
         Ok(unallocated_requests)
     }
 
@@ -381,7 +382,7 @@ impl BatchPrivateDataService {
         let sorted_batched_requests = self.sort_batch(batched_requests)?;
         let mut k = sorted_batched_requests.len();
         let (mut unallocated_requests, mut allocated_index) =
-            self.try_allocate_one(sorted_batched_requests)?;
+            self.try_allocate_one(sorted_batched_requests, true)?;
         debug!("Tried allocating one request.");
         while let Some(i) = allocated_index {
             if i == k - 1 {
@@ -397,7 +398,7 @@ impl BatchPrivateDataService {
                 self.sort_batch(unallocated_requests)?;
             k = sorted_batched_requests.len();
             (unallocated_requests, allocated_index) =
-                self.try_allocate_one(sorted_batched_requests)?;
+                self.try_allocate_one(sorted_batched_requests, true)?;
         }
 
         // Try to allocate the requests.
@@ -406,27 +407,27 @@ impl BatchPrivateDataService {
 
         // Requests with 0 remaining attemps will be answered with a null.
         // Put other unallocated requests back into the batch.
-        let mut remaining_unallocated_requests = vec![];
-        for mut request in unallocated_requests {
-            if request.n_remaining_scheduling_attempts == 0 {
-                let cached_report = take(&mut request.report);
+        // let mut remaining_unallocated_requests = vec![];
+        // for mut request in unallocated_requests {
+        //     if request.n_remaining_scheduling_attempts == 0 {
+        //         let cached_report = take(&mut request.report);
 
-                if let Some(report) = cached_report {
-                    self.send_report_for_release(&request, report);
-                } else {
-                    debug!(
-                        "Request {:?} was not allocated and has no report. Let's compute the report.",
-                        request
-                    );
-                    let report = self.pds.compute_report(&request.request)?;
-                    self.send_report_for_release(&request, report);
-                }
-            } else {
-                remaining_unallocated_requests.push(request);
-            }
-        }
+        //         if let Some(report) = cached_report {
+        //             self.send_report_for_release(&request, report);
+        //         } else {
+        //             debug!(
+        //                 "Request {:?} was not allocated and has no report. Let's compute the report.",
+        //                 request
+        //             );
+        //             let report = self.pds.compute_report(&request.request)?;
+        //             self.send_report_for_release(&request, report);
+        //         }
+        //     } else {
+        //         remaining_unallocated_requests.push(request);
+        //     }
+        // }
 
-        Ok(remaining_unallocated_requests)
+        Ok(unallocated_requests)
     }
 
     /// TODO(later): refactor and move this to the filter storage layer. Why are we sending Ok even after an error?
@@ -558,12 +559,16 @@ impl BatchPrivateDataService {
     fn try_allocate(
         &mut self,
         requests: Vec<BatchedRequest>,
+        allocate_final_attempts: bool,
     ) -> Result<Vec<BatchedRequest>> {
         // Go through requests one by one and try to allocate them.
         let mut unallocated_requests = vec![];
         for mut request in requests {
             if self.public_info {
-                if self.can_probably_allocate(&request.request)? {
+                if (allocate_final_attempts
+                    && request.n_remaining_scheduling_attempts == 0)
+                    || self.can_probably_allocate(&request.request)?
+                {
                     debug!(
                         "Request {} can probably be allocated: {:?}",
                         request.request_id, request
@@ -584,16 +589,19 @@ impl BatchPrivateDataService {
                 // Directly compute the report to check whether we can allocate the request or not
                 let report = self.pds.compute_report(&request.request)?;
 
-                if report.error_cause().is_none() {
+                if (allocate_final_attempts
+                    && request.n_remaining_scheduling_attempts == 0)
+                    || report.error_cause().is_none()
+                {
                     debug!(
-                        "Request {} was successfully allocated: {:?}",
-                        request.request_id, report
+                        "Request {} was successfully allocated: {:?} or final attempt {}",
+                        request.request_id, report, request.n_remaining_scheduling_attempts
                     );
 
                     self.send_report_for_release(&request, report);
                 } else {
                     // Keep the request for later. Cache the report in case we need
-                    // it.
+                    // it. TODO(P3): no need for this anymore.
                     request.report = Some(report);
                     unallocated_requests.push(request);
                 }
@@ -610,13 +618,15 @@ impl BatchPrivateDataService {
     fn try_allocate_one(
         &mut self,
         mut requests: Vec<BatchedRequest>,
+        allocate_final_attempts: bool,
     ) -> Result<(Vec<BatchedRequest>, Option<usize>)> {
         let mut i = 0;
         let mut unallocated_requests = vec![];
 
         while !requests.is_empty() {
             let request = requests.remove(0);
-            let unallocated_request = self.try_allocate(vec![request])?;
+            let unallocated_request =
+                self.try_allocate(vec![request], allocate_final_attempts)?;
             if unallocated_request.is_empty() {
                 // We successfully allocated the request.
                 // Keep all the other requests as unallocated.

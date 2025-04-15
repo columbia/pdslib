@@ -708,9 +708,19 @@ impl BatchPrivateDataService {
             let mut source_total_budget = 0.0;
             for epoch in &all_epochs {
                 let filter_id = FilterId::QSource(*epoch, source.clone());
-                self.pds.initialize_filter_if_necessary(filter_id.clone())?;
-                let consumed_budget =
-                    self.pds.filter_storage.consumed_budget(&filter_id)?;
+
+                let consumed_budget = if self.public_info {
+                    self.initialize_public_filter_if_necessary(
+                        filter_id.clone(),
+                    )?;
+                    self.public_filters.consumed_budget(&filter_id)
+                } else {
+                    self.pds
+                        .initialize_filter_if_necessary(filter_id.clone())?;
+
+                    self.pds.filter_storage.consumed_budget(&filter_id)
+                }?;
+
                 source_total_budget += consumed_budget;
             }
             budget_per_source.insert(source.clone(), source_total_budget);

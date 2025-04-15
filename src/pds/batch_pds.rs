@@ -1,18 +1,23 @@
 use std::{
     cmp::Ordering::{Greater, Less},
     collections::{HashMap, HashSet},
-    f32::consts::E,
     fmt::Debug,
     mem::take,
     vec,
 };
 
 use anyhow::{bail, Result};
-use log::debug;
+use log::{debug, info};
 
-use super::{epoch_pds::FilterId, utils::PpaCapacities};
+use super::{
+    epoch_pds::{FilterId, PdsFilterStatus},
+    utils::{PpaCapacities, PpaFilterId, PpaFilterStorage},
+};
 use crate::{
-    budget::pure_dp_filter::PureDPBudget,
+    budget::{
+        pure_dp_filter::PureDPBudget,
+        traits::{FilterStatus, FilterStorage},
+    },
     events::{ppa_event::PpaEvent, traits::Event},
     pds::{epoch_pds::PdsReport, utils::PpaPds},
     queries::{
@@ -103,6 +108,12 @@ pub struct BatchPrivateDataService {
     /// Whether to use only public information to sort and try to allocate requests
     pub public_info: bool,
 
+    /// Statistics about requests we've tried to allocate previously.
+    /// E.g., how much request for each source and for each epoch.
+    /// pub allocation_statistics: HashMap<usize, HashMap<String, f64>>,
+    /// NOTE: these filters are not actually directly visible to a querier, because of report identifiers, to clarify.
+    pub public_filters: PpaFilterStorage,
+
     /// Base private data service.
     /// Filters need to have functionality to unlock budget.
     pub pds: PpaPds,
@@ -155,6 +166,8 @@ impl BatchPrivateDataService {
         );
 
         let pds = PpaPds::new(capacities.clone())?;
+        let publicly_visible_filters =
+            PpaFilterStorage::new(capacities.clone())?;
 
         Ok(BatchPrivateDataService {
             current_scheduling_interval: 0,
@@ -166,6 +179,7 @@ impl BatchPrivateDataService {
             sources_per_epoch: HashMap::new(),
             capacities,
             public_info,
+            public_filters: publicly_visible_filters,
             pds,
         })
     }
@@ -380,9 +394,11 @@ impl BatchPrivateDataService {
         // Requests with 0 remaining attemps will be answered with a null.
         // Put other unallocated requests back into the batch.
         let mut remaining_unallocated_requests = vec![];
-        for request in unallocated_requests {
+        for mut request in unallocated_requests {
             if request.n_remaining_scheduling_attempts == 0 {
-                if let Some(report) = request.report {
+                let cached_report = take(&mut request.report);
+
+                if let Some(report) = cached_report {
                     self.send_report_for_release(&request, report);
                 } else {
                     debug!(
@@ -404,7 +420,103 @@ impl BatchPrivateDataService {
         &self,
         request: &PpaHistogramRequest,
     ) -> Result<bool> {
-        Ok(false)
+        Ok(true)
+    }
+
+    /// TODO(later): refactor and move this to the filter storage layer. Why are we sending Ok even after an error?
+    pub fn initialize_public_filter_if_necessary(
+        &mut self,
+        filter_id: PpaFilterId,
+    ) -> Result<()> {
+        let filter_initialized =
+            self.public_filters.is_initialized(&filter_id)?;
+
+        if !filter_initialized {
+            let create_filter_result =
+                self.public_filters.new_filter(filter_id);
+
+            if create_filter_result.is_err() {
+                return Ok(());
+            }
+        }
+        Ok(())
+    }
+
+    /// Just mimics `deduct_budget` but with non-IDP filters.
+    /// And also does it across all epochs.
+    /// TODO(P2): Could do it on a single epoch if that helps (checking on all epochs might simply return OOB every time but old epochs don't actually matter too much).
+    fn deduct_budget(
+        &mut self,
+        request: &PpaHistogramRequest,
+        dry_run: bool,
+    ) -> Result<PdsFilterStatus<PpaFilterId>> {
+        let uris = HistogramRequest::report_uris(request);
+
+        // TODO(P3): use the public epsilon optimization if needed. Doesn't matter in experiments.
+        let loss = request.requested_epsilon();
+
+        let mut filter_ids = Vec::new();
+        for epoch_id in request.epoch_ids() {
+            // Build the filter IDs for NC, C and QTrigger. Qsource has the same loss here.
+            for query_uri in &uris.querier_uris {
+                filter_ids.push(FilterId::Nc(epoch_id, query_uri.clone()));
+            }
+            filter_ids
+                .push(FilterId::QTrigger(epoch_id, uris.trigger_uri.clone()));
+            filter_ids.push(FilterId::C(epoch_id));
+
+            for source in &uris.source_uris {
+                filter_ids.push(FilterId::QSource(epoch_id, source.clone()));
+            }
+        }
+
+        // Try to consume the privacy loss from the filters
+        let mut oob_filters = vec![];
+        for fid in filter_ids {
+            self.initialize_public_filter_if_necessary(fid.clone())?;
+            let filter_status = self.public_filters.maybe_consume(
+                &fid,
+                &PureDPBudget::Epsilon(loss),
+                dry_run,
+            )?;
+            if filter_status == FilterStatus::OutOfBudget {
+                oob_filters.push(fid);
+            }
+        }
+
+        // If any filter was out of budget, the whole operation is marked as out
+        // of budget.
+        if !oob_filters.is_empty() {
+            return Ok(PdsFilterStatus::OutOfBudget(oob_filters));
+        }
+        Ok(PdsFilterStatus::Continue)
+    }
+
+    /// After sending a request for allocation by calling `compute_report`, keep track of public information that was in the request.
+    /// We don't peek into the result of the report itself or the state of the filters. Maybe the request was not allocated after all.
+    fn update_allocation_statistics(
+        &mut self,
+        request: &PpaHistogramRequest,
+    ) -> Result<()> {
+        info!("Updating allocation statistics for request {:?}. Previous state: {:?}", request, self.public_filters);
+        self.deduct_budget(request, false)?;
+        Ok(())
+
+        // for epoch in request.epoch_ids() {
+        //     let sources_state =
+        //         self.allocation_statistics.entry(epoch).or_default();
+        //     for source in
+        //         HistogramRequest::report_uris(request).source_uris.iter()
+        //     {
+        //         let budget = sources_state.entry(source.clone()).or_default();
+        //         *budget += request.requested_epsilon();
+        //     }
+        // }
+
+        // info!(
+        //     "Updated allocation statistics for request {:?}. New state: {:?}",
+        //     request, self.allocation_statistics
+        // );
     }
 
     fn send_report_for_release(
@@ -447,6 +559,8 @@ impl BatchPrivateDataService {
                 if self.can_probably_allocate(&request.request)? {
                     // Compute the actual report. It might be null though.
                     let report = self.pds.compute_report(&request.request)?;
+
+                    self.update_allocation_statistics(&request.request)?;
 
                     // Keep the result for when the time is right.
                     self.send_report_for_release(&request, report);
@@ -665,9 +779,13 @@ mod tests {
         },
     };
 
+    // const PUBLIC_INFO_VARIANTS: [bool; 2] = [true, false];
+    // const PUBLIC_INFO_VARIANTS: [bool; 1] = [false];
+    const PUBLIC_INFO_VARIANTS: [bool; 1] = [true];
+
     #[test]
     fn schedule_one_batch() -> Result<()> {
-        for public_info in [true, false] {
+        for public_info in PUBLIC_INFO_VARIANTS {
             info!("Testing with public info: {}", public_info);
             schedule_one_batch_variant(public_info)?;
         }
@@ -786,7 +904,7 @@ mod tests {
     /// Test that mimics the example from the paper that motivates batching.
     #[test]
     fn utilization_example() -> Result<()> {
-        for public_info in [true, false] {
+        for public_info in PUBLIC_INFO_VARIANTS {
             info!("Testing with public info: {}", public_info);
             utilization_example_variant(public_info)?;
         }
@@ -950,7 +1068,7 @@ mod tests {
     /// let a single site take all the budget.
     #[test]
     fn order_fairness() -> Result<()> {
-        for public_info in [true, false] {
+        for public_info in PUBLIC_INFO_VARIANTS {
             info!("Testing with public info: {}", public_info);
             order_fairness_variant(public_info)?;
         }

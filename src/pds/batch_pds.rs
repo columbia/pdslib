@@ -1,6 +1,7 @@
 use std::{
     cmp::Ordering::{Greater, Less},
     collections::{HashMap, HashSet},
+    f32::consts::E,
     fmt::Debug,
     mem::take,
     vec,
@@ -45,10 +46,10 @@ pub struct BatchedRequest {
 impl BatchedRequest {
     pub fn new(
         request_id: u64,
-        n_scheduling_attemps: u64,
+        n_scheduling_attempts: u64,
         request: PpaHistogramRequest,
     ) -> Result<Self> {
-        if n_scheduling_attemps == 0 {
+        if n_scheduling_attempts == 0 {
             // TODO(later): allow requests with 0 batch scheduling attempt for
             // real-time queries. But for now we only consider batched, where a
             // query goes through at least one batch phase.
@@ -57,7 +58,7 @@ impl BatchedRequest {
 
         Ok(BatchedRequest {
             request_id,
-            n_remaining_scheduling_attempts: n_scheduling_attemps,
+            n_remaining_scheduling_attempts: n_scheduling_attempts,
             request,
             report: None,
         })
@@ -99,6 +100,9 @@ pub struct BatchPrivateDataService {
     /// Copy of the capacities passed to pds
     pub capacities: PpaCapacities,
 
+    /// Whether to use only public information to sort and try to allocate requests
+    pub public_info: bool,
+
     /// Base private data service.
     /// Filters need to have functionality to unlock budget.
     pub pds: PpaPds,
@@ -121,6 +125,7 @@ impl BatchPrivateDataService {
     pub fn new(
         mut capacities: PpaCapacities,
         n_releases: usize,
+        public_info: bool,
     ) -> Result<Self> {
         // Release the c-filter over T scheduling intervals.
         let eps_c_per_release = match capacities.c {
@@ -145,7 +150,7 @@ impl BatchPrivateDataService {
         };
 
         debug!(
-            "BatchPDS: capacities after dividing by {} releases: {:?}",
+            "BatchPDS: capacities after dividing by {} releases: {:?}, public_info {public_info}",
             n_releases, capacities
         );
 
@@ -160,6 +165,7 @@ impl BatchPrivateDataService {
             epochs: None,
             sources_per_epoch: HashMap::new(),
             capacities,
+            public_info,
             pds,
         })
     }
@@ -377,19 +383,14 @@ impl BatchPrivateDataService {
         for request in unallocated_requests {
             if request.n_remaining_scheduling_attempts == 0 {
                 if let Some(report) = request.report {
-                    let batched_report = BatchedReport {
-                        request_id: request.request_id,
-                        report,
-                    };
-                    self.delayed_reports
-                        .entry(self.current_scheduling_interval)
-                        .or_default()
-                        .push(batched_report);
+                    self.send_report_for_release(&request, report);
                 } else {
-                    bail!(
-                        "Request {:?} was not allocated and has no report. This should not happen.",
+                    debug!(
+                        "Request {:?} was not allocated and has no report. Let's compute the report.",
                         request
                     );
+                    let report = self.pds.compute_report(&request.request)?;
+                    self.send_report_for_release(&request, report);
                 }
             } else {
                 remaining_unallocated_requests.push(request);
@@ -397,6 +398,40 @@ impl BatchPrivateDataService {
         }
 
         Ok(remaining_unallocated_requests)
+    }
+
+    fn can_probably_allocate(
+        &self,
+        request: &PpaHistogramRequest,
+    ) -> Result<bool> {
+        Ok(false)
+    }
+
+    fn send_report_for_release(
+        &mut self,
+        request: &BatchedRequest,
+        report: PdsReport<PpaHistogramRequest>,
+    ) {
+        debug!("Request {} got report {:?}", request.request_id, report);
+
+        // Keep the result for when the time is right.
+        let batched_report = BatchedReport {
+            request_id: request.request_id,
+            report,
+        };
+
+        // If n_remaining_scheduling_attempts is 0, we will release the
+        // report right away, at the end of the current call to
+        // `schedule_batch`.
+        let target_scheduling_interval = self.current_scheduling_interval
+            + request.n_remaining_scheduling_attempts;
+
+        debug!("Target scheduling interval: {}", target_scheduling_interval);
+
+        self.delayed_reports
+            .entry(target_scheduling_interval)
+            .or_default()
+            .push(batched_report);
     }
 
     /// Stores allocated requests for delayed response. Returns a list of
@@ -408,43 +443,34 @@ impl BatchPrivateDataService {
         // Go through requests one by one and try to allocate them.
         let mut unallocated_requests = vec![];
         for mut request in requests {
-            let report = self.pds.compute_report(&request.request)?;
+            if self.public_info {
+                if self.can_probably_allocate(&request.request)? {
+                    // Compute the actual report. It might be null though.
+                    let report = self.pds.compute_report(&request.request)?;
 
-            debug!("Report for request {}: {:?}", request.request_id, report);
-
-            if report.error_cause().is_none() {
-                debug!(
-                    "Request {} was successfully allocated: {:?}",
-                    request.request_id, report
-                );
-
-                // Keep the result for when the time is right.
-                let batched_report = BatchedReport {
-                    request_id: request.request_id,
-                    report,
-                };
-
-                // If n_remaining_scheduling_attempts is 0, we will release the
-                // report right away, at the end of the current call to
-                // `schedule_batch`.
-                let target_scheduling_interval = self
-                    .current_scheduling_interval
-                    + request.n_remaining_scheduling_attempts;
-
-                debug!(
-                    "Target scheduling interval: {}",
-                    target_scheduling_interval
-                );
-
-                self.delayed_reports
-                    .entry(target_scheduling_interval)
-                    .or_default()
-                    .push(batched_report);
+                    // Keep the result for when the time is right.
+                    self.send_report_for_release(&request, report);
+                } else {
+                    // TODO(P1): compute the report at the end if None?
+                    unallocated_requests.push(request);
+                }
             } else {
-                // Keep the request for later. Cache the report in case we need
-                // it.
-                request.report = Some(report);
-                unallocated_requests.push(request);
+                // Directly compute the report to check whether we can allocate the request or not
+                let report = self.pds.compute_report(&request.request)?;
+
+                if report.error_cause().is_none() {
+                    debug!(
+                        "Request {} was successfully allocated: {:?}",
+                        request.request_id, report
+                    );
+
+                    self.send_report_for_release(&request, report);
+                } else {
+                    // Keep the request for later. Cache the report in case we need
+                    // it.
+                    request.report = Some(report);
+                    unallocated_requests.push(request);
+                }
             }
         }
 
@@ -641,6 +667,14 @@ mod tests {
 
     #[test]
     fn schedule_one_batch() -> Result<()> {
+        for public_info in [true, false] {
+            info!("Testing with public info: {}", public_info);
+            schedule_one_batch_variant(public_info)?;
+        }
+        Ok(())
+    }
+
+    fn schedule_one_batch_variant(public_info: bool) -> Result<()> {
         let _ = log4rs::init_file("logging_config.yaml", Default::default());
 
         let capacities = StaticCapacities::new(
@@ -650,7 +684,8 @@ mod tests {
             PureDPBudget::Epsilon(4.0),
         );
 
-        let mut batch_pds = BatchPrivateDataService::new(capacities, 2)?;
+        let mut batch_pds =
+            BatchPrivateDataService::new(capacities, 2, public_info)?;
 
         debug!("Registering events");
 
@@ -751,6 +786,14 @@ mod tests {
     /// Test that mimics the example from the paper that motivates batching.
     #[test]
     fn utilization_example() -> Result<()> {
+        for public_info in [true, false] {
+            info!("Testing with public info: {}", public_info);
+            utilization_example_variant(public_info)?;
+        }
+        Ok(())
+    }
+
+    fn utilization_example_variant(public_info: bool) -> Result<()> {
         let _ = log4rs::init_file("logging_config.yaml", Default::default());
 
         let capacities = StaticCapacities::new(
@@ -761,7 +804,8 @@ mod tests {
         );
 
         // Using a single release here.
-        let mut batch_pds = BatchPrivateDataService::new(capacities, 1)?;
+        let mut batch_pds =
+            BatchPrivateDataService::new(capacities, 1, public_info)?;
 
         let mut trigger_uris = vec![];
         for i in 1..=9 {
@@ -906,6 +950,14 @@ mod tests {
     /// let a single site take all the budget.
     #[test]
     fn order_fairness() -> Result<()> {
+        for public_info in [true, false] {
+            info!("Testing with public info: {}", public_info);
+            order_fairness_variant(public_info)?;
+        }
+        Ok(())
+    }
+
+    fn order_fairness_variant(public_info: bool) -> Result<()> {
         let _ = log4rs::init_file("logging_config.yaml", Default::default());
 
         let capacities = StaticCapacities::new(
@@ -918,7 +970,8 @@ mod tests {
         );
 
         // Using a single release here.
-        let mut batch_pds = BatchPrivateDataService::new(capacities, 2)?;
+        let mut batch_pds =
+            BatchPrivateDataService::new(capacities, 2, public_info)?;
 
         // Event relevant to all the shoes websites. Could also register 10
         // different events, with one querier each.

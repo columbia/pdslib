@@ -9,10 +9,10 @@ name = "pdslib"
 crate-type = ["cdylib", "lib"]
 
 [dependencies]
-thiserror = "2.0.3"
-anyhow = "1.0.93"
+thiserror = "2.0"
+anyhow = "1.0"
 log = "0.4"
-serde = { version = "1.0.219", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
 
 [dev-dependencies]
 log4rs = "1"

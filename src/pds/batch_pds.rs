@@ -105,13 +105,15 @@ pub struct BatchPrivateDataService {
     /// Copy of the capacities passed to pds
     pub capacities: PpaCapacities,
 
-    /// Whether to use only public information to sort and try to allocate requests
+    /// Whether to use only public information to sort and try to allocate
+    /// requests
     pub public_info: bool,
 
     /// Statistics about requests we've tried to allocate previously.
     /// E.g., how much request for each source and for each epoch.
     /// pub allocation_statistics: HashMap<usize, HashMap<String, f64>>,
-    /// NOTE: these filters are not actually directly visible to a querier, because of report identifiers, to clarify.
+    /// NOTE: these filters are not actually directly visible to a querier,
+    /// because of report identifiers, to clarify.
     pub public_filters: PpaFilterStorage,
 
     /// Base private data service.
@@ -371,6 +373,16 @@ impl BatchPrivateDataService {
                             filter_id,
                             self.pds.filter_storage.storage.filters.get(&filter_id)
                         );
+
+                        if self.public_info {
+                            self.public_filters
+                                .set_capacity_to_infinity(&filter_id)?;
+                            debug!(
+                                "Set public filter {:?} to infinite capacity. Filter state: {:?}",
+                                filter_id,
+                                self.public_filters.storage.filters.get(&filter_id)
+                            );
+                        }
                     }
                 }
             }
@@ -416,8 +428,8 @@ impl BatchPrivateDataService {
         //             self.send_report_for_release(&request, report);
         //         } else {
         //             debug!(
-        //                 "Request {:?} was not allocated and has no report. Let's compute the report.",
-        //                 request
+        //                 "Request {:?} was not allocated and has no report.
+        // Let's compute the report.",                 request
         //             );
         //             let report = self.pds.compute_report(&request.request)?;
         //             self.send_report_for_release(&request, report);
@@ -430,7 +442,8 @@ impl BatchPrivateDataService {
         Ok(unallocated_requests)
     }
 
-    /// TODO(later): refactor and move this to the filter storage layer. Why are we sending Ok even after an error?
+    /// TODO(later): refactor and move this to the filter storage layer. Why are
+    /// we sending Ok even after an error?
     pub fn initialize_public_filter_if_necessary(
         &mut self,
         filter_id: PpaFilterId,
@@ -451,7 +464,9 @@ impl BatchPrivateDataService {
 
     /// Just mimics `deduct_budget` but with non-IDP filters.
     /// And also does it across all epochs.
-    /// TODO(P2): Could do it on a single epoch if that helps (checking on all epochs might simply return OOB every time but old epochs don't actually matter too much).
+    /// TODO(P2): Could do it on a single epoch if that helps (checking on all
+    /// epochs might simply return OOB every time but old epochs don't actually
+    /// matter too much).
     fn deduct_budget(
         &mut self,
         request: &PpaHistogramRequest,
@@ -459,12 +474,14 @@ impl BatchPrivateDataService {
     ) -> Result<PdsFilterStatus<PpaFilterId>> {
         let uris = HistogramRequest::report_uris(request);
 
-        // TODO(P3): use the public epsilon optimization if needed. Doesn't matter in experiments.
+        // TODO(P3): use the public epsilon optimization if needed. Doesn't
+        // matter in experiments.
         let loss = request.requested_epsilon();
 
         let mut filter_ids = Vec::new();
         for epoch_id in request.epoch_ids() {
-            // Build the filter IDs for NC, C and QTrigger. Qsource has the same loss here.
+            // Build the filter IDs for NC, C and QTrigger. Qsource has the same
+            // loss here.
             for query_uri in &uris.querier_uris {
                 filter_ids.push(FilterId::Nc(epoch_id, query_uri.clone()));
             }
@@ -499,8 +516,10 @@ impl BatchPrivateDataService {
         Ok(PdsFilterStatus::Continue)
     }
 
-    /// After sending a request for allocation by calling `compute_report`, keep track of public information that was in the request.
-    /// We don't peek into the result of the report itself or the state of the filters. Maybe the request was not allocated after all.
+    /// After sending a request for allocation by calling `compute_report`, keep
+    /// track of public information that was in the request. We don't peek
+    /// into the result of the report itself or the state of the filters. Maybe
+    /// the request was not allocated after all.
     fn update_allocation_statistics(
         &mut self,
         request: &PpaHistogramRequest,
@@ -586,7 +605,8 @@ impl BatchPrivateDataService {
                     unallocated_requests.push(request);
                 }
             } else {
-                // Directly compute the report to check whether we can allocate the request or not
+                // Directly compute the report to check whether we can allocate
+                // the request or not
                 let report = self.pds.compute_report(&request.request)?;
 
                 if (allocate_final_attempts
@@ -600,8 +620,9 @@ impl BatchPrivateDataService {
 
                     self.send_report_for_release(&request, report);
                 } else {
-                    // Keep the request for later. Cache the report in case we need
-                    // it. TODO(P3): no need for this anymore.
+                    // Keep the request for later. Cache the report in case we
+                    // need it. TODO(P3): no need for this
+                    // anymore.
                     request.report = Some(report);
                     unallocated_requests.push(request);
                 }
@@ -1236,14 +1257,19 @@ mod tests {
         // No report should be released just yet
         assert_eq!(reports.len(), 0);
 
-        // Only 5 reports should have been allocated from the released global
-        // budget.
-        assert_eq!(batch_pds.batched_requests.len(), 20 - 5);
-
         info!(
             "Delayed reports after first scheduling: {:?}",
             batch_pds.delayed_reports
         );
+
+        info!(
+            "Batched requests after first scheduling: {:?}",
+            batch_pds.collect_request_ids(&batch_pds.batched_requests)
+        );
+
+        // Only 5 reports should have been allocated from the released global
+        // budget.
+        assert_eq!(batch_pds.batched_requests.len(), 20 - 5);
 
         // Forcefully take the delayed reports to look at them.
         let allocated_reports = batch_pds

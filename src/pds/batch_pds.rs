@@ -7,7 +7,7 @@ use std::{
 };
 
 use anyhow::{bail, Result};
-use log::{debug, info};
+use log::debug;
 
 use super::{
     epoch_pds::{FilterId, PdsFilterStatus},
@@ -18,7 +18,7 @@ use crate::{
         pure_dp_filter::PureDPBudget,
         traits::{FilterStatus, FilterStorage},
     },
-    events::{ppa_event::PpaEvent, traits::Event},
+    events::ppa_event::PpaEvent,
     pds::{epoch_pds::PdsReport, utils::PpaPds},
     queries::{
         histogram::HistogramRequest, ppa_histogram::PpaHistogramRequest,
@@ -136,7 +136,7 @@ pub struct BatchedReport {
 impl BatchPrivateDataService {
     /// Create a new batch private data service.
     pub fn new(
-        mut capacities: PpaCapacities,
+        capacities: PpaCapacities,
         n_releases: usize,
         public_info: bool,
     ) -> Result<Self> {
@@ -150,17 +150,17 @@ impl BatchPrivateDataService {
         };
 
         // Divide the imp budget by the number of releases.
-        capacities.qsource = match capacities.qsource {
-            PureDPBudget::Epsilon(eps_q) => {
-                PureDPBudget::Epsilon(eps_q / (n_releases as f64))
-            }
-            PureDPBudget::Infinite => {
-                debug!(
-                    "Q-source filter has infinite capacity. Release is a no-op"
-                );
-                PureDPBudget::Infinite
-            }
-        };
+        // capacities.qsource = match capacities.qsource {
+        //     PureDPBudget::Epsilon(eps_q) => {
+        //         PureDPBudget::Epsilon(eps_q / (n_releases as f64))
+        //     }
+        //     PureDPBudget::Infinite => {
+        //         debug!(
+        //             "Q-source filter has infinite capacity. Release is a
+        // no-op"         );
+        //         PureDPBudget::Infinite
+        //     }
+        // };
 
         debug!(
             "BatchPDS: capacities after dividing by {} releases: {:?}, public_info {public_info}",
@@ -188,31 +188,24 @@ impl BatchPrivateDataService {
 
     /// Register a new event, calls the existing pds transparently.
     pub fn register_event(&mut self, event: PpaEvent) -> Result<()> {
-        let epoch = event.epoch_id();
-
-        // Update the range of epochs present in the system
-        match self.epochs {
-            Some((start, end)) => {
-                if epoch < end {
-                    bail!("Epochs should be monotonically increasing. Got epoch {}, but the current range is ({}, {})", epoch, start, end);
-                }
-                if epoch > end {
-                    // Extend the range of epochs when needed.
-                    // NOTE: queries don't extend the range.
-                    self.epochs = Some((start, epoch));
-                }
-            }
-            None => {
-                self.epochs = Some((epoch, epoch));
-            }
-        }
-
-        // Update the sources for that epoch
-        let source = event.event_uris().source_uri.clone();
-        self.sources_per_epoch
-            .entry(epoch)
-            .or_default()
-            .insert(source);
+        // let epoch = event.epoch_id();
+        // // Update the range of epochs present in the system
+        // match self.epochs {
+        //     Some((start, end)) => {
+        //         if epoch < end {
+        //             bail!("Epochs should be monotonically increasing. Got
+        // epoch {}, but the current range is ({}, {})", epoch, start, end);
+        //         }
+        //         if epoch > end {
+        //             // Extend the range of epochs when needed.
+        //             // NOTE: queries don't extend the range.
+        //             self.epochs = Some((start, epoch));
+        //         }
+        //     }
+        //     None => {
+        //         self.epochs = Some((epoch, epoch));
+        //     }
+        // }
 
         self.pds.register_event(event)
     }
@@ -221,6 +214,18 @@ impl BatchPrivateDataService {
         &mut self,
         request: BatchedRequest,
     ) -> Result<()> {
+        // Update the sources for each epoch
+        let sources =
+            HistogramRequest::report_uris(&request.request).source_uris;
+        for epoch in request.request.epoch_ids() {
+            for source in &sources {
+                self.sources_per_epoch
+                    .entry(epoch)
+                    .or_default()
+                    .insert(source.clone());
+            }
+        }
+
         self.new_pending_requests.push(request);
         Ok(())
     }
@@ -273,6 +278,46 @@ impl BatchPrivateDataService {
         Ok(reports)
     }
 
+    fn set_imp_quota_capacity(
+        &mut self,
+        epoch: usize,
+        capacity: PureDPBudget,
+    ) -> Result<()> {
+        // TODO(P1): use only public info.
+        if let Some(sources) = self.sources_per_epoch.get(&epoch) {
+            let filter_ids = sources
+                .iter()
+                .map(|source| FilterId::QSource(epoch, source.clone()))
+                .collect::<Vec<_>>();
+
+            for filter_id in filter_ids {
+                self.pds.initialize_filter_if_necessary(filter_id.clone())?;
+                self.pds
+                    .filter_storage
+                    .storage
+                    .filters
+                    .get_mut(&filter_id)
+                    .unwrap()
+                    .capacity = capacity.clone();
+
+                // Also for the public filter
+                if self.public_info {
+                    self.initialize_public_filter_if_necessary(
+                        filter_id.clone(),
+                    )?;
+                    self.public_filters
+                        .storage
+                        .filters
+                        .get_mut(&filter_id)
+                        .unwrap()
+                        .capacity = capacity.clone();
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     /// Unlock fresh eps_c, enable imp quota with fresh capacity, and try to
     /// allocate requests from the previous batch.
     fn initialization_phase(
@@ -287,39 +332,14 @@ impl BatchPrivateDataService {
         // Just try all the past epochs since our experiments just have a
         // few. Could eventually discard epochs that have reached their
         // lifetime if that becomes a bottleneck.
-        if let Some((start, end)) = self.epochs {
-            for epoch in start..=end {
-                self.release_budget(epoch)?;
-
-                // Reset imp quota for all sources in the epoch
-                // TODO(P2): if we find this is a problem, could release Qimp
-                // too, but be a bit weird since the consmed budget might be
-                // higher than the unlocked budget, because of the batch phase
-                // where we temporarily set the capacity to infinity.
-
-                // TODO(P3): refactor this thing.
-                if let Some(sources) = self.sources_per_epoch.get(&epoch) {
-                    let filter_ids = sources
-                        .iter()
-                        .map(|source| FilterId::QSource(epoch, source.clone()))
-                        .collect::<Vec<_>>();
-
-                    for filter_id in filter_ids {
-                        self.pds.filter_storage.remove(&filter_id)?;
-                        self.pds.initialize_filter_if_necessary(
-                            filter_id.clone(),
-                        )?;
-
-                        // Also for the public filter
-                        if self.public_info {
-                            self.public_filters.remove(&filter_id)?;
-                            self.initialize_public_filter_if_necessary(
-                                filter_id.clone(),
-                            )?;
-                        }
-                    }
-                }
-            }
+        let epochs: Vec<usize> =
+            self.sources_per_epoch.keys().cloned().collect();
+        for epoch in epochs {
+            self.release_budget(epoch)?;
+            self.set_imp_quota_capacity(
+                epoch,
+                self.capacities.qsource.clone(),
+            )?;
         }
 
         let unallocated_requests =
@@ -355,37 +375,11 @@ impl BatchPrivateDataService {
             self.collect_request_ids(&batched_requests)
         );
 
-        if let Some((start, end)) = self.epochs {
-            for epoch in start..=end {
-                // Set all imp quotas to infinity for all sources in the epoch.
-                // Keep a fixed qconv for now.
-                if let Some(sources) = self.sources_per_epoch.get(&epoch) {
-                    for source in sources {
-                        let filter_id =
-                            FilterId::QSource(epoch, source.clone());
-
-                        self.pds
-                            .filter_storage
-                            .set_capacity_to_infinity(&filter_id)?;
-
-                        debug!(
-                            "Set filter {:?} to infinite capacity. Filter state: {:?}",
-                            filter_id,
-                            self.pds.filter_storage.storage.filters.get(&filter_id)
-                        );
-
-                        if self.public_info {
-                            self.public_filters
-                                .set_capacity_to_infinity(&filter_id)?;
-                            debug!(
-                                "Set public filter {:?} to infinite capacity. Filter state: {:?}",
-                                filter_id,
-                                self.public_filters.storage.filters.get(&filter_id)
-                            );
-                        }
-                    }
-                }
-            }
+        let epochs: Vec<usize> =
+            self.sources_per_epoch.keys().cloned().collect();
+        for epoch in epochs {
+            // Set the capacity of the imp quotas to infinite.
+            self.set_imp_quota_capacity(epoch, PureDPBudget::Infinite)?;
         }
 
         // Repeatedly sort and try to allocate. Re-sort each time a request is
@@ -524,7 +518,8 @@ impl BatchPrivateDataService {
         &mut self,
         request: &PpaHistogramRequest,
     ) -> Result<()> {
-        // info!("Updating allocation statistics for request {:?}. Previous state: {:?}", request, self.public_filters);
+        // info!("Updating allocation statistics for request {:?}. Previous
+        // state: {:?}", request, self.public_filters);
         self.deduct_budget(request, false)?;
         Ok(())
     }

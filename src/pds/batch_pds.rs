@@ -494,12 +494,13 @@ impl BatchPrivateDataService {
         let uris = HistogramRequest::report_uris(request);
 
         // Case 3 from Cookie Monster only.
-        // let NoiseScale::Laplace(noise_scale) =
-        //     EpochReportRequest::noise_scale(request);
-        // let loss =
-        //     HistogramRequest::report_global_sensitivity(request) / noise_scale;
+        let NoiseScale::Laplace(noise_scale) =
+            EpochReportRequest::noise_scale(request);
+        let loss = EpochReportRequest::report_global_sensitivity(request)
+            / noise_scale;
         // TODO(P1): weird bug here
-        let loss = 2.0 * request.requested_epsilon();
+        // let loss = 2.0 * request.requested_epsilon();
+        assert_eq!(loss, 2.0 * request.requested_epsilon());
 
         let mut filter_ids = Vec::new();
         for epoch_id in request.epoch_ids() {
@@ -608,7 +609,7 @@ impl BatchPrivateDataService {
         let mut unallocated_requests = vec![];
         for mut request in requests {
             if self.public_info {
-                let can_deduct = self.deduct_budget(&request.request, true)?;
+                // let can_deduct = self.deduct_budget(&request.request, true)?;
                 // info!(
                 //     "Request {} can deduct budget? {:?} {:?} {:?}",
                 //     request.request_id,

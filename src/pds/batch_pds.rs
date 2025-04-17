@@ -494,10 +494,12 @@ impl BatchPrivateDataService {
         let uris = HistogramRequest::report_uris(request);
 
         // Case 3 from Cookie Monster only.
-        let NoiseScale::Laplace(noise_scale) =
-            EpochReportRequest::noise_scale(request);
-        let loss =
-            HistogramRequest::report_global_sensitivity(request) / noise_scale;
+        // let NoiseScale::Laplace(noise_scale) =
+        //     EpochReportRequest::noise_scale(request);
+        // let loss =
+        //     HistogramRequest::report_global_sensitivity(request) / noise_scale;
+        // TODO(P1): weird bug here
+        let loss = 2.0 * request.requested_epsilon();
 
         let mut filter_ids = Vec::new();
         for epoch_id in request.epoch_ids() {
@@ -634,12 +636,18 @@ impl BatchPrivateDataService {
                     // Compute the actual report. It might be null though.
                     let report = self.pds.compute_report(&request.request)?;
 
-                    // if report.error_cause().is_some() {
-                    //     warn!(
-                    //         "Request {} was not allocated: {:?}. Final attempt? {}",
-                    //         request.request_id, report.oob_filters, allocate_final_attempts
-                    //     );
-                    // }
+                    if report.error_cause().is_some() {
+                        for filter_id in report.oob_filters.iter() {
+                            if let FilterId::QSource(_, _) = filter_id {
+                                warn!(
+                                        "Request {} was not allocated: {:?}. Final attempt? {}",
+                                        request.request_id, report.oob_filters, allocate_final_attempts
+                                    );
+                                // Qimp should never block a request if we have perfect upper bounds for the public filters.
+                                panic!()
+                            }
+                        }
+                    }
 
                     self.update_allocation_statistics(&request.request)?;
 

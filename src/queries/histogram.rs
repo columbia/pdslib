@@ -58,6 +58,7 @@ pub trait HistogramRequest: Debug {
 
     /// Returns the maximum attributable value, i.e. the maximum L1 norm of an
     /// attributed histogram.
+    /// TODO(P1): this is a terrible naming, can cause sensitivity bugs.
     fn report_global_sensitivity(&self) -> f64;
 
     /// Returns a selector object, that can be passed to the event storage to

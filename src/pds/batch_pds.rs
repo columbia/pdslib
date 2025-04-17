@@ -496,8 +496,8 @@ impl BatchPrivateDataService {
         // Case 3 from Cookie Monster only.
         let NoiseScale::Laplace(noise_scale) =
             EpochReportRequest::noise_scale(request);
-        let loss = EpochReportRequest::report_global_sensitivity(request)
-            / noise_scale;
+        let loss =
+            HistogramRequest::report_global_sensitivity(request) / noise_scale;
 
         let mut filter_ids = Vec::new();
         for epoch_id in request.epoch_ids() {
@@ -1196,7 +1196,7 @@ mod tests {
                                           * enough space for all the queries
                                           * at the first attempt. */
             PureDPBudget::Epsilon(1.0),
-            PureDPBudget::Epsilon(2.0), /* Also tighter quota for online phase. So the batch will have to decide what to do. Gotta be fair. */
+            PureDPBudget::Epsilon(1.0), /* Also tighter quota for online phase. So the batch will have to decide what to do. Gotta be fair. */
         );
 
         // Using a single release here.

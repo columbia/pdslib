@@ -1,3 +1,4 @@
+use core::panic;
 use std::{
     cmp::Ordering::{Greater, Less},
     collections::{HashMap, HashSet},
@@ -7,7 +8,7 @@ use std::{
 };
 
 use anyhow::{bail, Result};
-use log::debug;
+use log::{debug, info, warn};
 
 use super::{
     epoch_pds::{FilterId, PdsFilterStatus},
@@ -19,6 +20,7 @@ use crate::{
         traits::{FilterStatus, FilterStorage},
     },
     events::ppa_event::PpaEvent,
+    mechanisms::NoiseScale,
     pds::{epoch_pds::PdsReport, utils::PpaPds},
     queries::{
         histogram::HistogramRequest, ppa_histogram::PpaHistogramRequest,
@@ -252,8 +254,20 @@ impl BatchPrivateDataService {
         let unallocated_from_previous_batch =
             self.initialization_phase(previous_batch)?;
 
+        // debug!(
+        //     "Real Filters: {:?}\n Public filters: {:?}",
+        //     self.pds.filter_storage.storage.filters,
+        //     self.public_filters.storage.filters
+        // );
+
         // New online queries try next.
         let unallocated_new_requests = self.online_phase(new_requests)?;
+
+        // debug!(
+        //     "Real Filters: {:?}\n Public filters: {:?}",
+        //     self.pds.filter_storage.storage.filters,
+        //     self.public_filters.storage.filters
+        // );
 
         // Put all the unallocated requests into the batch.
         let mut batched_requests = vec![];
@@ -263,6 +277,12 @@ impl BatchPrivateDataService {
         // Requests with 0 remaining attempts will be answered and removed from
         // the batch.
         let unallocated_requests = self.batch_phase(batched_requests)?;
+
+        // debug!(
+        //     "Real Filters: {:?}\n Public filters: {:?}",
+        //     self.pds.filter_storage.storage.filters,
+        //     self.public_filters.storage.filters
+        // );
 
         // Store the batch for next scheduling interval.
         self.batched_requests = unallocated_requests;
@@ -382,6 +402,11 @@ impl BatchPrivateDataService {
             self.set_imp_quota_capacity(epoch, PureDPBudget::Infinite)?;
         }
 
+        // info!(
+        //     "Filer states: {:?}",
+        //     self.pds.filter_storage.storage.filters
+        // );
+
         // Repeatedly sort and try to allocate. Re-sort each time a request is
         // allocated. Exit the loop when no more request can be
         // allocated.
@@ -468,9 +493,11 @@ impl BatchPrivateDataService {
     ) -> Result<PdsFilterStatus<PpaFilterId>> {
         let uris = HistogramRequest::report_uris(request);
 
-        // TODO(P3): use the public epsilon optimization if needed. Doesn't
-        // matter in experiments.
-        let loss = request.requested_epsilon();
+        // Case 3 from Cookie Monster only.
+        let NoiseScale::Laplace(noise_scale) =
+            EpochReportRequest::noise_scale(request);
+        let loss = EpochReportRequest::report_global_sensitivity(request)
+            / noise_scale;
 
         let mut filter_ids = Vec::new();
         for epoch_id in request.epoch_ids() {
@@ -579,6 +606,22 @@ impl BatchPrivateDataService {
         let mut unallocated_requests = vec![];
         for mut request in requests {
             if self.public_info {
+                let can_deduct = self.deduct_budget(&request.request, true)?;
+                // info!(
+                //     "Request {} can deduct budget? {:?} {:?} {:?}",
+                //     request.request_id,
+                //     can_deduct,
+                //     self.public_filters
+                //         .storage
+                //         .filters
+                //         .get(&FilterId::QSource(11, "332916476".to_string())),
+                //     self.pds
+                //         .filter_storage
+                //         .storage
+                //         .filters
+                //         .get(&FilterId::QSource(11, "332916476".to_string()))
+                // );
+
                 if (allocate_final_attempts
                     && request.n_remaining_scheduling_attempts == 0)
                     || self.can_probably_allocate(&request.request)?
@@ -590,6 +633,13 @@ impl BatchPrivateDataService {
 
                     // Compute the actual report. It might be null though.
                     let report = self.pds.compute_report(&request.request)?;
+
+                    // if report.error_cause().is_some() {
+                    //     warn!(
+                    //         "Request {} was not allocated: {:?}. Final attempt? {}",
+                    //         request.request_id, report.oob_filters, allocate_final_attempts
+                    //     );
+                    // }
 
                     self.update_allocation_statistics(&request.request)?;
 
@@ -714,6 +764,7 @@ impl BatchPrivateDataService {
         // over which set of epochs? Maybe all the epochs covered by requests in
         // the batch. Could go beyond, like all epochs ever, to optimize for
         // fairness over time.
+        // Actually max sounds better, a bit more like DPF.
 
         let mut all_sources = HashSet::new();
         for request in &requests {
@@ -731,11 +782,11 @@ impl BatchPrivateDataService {
 
         let mut budget_per_source: HashMap<String, f64> = HashMap::new();
         for source in &all_sources {
-            let mut source_total_budget = 0.0;
+            let mut source_total_budget: f64 = 0.0;
             for epoch in &all_epochs {
                 let filter_id = FilterId::QSource(*epoch, source.clone());
 
-                let consumed_budget = if self.public_info {
+                let consumed_budget: f64 = if self.public_info {
                     self.initialize_public_filter_if_necessary(
                         filter_id.clone(),
                     )?;
@@ -747,7 +798,8 @@ impl BatchPrivateDataService {
                     self.pds.filter_storage.consumed_budget(&filter_id)
                 }?;
 
-                source_total_budget += consumed_budget;
+                // source_total_budget += consumed_budget;
+                source_total_budget = source_total_budget.max(consumed_budget);
             }
             budget_per_source.insert(source.clone(), source_total_budget);
         }

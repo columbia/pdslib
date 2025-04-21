@@ -1,24 +1,28 @@
+use std::fmt::Debug;
+
 use crate::events::traits::{Event, EventUris};
+
+use super::traits::Uri;
 
 /// A barebones event type for testing and demo purposes. See ara_event for a
 /// richer type.
 #[derive(Debug, Clone)]
-pub struct SimpleEvent {
+pub struct SimpleEvent<U: Uri = String> {
     pub id: usize,
     pub epoch_number: usize,
     pub event_key: usize,
-    pub uris: EventUris<String>,
+    pub uris: EventUris<U>,
 }
 
-impl Event for SimpleEvent {
+impl<U: Uri> Event for SimpleEvent<U> {
     type EpochId = usize;
-    type Uri = String;
+    type Uri = U;
 
     fn epoch_id(&self) -> Self::EpochId {
         self.epoch_number
     }
 
-    fn event_uris(&self) -> EventUris<String> {
+    fn event_uris(&self) -> EventUris<U> {
         self.uris.clone()
     }
 }

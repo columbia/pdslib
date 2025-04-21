@@ -111,7 +111,7 @@ mod tests {
         let mut storage: HashMapFilterStorage<_, PureDPBudgetFilter, _, _> =
             HashMapFilterStorage::new(capacities)?;
 
-        let fid: FilterId<_, String> = FilterId::C(1);
+        let fid: FilterId<_, ()> = FilterId::C(1);
         storage.new_filter(fid.clone())?;
         assert_eq!(
             storage.try_consume(&fid, &PureDPBudget::Epsilon(10.0))?,

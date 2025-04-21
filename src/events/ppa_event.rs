@@ -1,8 +1,12 @@
+use std::fmt::Debug;
+
 use crate::events::traits::{Event, EventUris};
+
+use super::traits::Uri;
 
 /// Impression event
 #[derive(Debug, Clone)]
-pub struct PpaEvent {
+pub struct PpaEvent<U: Uri = String> {
     /// Event ID, e.g., counter or random ID. Unused in Firefox but kept for
     /// debugging purposes.
     pub id: usize,
@@ -14,7 +18,7 @@ pub struct PpaEvent {
 
     pub histogram_index: usize,
 
-    pub uris: EventUris<String>,
+    pub uris: EventUris<U>,
 
     /// This field can contain bit-packed information about campaigns, ads, or
     /// other attributes that the relevant event selector can use to
@@ -24,15 +28,15 @@ pub struct PpaEvent {
     pub filter_data: u64,
 }
 
-impl Event for PpaEvent {
+impl<U: Uri> Event for PpaEvent<U> {
     type EpochId = usize;
-    type Uri = String;
+    type Uri = U;
 
     fn epoch_id(&self) -> Self::EpochId {
         self.epoch_number
     }
 
-    fn event_uris(&self) -> EventUris<String> {
+    fn event_uris(&self) -> EventUris<U> {
         self.uris.clone()
     }
 }

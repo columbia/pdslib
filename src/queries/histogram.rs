@@ -1,12 +1,8 @@
-use std::{
-    collections::HashMap,
-    fmt::Debug,
-    hash::Hash,
-};
+use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
 use crate::{
     budget::pure_dp_filter::PureDPBudget,
-    events::traits::{EpochEvents, EpochId, Event, RelevantEventSelector},
+    events::traits::{EpochEvents, EpochId, Event, RelevantEventSelector, Uri},
     mechanisms::{NoiseScale, NormType},
     queries::traits::{
         EpochReportRequest, QueryComputeResult, Report, ReportRequestUris,
@@ -43,6 +39,7 @@ pub trait HistogramRequest: Debug
 where
     Self::BucketKey: Clone,
 {
+    type Uri: Uri;
     type EpochId: EpochId;
     type EpochEvents: EpochEvents;
     type Event: Event;
@@ -89,18 +86,18 @@ where
         >,
     ) -> Vec<(&'a Self::Event, f64)>;
 
-    fn report_uris(&self) -> ReportRequestUris<String>;
+    fn report_uris(&self) -> ReportRequestUris<Self::Uri>;
 
     /// Gets the querier bucket mapping for filtering histograms
     fn get_bucket_intermediary_mapping(
         &self,
-    ) -> Option<&HashMap<usize, String>>;
+    ) -> Option<&HashMap<usize, Self::Uri>>;
 
     /// Filter a histogram for a specific querier
     fn filter_report_for_intermediary(
         &self,
         report: &HistogramReport<Self::BucketKey>,
-        intermediary_uri: &str,
+        intermediary_uri: &Self::Uri,
         _: &HashMap<Self::EpochId, Self::EpochEvents>,
     ) -> Option<HistogramReport<Self::BucketKey>>;
 }
@@ -114,9 +111,9 @@ impl<H: HistogramRequest> EpochReportRequest for H {
     type PrivacyBudget = PureDPBudget;
     type RelevantEventSelector = H::RelevantEventSelector; // Use the full request as the selector.
     type Report = HistogramReport<<H as HistogramRequest>::BucketKey>;
-    type Uri = String;
+    type Uri = H::Uri;
 
-    fn report_uris(&self) -> ReportRequestUris<String> {
+    fn report_uris(&self) -> ReportRequestUris<Self::Uri> {
         self.report_uris()
     }
 

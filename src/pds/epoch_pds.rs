@@ -22,8 +22,8 @@ use crate::{
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
 pub enum FilterId<
-    E, // Epoch ID
-    U, // URI
+    E = usize,  // Epoch ID
+    U = String, // URI
 > {
     /// Non-collusion per-querier filter
     Nc(E, U /* querier URI */),
@@ -686,10 +686,8 @@ mod tests {
 
     #[test]
     fn test_account_for_passive_privacy_loss() -> Result<(), anyhow::Error> {
-        let capacities: StaticCapacities<
-            FilterId<usize, String>,
-            PureDPBudget,
-        > = StaticCapacities::mock();
+        let capacities: StaticCapacities<FilterId, PureDPBudget> =
+            StaticCapacities::mock();
         let filters: HashMapFilterStorage<_, PureDPBudgetFilter, _, _> =
             HashMapFilterStorage::new(capacities)?;
         let events = HashMapEventStorage::new();
@@ -803,15 +801,13 @@ mod tests {
     #[test]
     fn test_budget_rollback_on_depletion() -> Result<(), anyhow::Error> {
         // PDS with several filters
-        let capacities: StaticCapacities<
-            FilterId<usize, String>,
-            PureDPBudget,
-        > = StaticCapacities::new(
-            PureDPBudget::Epsilon(1.0),  // nc
-            PureDPBudget::Epsilon(20.0), // c
-            PureDPBudget::Epsilon(2.0),  // q-trigger
-            PureDPBudget::Epsilon(5.0),  // q-source
-        );
+        let capacities: StaticCapacities<FilterId, PureDPBudget> =
+            StaticCapacities::new(
+                PureDPBudget::Epsilon(1.0),  // nc
+                PureDPBudget::Epsilon(20.0), // c
+                PureDPBudget::Epsilon(2.0),  // q-trigger
+                PureDPBudget::Epsilon(5.0),  // q-source
+            );
 
         let filters: HashMapFilterStorage<_, PureDPBudgetFilter, _, _> =
             HashMapFilterStorage::new(capacities)?;
@@ -929,8 +925,8 @@ mod cross_report_optimization_tests {
         },
         queries::{
             ppa_histogram::{
-                PpaHistogramConfig,
-                PpaHistogramRequest, PpaRelevantEventSelector,
+                PpaHistogramConfig, PpaHistogramRequest,
+                PpaRelevantEventSelector,
             },
             traits::ReportRequestUris,
         },
@@ -1011,12 +1007,11 @@ mod cross_report_optimization_tests {
         // Create intermediary bucket mapping
         // Both intermediaries have access to bucket 3, so they'll both get data
         // from the same event
-        let bucket_intermediary_mapping =
-            HashMap::from([
-                (1, intermediary_uri1.clone()), // r1.ex gets buckets 1
-                (2, intermediary_uri2.clone()), // r2.ex gets buckets 2
-                (3, intermediary_uri3.clone()), // r3.ex gets buckets 3
-            ]);
+        let bucket_intermediary_mapping = HashMap::from([
+            (1, intermediary_uri1.clone()), // r1.ex gets buckets 1
+            (2, intermediary_uri2.clone()), // r2.ex gets buckets 2
+            (3, intermediary_uri3.clone()), // r3.ex gets buckets 3
+        ]);
         // Create histogram request with optimization query flag set to true
         let config = PpaHistogramConfig {
             start_epoch: 1,

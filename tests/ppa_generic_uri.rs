@@ -6,9 +6,8 @@ use pdslib::{
         pure_dp_filter::PureDPBudgetFilter, traits::FilterStorage as _,
     },
     events::{
-        hashmap_event_storage::HashMapEventStorage,
-        ppa_event::PpaEvent,
-        traits::{EventUris, Uri},
+        hashmap_event_storage::HashMapEventStorage, ppa_event::PpaEvent,
+        traits::EventUris,
     },
     pds::epoch_pds::{EpochPrivateDataService, StaticCapacities},
     queries::{
@@ -21,9 +20,8 @@ use pdslib::{
 
 #[derive(Hash, PartialEq, Eq, Clone, Debug)]
 struct CustomUri;
-impl Uri for CustomUri {}
 
-// The recommended way of using generic types your code is to type-alias
+// The recommended way of using generic types in your code is to type-alias
 // the commonly used types, to not have to repeat the generic bounds everywhere.
 type TestEvent = PpaEvent<CustomUri>;
 type TestRelevantEventSelector = PpaRelevantEventSelector<CustomUri>;

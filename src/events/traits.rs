@@ -10,10 +10,8 @@ impl EpochId for u64 {}
 /// Marker trait for URIs.
 pub trait Uri: Hash + Eq + Clone + Debug {}
 
-/// Default URI types.
-impl Uri for String {}
-impl Uri for &str {}
-impl Uri for std::rc::Rc<str> {}
+/// Implement URI for all eligible types
+impl<T: Hash + Eq + Clone + Debug> Uri for T {}
 
 pub type EpochEventsMap<U, E> = HashMap<U, E>;
 pub type EpochSourceEventsResult<U, E, Err> =

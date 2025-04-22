@@ -1,8 +1,7 @@
 use std::fmt::Debug;
 
-use crate::events::traits::{Event, EventUris};
-
 use super::traits::Uri;
+use crate::events::traits::{Event, EventUris};
 
 /// Impression event
 #[derive(Debug, Clone)]

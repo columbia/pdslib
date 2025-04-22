@@ -1,8 +1,7 @@
 use std::fmt::Debug;
 
-use crate::events::traits::{Event, EventUris};
-
 use super::traits::Uri;
+use crate::events::traits::{Event, EventUris};
 
 /// A barebones event type for testing and demo purposes. See ara_event for a
 /// richer type.

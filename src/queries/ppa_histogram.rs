@@ -3,19 +3,25 @@ use std::{
     vec,
 };
 
+use anyhow::{bail, Result};
+
 use crate::{
+    budget::pure_dp_filter::PureDPBudget,
     events::{
         hashmap_event_storage::VecEpochEvents,
         ppa_event::PpaEvent,
         traits::{RelevantEventSelector, Uri},
     },
+    mechanisms::NoiseScale,
     queries::{
         histogram::{HistogramReport, HistogramRequest},
-        traits::ReportRequestUris,
+        traits::{EpochReportRequest, ReportRequestUris},
     },
 };
 
-use super::histogram::BucketKey;
+type PpaBucketKey = usize;
+type PpaEpochId = usize;
+type PpaEpochEvents<U> = VecEpochEvents<PpaEvent<U>>;
 
 pub struct PpaRelevantEventSelector<U: Uri = String> {
     pub report_request_uris: ReportRequestUris<U>,
@@ -31,6 +37,8 @@ impl<U: Uri> std::fmt::Debug for PpaRelevantEventSelector<U> {
     }
 }
 
+/// For compatibility with PPA spec that uses two parameters (epsilon, query
+/// global sensitivity) instead of directly Laplace noise scale.
 #[derive(Debug, Clone)]
 pub struct PpaHistogramConfig {
     pub start_epoch: usize,
@@ -85,48 +93,51 @@ impl<U: Uri> RelevantEventSelector for PpaRelevantEventSelector<U> {
 pub struct PpaHistogramRequest<U: Uri = String> {
     start_epoch: usize,
     end_epoch: usize,
-    report_global_sensitivity: f64,
-    query_global_sensitivity: f64,
-    requested_epsilon: f64,
+    /// Conversion value that is spread across events
+    max_attributable_value: f64,
+    laplace_noise_scale: f64,
     histogram_size: usize,
-    filters: PpaRelevantEventSelector<U>,
+    relevant_event_selector: PpaRelevantEventSelector<U>,
     logic: AttributionLogic,
 }
 
 impl<U: Uri> PpaHistogramRequest<U> {
-    /// Constructs a new `PpaHistogramRequest`, validating that:
-    /// - `requested_epsilon` is > 0.
-    /// - `report_global_sensitivity` and `query_global_sensitivity` are
-    ///   non-negative.
+    /// Constructs a new `PpaHistogramRequest` with PPA-style parameters.
+    /// `relevant_event_selector` are known as `filters` in the PPA spec, but
+    /// this is an overloaded term. TODO: also propose a more intuitive
+    /// constructor, it just seems wrong to take the sensitivity as an input to
+    /// reverse-engineer which function we are computing. Sensitivity should be
+    /// a property of the function, and the function should be defined as simply
+    /// as possible.
     pub fn new(
         config: PpaHistogramConfig,
-        filters: PpaRelevantEventSelector<U>,
-    ) -> Result<Self, &'static str> {
+        relevant_event_selector: PpaRelevantEventSelector<U>,
+    ) -> Result<Self> {
         if config.requested_epsilon <= 0.0 {
-            return Err("requested_epsilon must be greater than 0");
+            bail!("epsilon scale must be > 0");
         }
         if config.report_global_sensitivity < 0.0
             || config.query_global_sensitivity < 0.0
         {
-            return Err("sensitivity values must be non-negative");
+            bail!("sensitivity values must be >= 0");
         }
         if config.histogram_size == 0 {
-            return Err("histogram_size must be greater than 0");
+            bail!("histogram_size must be greater than 0");
         }
         Ok(Self {
             start_epoch: config.start_epoch,
             end_epoch: config.end_epoch,
-            report_global_sensitivity: config.report_global_sensitivity,
-            query_global_sensitivity: config.query_global_sensitivity,
-            requested_epsilon: config.requested_epsilon,
+            max_attributable_value: config.report_global_sensitivity / 2.0,
+            laplace_noise_scale: config.query_global_sensitivity
+                / config.requested_epsilon,
             histogram_size: config.histogram_size,
-            filters,
+            relevant_event_selector,
             logic: AttributionLogic::LastTouch,
         })
     }
 
     pub fn get_bucket_intermediary_mapping(&self) -> &HashMap<usize, U> {
-        &self.filters.bucket_intermediary_mapping
+        &self.relevant_event_selector.bucket_intermediary_mapping
     }
 
     // Helper to check if a bucket is for a specific intermediary
@@ -135,7 +146,11 @@ impl<U: Uri> PpaHistogramRequest<U> {
         bucket_key: usize,
         intermediary_uri: &U,
     ) -> bool {
-        match self.filters.bucket_intermediary_mapping.get(&bucket_key) {
+        match self
+            .relevant_event_selector
+            .bucket_intermediary_mapping
+            .get(&bucket_key)
+        {
             Some(intermediary) => intermediary == intermediary_uri,
             None => false,
         }
@@ -143,38 +158,13 @@ impl<U: Uri> PpaHistogramRequest<U> {
 }
 
 impl<U: Uri> HistogramRequest for PpaHistogramRequest<U> {
-    type Uri = U;
-    type EpochId = usize;
-    type Event = PpaEvent<U>;
-    type EpochEvents = VecEpochEvents<Self::Event>;
-    type BucketKey = usize;
-    type RelevantEventSelector = PpaRelevantEventSelector<U>;
+    type BucketKey = PpaBucketKey;
+    type HistogramEvent = PpaEvent<U>;
+    type HistogramEpochId = PpaEpochId;
+    type HistogramEpochEvents = PpaEpochEvents<U>;
+    type HistogramUri = U;
 
-    fn epochs_ids(&self) -> Vec<Self::EpochId> {
-        (self.start_epoch..=self.end_epoch).rev().collect()
-    }
-
-    fn query_global_sensitivity(&self) -> f64 {
-        self.query_global_sensitivity
-    }
-
-    fn requested_epsilon(&self) -> f64 {
-        self.requested_epsilon
-    }
-
-    fn laplace_noise_scale(&self) -> f64 {
-        self.query_global_sensitivity / self.requested_epsilon
-    }
-
-    fn report_global_sensitivity(&self) -> f64 {
-        self.report_global_sensitivity
-    }
-
-    fn relevant_event_selector(&self) -> &Self::RelevantEventSelector {
-        &self.filters
-    }
-
-    fn bucket_key(&self, event: &Self::Event) -> Self::BucketKey {
+    fn bucket_key(&self, event: &Self::HistogramEvent) -> Self::BucketKey {
         // Bucket key validation.
         if event.histogram_index >= self.histogram_size {
             log::warn!(
@@ -190,14 +180,12 @@ impl<U: Uri> HistogramRequest for PpaHistogramRequest<U> {
 
     fn event_values<'a>(
         &self,
-        relevant_events_per_epoch: &'a HashMap<
-            Self::EpochId,
-            Self::EpochEvents,
-        >,
-    ) -> Vec<(&'a Self::Event, f64)> {
+        relevant_events_per_epoch: &'a HashMap<PpaEpochId, PpaEpochEvents<U>>,
+    ) -> Vec<(&'a PpaEvent<U>, f64)> {
         let mut event_values = vec![];
 
         match self.logic {
+            // Only attribution logic supported for now.
             AttributionLogic::LastTouch => {
                 for relevant_events in relevant_events_per_epoch.values() {
                     if let Some(last_impression) = relevant_events.last() {
@@ -205,7 +193,7 @@ impl<U: Uri> HistogramRequest for PpaHistogramRequest<U> {
                         {
                             event_values.push((
                                 last_impression,
-                                self.report_global_sensitivity,
+                                self.max_attributable_value,
                             ));
                         } else {
                             // Log error for dropped events
@@ -217,31 +205,25 @@ impl<U: Uri> HistogramRequest for PpaHistogramRequest<U> {
                         }
                     }
                 }
-            } // Other attribution logic not supported yet.
+            }
         }
 
         event_values
     }
 
-    fn report_uris(&self) -> ReportRequestUris<Self::Uri> {
-        self.filters.report_request_uris.clone()
-    }
-
-    fn get_bucket_intermediary_mapping(
-        &self,
-    ) -> Option<&HashMap<usize, Self::Uri>> {
-        Some(&self.filters.bucket_intermediary_mapping)
+    fn get_bucket_intermediary_mapping(&self) -> Option<&HashMap<usize, U>> {
+        Some(&self.relevant_event_selector.bucket_intermediary_mapping)
     }
 
     fn filter_report_for_intermediary(
         &self,
         report: &HistogramReport<Self::BucketKey>,
-        intermediary_uri: &Self::Uri,
-        _relevant_events_per_epoch: &HashMap<Self::EpochId, Self::EpochEvents>,
+        intermediary_uri: &U,
+        _relevant_events_per_epoch: &HashMap<PpaEpochId, PpaEpochEvents<U>>,
     ) -> Option<HistogramReport<Self::BucketKey>> {
         // Collect all usize keys whose value matches intermediary_uri
         let intermediary_buckets: HashSet<usize> = self
-            .filters
+            .relevant_event_selector
             .bucket_intermediary_mapping
             .iter()
             .filter_map(|(bucket_id, uri)| {
@@ -265,6 +247,69 @@ impl<U: Uri> HistogramRequest for PpaHistogramRequest<U> {
                 bin_values: filtered_bins,
             })
         }
+    }
+
+    fn max_attributable_value(&self) -> f64 {
+        self.max_attributable_value
+    }
+
+    fn histogram_report_uris(&self) -> ReportRequestUris<Self::HistogramUri> {
+        self.relevant_event_selector.report_request_uris.clone()
+    }
+}
+
+impl<U: Uri> EpochReportRequest for PpaHistogramRequest<U> {
+    type Uri = U;
+    type EpochId = PpaEpochId;
+    type Event = PpaEvent<U>;
+    type EpochEvents = PpaEpochEvents<U>;
+    type RelevantEventSelector = PpaRelevantEventSelector<U>;
+    type PrivacyBudget = PureDPBudget;
+    type Report = HistogramReport<PpaBucketKey>;
+
+    fn epoch_ids(&self) -> Vec<Self::EpochId> {
+        (self.start_epoch..=self.end_epoch).rev().collect()
+    }
+
+    fn report_global_sensitivity(&self) -> f64 {
+        self.histogram_report_global_sensitivity()
+    }
+
+    fn relevant_event_selector(&self) -> &Self::RelevantEventSelector {
+        &self.relevant_event_selector
+    }
+
+    fn report_uris(&self) -> ReportRequestUris<Self::Uri> {
+        self.relevant_event_selector.report_request_uris.clone()
+    }
+
+    fn compute_report(
+        &self,
+        relevant_events_per_epoch: &HashMap<Self::EpochId, Self::EpochEvents>,
+    ) -> super::traits::QueryComputeResult<Self::Uri, Self::Report> {
+        self.compute_histogram_report(relevant_events_per_epoch)
+    }
+
+    fn single_epoch_individual_sensitivity(
+        &self,
+        report: &Self::Report,
+        norm_type: crate::mechanisms::NormType,
+    ) -> f64 {
+        self.histogram_single_epoch_individual_sensitivity(report, norm_type)
+    }
+
+    fn single_epoch_source_individual_sensitivity(
+        &self,
+        report: &Self::Report,
+        norm_type: crate::mechanisms::NormType,
+    ) -> f64 {
+        self.histogram_single_epoch_source_individual_sensitivity(
+            report, norm_type,
+        )
+    }
+
+    fn noise_scale(&self) -> crate::mechanisms::NoiseScale {
+        NoiseScale::Laplace(self.laplace_noise_scale)
     }
 }
 

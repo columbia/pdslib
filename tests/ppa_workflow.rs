@@ -29,7 +29,7 @@ fn main() -> Result<(), anyhow::Error> {
     // Set up storage and Private Data Service.
     let events = HashMapEventStorage::new();
     let capacities = StaticCapacities::mock();
-    let filters: HashMapFilterStorage<_, PureDPBudgetFilter, _, _> =
+    let filters: HashMapFilterStorage<PureDPBudgetFilter, _> =
         HashMapFilterStorage::new(capacities)?;
 
     let mut pds = EpochPrivateDataService {

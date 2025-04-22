@@ -38,9 +38,7 @@ pub enum FilterId<
 // TODO: generic budget and filter?
 impl<E, U> Serialize
     for HashMapFilterStorage<
-        FilterId<E, U>,
         PureDPBudgetFilter,
-        PureDPBudget,
         StaticCapacities<FilterId<E, U>, PureDPBudget>,
     >
 {
@@ -688,7 +686,7 @@ mod tests {
     fn test_account_for_passive_privacy_loss() -> Result<(), anyhow::Error> {
         let capacities: StaticCapacities<FilterId, PureDPBudget> =
             StaticCapacities::mock();
-        let filters: HashMapFilterStorage<_, PureDPBudgetFilter, _, _> =
+        let filters: HashMapFilterStorage<PureDPBudgetFilter, _> =
             HashMapFilterStorage::new(capacities)?;
         let events = HashMapEventStorage::new();
 
@@ -809,7 +807,7 @@ mod tests {
                 PureDPBudget::Epsilon(5.0),  // q-source
             );
 
-        let filters: HashMapFilterStorage<_, PureDPBudgetFilter, _, _> =
+        let filters: HashMapFilterStorage<PureDPBudgetFilter, _> =
             HashMapFilterStorage::new(capacities)?;
 
         let events = HashMapEventStorage::new();
@@ -938,7 +936,7 @@ mod cross_report_optimization_tests {
         let events =
             HashMapEventStorage::<PpaEvent, PpaRelevantEventSelector>::new();
         let capacities = StaticCapacities::mock();
-        let filters: HashMapFilterStorage<_, PureDPBudgetFilter, _, _> =
+        let filters: HashMapFilterStorage<PureDPBudgetFilter, _> =
             HashMapFilterStorage::new(capacities)?;
 
         let mut pds = EpochPrivateDataService {

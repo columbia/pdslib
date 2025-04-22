@@ -31,7 +31,7 @@ pub struct SimpleRelevantEventSelector {
 impl RelevantEventSelector for SimpleRelevantEventSelector {
     type Event = SimpleEvent;
 
-    fn is_relevant_event(&self, event: &SimpleEvent) -> bool {
+    fn is_relevant_event(&self, event: &Self::Event) -> bool {
         (self.lambda)(event)
     }
 }

@@ -1,8 +1,4 @@
-use std::{
-    collections::HashMap,
-    fmt::Debug,
-    hash::Hash,
-};
+use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
 use crate::{
     events::traits::{EpochEvents, EpochId, Event, RelevantEventSelector},

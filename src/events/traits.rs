@@ -3,8 +3,15 @@ use std::{collections::HashMap, fmt::Debug, hash::Hash};
 /// Marker trait with bounds for epoch identifiers.
 pub trait EpochId: Hash + Eq + Clone + Debug {}
 
-/// Default EpochId
+/// Default EpochId types
 impl EpochId for usize {}
+impl EpochId for u64 {}
+
+/// Marker trait for URIs.
+pub trait Uri: Hash + Eq + Clone + Debug {}
+
+/// Implement URI for all eligible types
+impl<T: Hash + Eq + Clone + Debug> Uri for T {}
 
 pub type EpochEventsMap<U, E> = HashMap<U, E>;
 pub type EpochSourceEventsResult<U, E, Err> =

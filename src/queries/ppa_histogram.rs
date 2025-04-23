@@ -14,7 +14,7 @@ use crate::{
     },
     mechanisms::NoiseScale,
     queries::{
-        histogram::{HistogramReport, HistogramRequest},
+        histogram::{BucketKey, HistogramReport, HistogramRequest},
         traits::{EpochReportRequest, ReportRequestUris},
     },
 };
@@ -46,6 +46,21 @@ pub struct PpaHistogramConfig {
     pub report_global_sensitivity: f64,
     pub query_global_sensitivity: f64,
     pub requested_epsilon: f64,
+    pub histogram_size: usize,
+}
+
+/// Alternative configuration that directly provides Laplace noise scale.
+/// Should be easier to use and have less footguns than the spec-compatible
+/// configuration. Sensitivity is a property of the function, and the function
+/// should be defined as simply as possible, without having to reverse-engineer
+/// the function from the sensitivity.
+#[derive(Debug, Clone)]
+pub struct DirectPpaHistogramConfig {
+    pub start_epoch: usize,
+    pub end_epoch: usize,
+    /// Conversion value that is spread across events
+    pub max_attributable_value: f64,
+    pub laplace_noise_scale: f64,
     pub histogram_size: usize,
 }
 
@@ -104,11 +119,9 @@ pub struct PpaHistogramRequest<U: Uri = String> {
 impl<U: Uri> PpaHistogramRequest<U> {
     /// Constructs a new `PpaHistogramRequest` with PPA-style parameters.
     /// `relevant_event_selector` are known as `filters` in the PPA spec, but
-    /// this is an overloaded term. TODO: also propose a more intuitive
-    /// constructor, it just seems wrong to take the sensitivity as an input to
-    /// reverse-engineer which function we are computing. Sensitivity should be
-    /// a property of the function, and the function should be defined as simply
-    /// as possible.
+    /// this is an overloaded term.
+    /// Takes sensitivity as an input to reverse-engineer the attributable
+    /// value.
     pub fn new(
         config: PpaHistogramConfig,
         relevant_event_selector: PpaRelevantEventSelector<U>,
@@ -130,6 +143,31 @@ impl<U: Uri> PpaHistogramRequest<U> {
             max_attributable_value: config.report_global_sensitivity / 2.0,
             laplace_noise_scale: config.query_global_sensitivity
                 / config.requested_epsilon,
+            histogram_size: config.histogram_size,
+            relevant_event_selector,
+            logic: AttributionLogic::LastTouch,
+        })
+    }
+
+    /// Constructs a new `PpaHistogramRequest` with direct Laplace noise scale.
+    pub fn new_direct(
+        config: DirectPpaHistogramConfig,
+        relevant_event_selector: PpaRelevantEventSelector<U>,
+    ) -> Result<Self> {
+        if config.max_attributable_value <= 0.0 {
+            bail!("max_attributable_value must be > 0");
+        }
+        if config.laplace_noise_scale <= 0.0 {
+            bail!("laplace_noise_scale must be > 0");
+        }
+        if config.histogram_size == 0 {
+            bail!("histogram_size must be greater than 0");
+        }
+        Ok(Self {
+            start_epoch: config.start_epoch,
+            end_epoch: config.end_epoch,
+            max_attributable_value: config.max_attributable_value,
+            laplace_noise_scale: config.laplace_noise_scale,
             histogram_size: config.histogram_size,
             relevant_event_selector,
             logic: AttributionLogic::LastTouch,

@@ -31,7 +31,7 @@ fn main() -> Result<(), anyhow::Error> {
         PureDPBudget::Epsilon(3.5),
         PureDPBudget::Epsilon(8.0),
     );
-    let filters: HashMapFilterStorage<_, PureDPBudgetFilter, _, _> =
+    let filters: HashMapFilterStorage<PureDPBudgetFilter, _> =
         HashMapFilterStorage::new(capacities)?;
 
     let mut pds = EpochPrivateDataService {

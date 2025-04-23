@@ -12,7 +12,7 @@ use crate::{
         traits::{Budget, FilterCapacities, FilterStatus, FilterStorage},
     },
     events::traits::{
-        EpochEvents, EpochId, Event, EventStorage, RelevantEventSelector,
+        EpochEvents, EpochId, Event, EventStorage, RelevantEventSelector, Uri,
     },
     mechanisms::{NoiseScale, NormType},
     queries::traits::{
@@ -38,9 +38,7 @@ pub enum FilterId<
 // TODO: generic budget and filter?
 impl<E, U> Serialize
     for HashMapFilterStorage<
-        FilterId<E, U>,
         PureDPBudgetFilter,
-        PureDPBudget,
         StaticCapacities<FilterId<E, U>, PureDPBudget>,
     >
 {
@@ -176,7 +174,7 @@ pub struct PdsReport<Q: EpochReportRequest> {
 /// TODO(https://github.com/columbia/pdslib/issues/22): simplify trait bounds?
 impl<U, EI, E, EE, RES, FS, ES, Q, ERR> EpochPrivateDataService<FS, ES, Q, ERR>
 where
-    U: Clone + Eq + Hash + Debug,
+    U: Uri,
     EI: EpochId,
     E: Event<EpochId = EI, Uri = U> + Clone,
     EE: EpochEvents,
@@ -688,7 +686,7 @@ mod tests {
     fn test_account_for_passive_privacy_loss() -> Result<(), anyhow::Error> {
         let capacities: StaticCapacities<FilterId, PureDPBudget> =
             StaticCapacities::mock();
-        let filters: HashMapFilterStorage<_, PureDPBudgetFilter, _, _> =
+        let filters: HashMapFilterStorage<PureDPBudgetFilter, _> =
             HashMapFilterStorage::new(capacities)?;
         let events = HashMapEventStorage::new();
 
@@ -809,7 +807,7 @@ mod tests {
                 PureDPBudget::Epsilon(5.0),  // q-source
             );
 
-        let filters: HashMapFilterStorage<_, PureDPBudgetFilter, _, _> =
+        let filters: HashMapFilterStorage<PureDPBudgetFilter, _> =
             HashMapFilterStorage::new(capacities)?;
 
         let events = HashMapEventStorage::new();
@@ -938,7 +936,7 @@ mod cross_report_optimization_tests {
         let events =
             HashMapEventStorage::<PpaEvent, PpaRelevantEventSelector>::new();
         let capacities = StaticCapacities::mock();
-        let filters: HashMapFilterStorage<_, PureDPBudgetFilter, _, _> =
+        let filters: HashMapFilterStorage<PureDPBudgetFilter, _> =
             HashMapFilterStorage::new(capacities)?;
 
         let mut pds = EpochPrivateDataService {

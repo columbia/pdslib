@@ -3,9 +3,8 @@ use std::{collections::HashMap, fmt::Debug, hash::Hash};
 /// Marker trait with bounds for epoch identifiers.
 pub trait EpochId: Hash + Eq + Clone + Debug {}
 
-/// Default EpochId types
-impl EpochId for usize {}
-impl EpochId for u64 {}
+/// Implement EpochId for all eligible types
+impl<T: Hash + Eq + Clone + Debug> EpochId for T {}
 
 /// Marker trait for URIs.
 pub trait Uri: Hash + Eq + Clone + Debug {}
@@ -37,7 +36,7 @@ pub struct EventUris<U> {
 /// TODO(https://github.com/columbia/pdslib/issues/61): investigate clone.
 pub trait Event: Debug + Clone {
     type EpochId: EpochId;
-    type Uri: Clone + Eq + Hash + Debug;
+    type Uri: Uri;
 
     fn epoch_id(&self) -> Self::EpochId;
 

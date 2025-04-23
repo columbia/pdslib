@@ -1,32 +1,36 @@
-use std::{collections::HashMap, marker::PhantomData};
+use std::collections::HashMap;
+use std::fmt::Debug;
+use std::hash::Hash;
 
 use anyhow::Context;
 
 use crate::budget::traits::{
-    Budget, Filter, FilterCapacities, FilterStatus, FilterStorage,
+    Filter, FilterCapacities, FilterStatus, FilterStorage,
 };
 
 /// Simple implementation of FilterStorage using a HashMap.
 /// Works for any Filter that implements the Filter trait.
 #[derive(Debug, Default)]
-pub struct HashMapFilterStorage<FID, F, B, C> {
+pub struct HashMapFilterStorage<F, C>
+where
+    C: FilterCapacities,
+    F: Filter<C::Budget>,
+{
     capacities: C,
 
-    /// TODO: make this field private again eventually. MAde it public for
+    /// TODO: make this field private again eventually. Made it public for
     /// hacky serialization.
-    pub filters: HashMap<FID, F>,
-    _marker: PhantomData<B>,
+    pub filters: HashMap<C::FilterId, F>,
 }
 
-impl<FID, F, B, C> FilterStorage for HashMapFilterStorage<FID, F, B, C>
+impl<F, C> FilterStorage for HashMapFilterStorage<F, C>
 where
-    FID: Clone + Eq + std::hash::Hash + std::fmt::Debug,
-    F: Filter<B, Error = anyhow::Error>,
-    B: Budget,
-    C: FilterCapacities<FilterId = FID, Budget = B, Error = anyhow::Error>,
+    F: Filter<C::Budget, Error = anyhow::Error>,
+    C: FilterCapacities<Error = anyhow::Error>,
+    C::FilterId: Clone + Eq + Hash + Debug,
 {
-    type FilterId = FID;
-    type Budget = B;
+    type FilterId = C::FilterId;
+    type Budget = C::Budget;
     type Capacities = C;
     type Error = anyhow::Error;
 
@@ -37,7 +41,6 @@ where
         let this = Self {
             capacities,
             filters: HashMap::new(),
-            _marker: PhantomData,
         };
         Ok(this)
     }
@@ -53,15 +56,18 @@ where
         Ok(())
     }
 
-    fn is_initialized(&mut self, filter_id: &FID) -> Result<bool, Self::Error> {
+    fn is_initialized(
+        &mut self,
+        filter_id: &Self::FilterId,
+    ) -> Result<bool, Self::Error> {
         let entry = self.filters.get_mut(filter_id);
         Ok(entry.is_some())
     }
 
     fn can_consume(
         &self,
-        filter_id: &FID,
-        budget: &B,
+        filter_id: &Self::FilterId,
+        budget: &Self::Budget,
     ) -> Result<bool, Self::Error> {
         let filter = self
             .filters
@@ -73,8 +79,8 @@ where
 
     fn try_consume(
         &mut self,
-        filter_id: &FID,
-        budget: &B,
+        filter_id: &Self::FilterId,
+        budget: &Self::Budget,
     ) -> Result<FilterStatus, Self::Error> {
         let filter = self
             .filters
@@ -86,7 +92,7 @@ where
 
     fn remaining_budget(
         &self,
-        filter_id: &FID,
+        filter_id: &Self::FilterId,
     ) -> Result<Self::Budget, Self::Error> {
         let filter = self
             .filters
@@ -108,10 +114,10 @@ mod tests {
     #[test]
     fn test_hash_map_filter_storage() -> Result<(), anyhow::Error> {
         let capacities = StaticCapacities::mock();
-        let mut storage: HashMapFilterStorage<_, PureDPBudgetFilter, _, _> =
+        let mut storage: HashMapFilterStorage<PureDPBudgetFilter, _> =
             HashMapFilterStorage::new(capacities)?;
 
-        let fid: FilterId<_, ()> = FilterId::C(1);
+        let fid: FilterId<i32, ()> = FilterId::C(1);
         storage.new_filter(fid.clone())?;
         assert_eq!(
             storage.try_consume(&fid, &PureDPBudget::Epsilon(10.0))?,

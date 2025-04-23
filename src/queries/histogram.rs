@@ -31,7 +31,7 @@ impl<BK: BucketKey> Report for HistogramReport<BK> {}
 /// [Experimental] Trait for generic histogram requests. Any type satisfying
 /// this interface will be callable as a valid ReportRequest with the right
 /// accounting. Following the formalism from https://arxiv.org/pdf/2405.16719, Thm 18.
-/// Can be instantiated by ARA-style queries in particular.
+/// Can be instantiated by PPA-style queries in particular.
 pub trait HistogramRequest: Debug
 where
     Self::BucketKey: Clone,
@@ -42,9 +42,9 @@ where
     type HistogramEpochEvents: EpochEvents<Event = Self::HistogramEvent>;
     type HistogramUri: Uri;
 
-    /// Maximum value (sum) attributable to all the events in a single epoch.
-    /// a.k.a. A^max.
-    fn max_attributable_value(&self) -> f64;
+    /// Maximum value (sum) attributable to all the events in a single epoch,
+    /// for this particular conversion. a.k.a. A^max.
+    fn attributable_value(&self) -> f64;
 
     /// Returns the histogram bucket key (bin) for a given event.
     fn bucket_key(&self, event: &Self::HistogramEvent) -> Self::BucketKey;
@@ -108,7 +108,7 @@ where
 
         for (event, value) in event_values {
             total_value += value;
-            if total_value > self.max_attributable_value() {
+            if total_value > self.attributable_value() {
                 // Return partial attribution to stay within the cap.
                 early_stop = true;
                 report = HistogramReport {
@@ -198,6 +198,6 @@ where
         // use-cases that have one bin we should use a custom type
         // similar to `SimpleLastTouchHistogramReport` with Option<BucketKey,
         // f64>.
-        2.0 * self.max_attributable_value()
+        2.0 * self.attributable_value()
     }
 }

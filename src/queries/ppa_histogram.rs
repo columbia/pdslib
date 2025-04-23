@@ -43,23 +43,27 @@ impl<U: Uri> std::fmt::Debug for PpaRelevantEventSelector<U> {
 pub struct PpaHistogramConfig {
     pub start_epoch: usize,
     pub end_epoch: usize,
-    pub report_global_sensitivity: f64,
-    pub query_global_sensitivity: f64,
+
+    /// Conversion value that is spread across events for this conversion.
+    pub attributable_value: f64,
+
+    /// Maximum conversion value across all reports in the batch.
+    pub max_attributable_value: f64,
+
+    /// Budget spent on the batch, considering the max_attributable_value.
     pub requested_epsilon: f64,
     pub histogram_size: usize,
 }
 
 /// Alternative configuration that directly provides Laplace noise scale.
 /// Should be easier to use and have less footguns than the spec-compatible
-/// configuration. Sensitivity is a property of the function, and the function
-/// should be defined as simply as possible, without having to reverse-engineer
-/// the function from the sensitivity.
+/// configuration.
 #[derive(Debug, Clone)]
 pub struct DirectPpaHistogramConfig {
     pub start_epoch: usize,
     pub end_epoch: usize,
     /// Conversion value that is spread across events
-    pub max_attributable_value: f64,
+    pub attributable_value: f64,
     pub laplace_noise_scale: f64,
     pub histogram_size: usize,
 }
@@ -109,7 +113,7 @@ pub struct PpaHistogramRequest<U: Uri = String> {
     start_epoch: usize,
     end_epoch: usize,
     /// Conversion value that is spread across events
-    max_attributable_value: f64,
+    attributable_value: f64,
     laplace_noise_scale: f64,
     histogram_size: usize,
     relevant_event_selector: PpaRelevantEventSelector<U>,
@@ -129,20 +133,25 @@ impl<U: Uri> PpaHistogramRequest<U> {
         if config.requested_epsilon <= 0.0 {
             bail!("epsilon scale must be > 0");
         }
-        if config.report_global_sensitivity < 0.0
-            || config.query_global_sensitivity < 0.0
+        if config.attributable_value < 0.0
+            || config.max_attributable_value < 0.0
         {
             bail!("sensitivity values must be >= 0");
         }
         if config.histogram_size == 0 {
             bail!("histogram_size must be greater than 0");
         }
+
+        // Sensitivity for a histogram with multiple bins.
+        let query_global_sensitivity = config.max_attributable_value * 2.0;
+        let laplace_noise_scale =
+            query_global_sensitivity / config.requested_epsilon;
+
         Ok(Self {
             start_epoch: config.start_epoch,
             end_epoch: config.end_epoch,
-            max_attributable_value: config.report_global_sensitivity / 2.0,
-            laplace_noise_scale: config.query_global_sensitivity
-                / config.requested_epsilon,
+            attributable_value: config.attributable_value,
+            laplace_noise_scale,
             histogram_size: config.histogram_size,
             relevant_event_selector,
             logic: AttributionLogic::LastTouch,
@@ -154,8 +163,8 @@ impl<U: Uri> PpaHistogramRequest<U> {
         config: DirectPpaHistogramConfig,
         relevant_event_selector: PpaRelevantEventSelector<U>,
     ) -> Result<Self> {
-        if config.max_attributable_value <= 0.0 {
-            bail!("max_attributable_value must be > 0");
+        if config.attributable_value <= 0.0 {
+            bail!("attributable_value must be > 0");
         }
         if config.laplace_noise_scale <= 0.0 {
             bail!("laplace_noise_scale must be > 0");
@@ -166,7 +175,7 @@ impl<U: Uri> PpaHistogramRequest<U> {
         Ok(Self {
             start_epoch: config.start_epoch,
             end_epoch: config.end_epoch,
-            max_attributable_value: config.max_attributable_value,
+            attributable_value: config.attributable_value,
             laplace_noise_scale: config.laplace_noise_scale,
             histogram_size: config.histogram_size,
             relevant_event_selector,
@@ -231,7 +240,7 @@ impl<U: Uri> HistogramRequest for PpaHistogramRequest<U> {
                         {
                             event_values.push((
                                 last_impression,
-                                self.max_attributable_value,
+                                self.attributable_value,
                             ));
                         } else {
                             // Log error for dropped events
@@ -287,8 +296,8 @@ impl<U: Uri> HistogramRequest for PpaHistogramRequest<U> {
         }
     }
 
-    fn max_attributable_value(&self) -> f64 {
-        self.max_attributable_value
+    fn attributable_value(&self) -> f64 {
+        self.attributable_value
     }
 
     fn histogram_report_uris(&self) -> ReportRequestUris<Self::HistogramUri> {

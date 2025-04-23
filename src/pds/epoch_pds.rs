@@ -1018,8 +1018,8 @@ mod cross_report_optimization_tests {
         let config = PpaHistogramConfig {
             start_epoch: 1,
             end_epoch: 2,
-            report_global_sensitivity: 200.0,
-            query_global_sensitivity: 400.0,
+            attributable_value: 100.0,
+            max_attributable_value: 200.0,
             requested_epsilon: 1.0,
             histogram_size: 4, // Ensure we have space for bucket 3
         };
@@ -1104,9 +1104,8 @@ mod cross_report_optimization_tests {
 
                 // Calculate what would be deducted with vs. without
                 // optimization
-                let expected_single_deduction = config
-                    .report_global_sensitivity
-                    / config.query_global_sensitivity;
+                let expected_single_deduction =
+                    config.attributable_value / config.max_attributable_value;
 
                 // Verify deduction is close to single event (cross-report
                 // optimization working)

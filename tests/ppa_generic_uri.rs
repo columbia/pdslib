@@ -80,8 +80,8 @@ fn main() -> Result<(), anyhow::Error> {
     let config = PpaHistogramConfig {
         start_epoch: 1,
         end_epoch: 1,
-        report_global_sensitivity: 1.0,
-        query_global_sensitivity: 1.0,
+        attributable_value: 1.0,
+        max_attributable_value: 1.0,
         requested_epsilon: 1.0,
         histogram_size: 1,
     };

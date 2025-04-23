@@ -15,6 +15,8 @@ use crate::{
     },
 };
 
+use super::histogram::BucketKey;
+
 pub struct PpaRelevantEventSelector<U: Uri = String> {
     pub report_request_uris: ReportRequestUris<U>,
     pub is_matching_event: Box<dyn Fn(u64) -> bool>,
@@ -267,7 +269,7 @@ impl<U: Uri> HistogramRequest for PpaHistogramRequest<U> {
 }
 
 // Utility function to filter histogram
-pub fn filter_histogram_for_intermediary<BK: std::hash::Hash + Eq + Clone>(
+pub fn filter_histogram_for_intermediary<BK: BucketKey>(
     full_histogram: &HashMap<BK, f64>,
     intermediary_buckets: &HashSet<BK>,
 ) -> HashMap<BK, f64> {

@@ -36,7 +36,7 @@ pub struct EventUris<U> {
 /// TODO(https://github.com/columbia/pdslib/issues/61): investigate clone.
 pub trait Event: Debug + Clone {
     type EpochId: EpochId;
-    type Uri: Clone + Eq + Hash + Debug;
+    type Uri: Uri;
 
     fn epoch_id(&self) -> Self::EpochId;
 

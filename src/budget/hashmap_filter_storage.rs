@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::hash::Hash;
+use std::fmt::Debug;
 
 use anyhow::Context;
 
@@ -25,7 +27,7 @@ impl<F, C> FilterStorage for HashMapFilterStorage<F, C>
 where
     F: Filter<C::Budget, Error = anyhow::Error>,
     C: FilterCapacities<Error = anyhow::Error>,
-    C::FilterId: Clone + Eq + std::hash::Hash + std::fmt::Debug,
+    C::FilterId: Clone + Eq + Hash + Debug,
 {
     type FilterId = C::FilterId;
     type Budget = C::Budget;

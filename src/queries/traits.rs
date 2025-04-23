@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
 use crate::{
-    events::traits::{EpochEvents, EpochId, Event, RelevantEventSelector},
+    events::traits::{EpochEvents, EpochId, Event, RelevantEventSelector, Uri},
     mechanisms::{NoiseScale, NormType},
 };
 
@@ -54,7 +54,7 @@ pub trait EpochReportRequest: Debug {
     type RelevantEventSelector: RelevantEventSelector<Event = Self::Event>;
     type PrivacyBudget;
     type Report: Report;
-    type Uri: Clone + Eq + Hash + Debug;
+    type Uri: Uri;
 
     fn report_uris(&self) -> ReportRequestUris<Self::Uri>;
 

@@ -253,7 +253,7 @@ where
         }
 
         // Compute the raw report, useful for debugging and accounting.
-        let num_epochs: usize = relevant_events_per_epoch.len();
+        let num_epochs: usize = request.epoch_ids().len();
         let unfiltered_result =
             request.compute_report(&relevant_events_per_epoch);
 
@@ -635,6 +635,8 @@ where
             }
         };
 
+        debug!("Individual sensitivity: {individual_sensitivity} for {num_epochs} epochs");
+
         let NoiseScale::Laplace(noise_scale) = request.noise_scale();
 
         // Treat near-zero noise scales as non-private, i.e. requesting infinite
@@ -932,6 +934,8 @@ mod cross_report_optimization_tests {
 
     #[test]
     fn test_cross_report_optimization() -> Result<(), anyhow::Error> {
+        log4rs::init_file("logging_config.yaml", Default::default()).unwrap();
+
         // Create PDS with mock capacities
         let events =
             HashMapEventStorage::<PpaEvent, PpaRelevantEventSelector>::new();
@@ -1014,8 +1018,8 @@ mod cross_report_optimization_tests {
         let config = PpaHistogramConfig {
             start_epoch: 1,
             end_epoch: 2,
-            report_global_sensitivity: 100.0,
-            query_global_sensitivity: 200.0,
+            attributable_value: 100.0,
+            max_attributable_value: 200.0,
             requested_epsilon: 1.0,
             histogram_size: 4, // Ensure we have space for bucket 3
         };
@@ -1095,14 +1099,13 @@ mod cross_report_optimization_tests {
                 // Verify budget was actually deducted
                 assert!(
                     deduction == 0.5,
-                    "Expected budget deduction but none occurred"
+                    "Expected budget deduction but got {deduction}",
                 );
 
                 // Calculate what would be deducted with vs. without
                 // optimization
-                let expected_single_deduction = config
-                    .report_global_sensitivity
-                    / config.query_global_sensitivity;
+                let expected_single_deduction =
+                    config.attributable_value / config.max_attributable_value;
 
                 // Verify deduction is close to single event (cross-report
                 // optimization working)

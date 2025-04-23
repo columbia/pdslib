@@ -1,10 +1,9 @@
 use std::fmt::Debug;
 
+use super::traits::Uri;
 use crate::events::traits::{Event, EventUris};
 
-use super::traits::Uri;
-
-/// A barebones event type for testing and demo purposes. See ara_event for a
+/// A barebones event type for testing and demo purposes. See ppa_event for a
 /// richer type.
 #[derive(Debug, Clone)]
 pub struct SimpleEvent<U: Uri = String> {

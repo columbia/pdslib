@@ -15,11 +15,10 @@ use pdslib::{
     },
     pds::epoch_pds::{EpochPrivateDataService, StaticCapacities},
     queries::{
-        histogram::HistogramRequest,
         ppa_histogram::{
             PpaHistogramConfig, PpaHistogramRequest, PpaRelevantEventSelector,
         },
-        traits::ReportRequestUris,
+        traits::{EpochReportRequest, ReportRequestUris},
     },
 };
 
@@ -106,8 +105,8 @@ fn main() -> Result<(), anyhow::Error> {
         PpaHistogramConfig {
             start_epoch: 1,
             end_epoch: 2,
-            report_global_sensitivity: 32768.0,
-            query_global_sensitivity: 65536.0,
+            attributable_value: 32768.0,
+            max_attributable_value: 65536.0,
             requested_epsilon: 1.0,
             histogram_size: 2048,
         },
@@ -140,8 +139,8 @@ fn main() -> Result<(), anyhow::Error> {
         PpaHistogramConfig {
             start_epoch: 1,
             end_epoch: 2,
-            report_global_sensitivity: 32768.0,
-            query_global_sensitivity: 65536.0,
+            attributable_value: 32768.0,
+            max_attributable_value: 65536.0,
             requested_epsilon: 0.0, // This should fail.
             histogram_size: 2048,
         },
@@ -159,8 +158,8 @@ fn main() -> Result<(), anyhow::Error> {
         PpaHistogramConfig {
             start_epoch: 1,
             end_epoch: 2,
-            report_global_sensitivity: 32768.0,
-            query_global_sensitivity: 65536.0,
+            attributable_value: 32768.0,
+            max_attributable_value: 65536.0,
             requested_epsilon: 1.0,
             histogram_size: 2048,
         },

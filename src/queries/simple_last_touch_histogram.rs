@@ -94,7 +94,7 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
                     let attributed_value = self.report_global_sensitivity;
 
                     // Just use event_key as the bucket key.
-                    // See `ppaa_histogram` for a more general impression_key ->
+                    // See `ppa_histogram` for a more general impression_key ->
                     // bucket_key mapping.
                     return QueryComputeResult::new(
                         HashMap::new(),

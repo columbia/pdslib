@@ -1,6 +1,7 @@
 use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
 use anyhow::Context;
+use serde::{ser::SerializeStruct, Serialize};
 
 use crate::budget::traits::{
     Filter, FilterCapacities, FilterStatus, FilterStorage,
@@ -15,10 +16,25 @@ where
     F: Filter<C::Budget>,
 {
     capacities: C,
+    filters: HashMap<C::FilterId, F>,
+}
 
-    /// TODO: make this field private again eventually. Made it public for
-    /// hacky serialization.
-    pub filters: HashMap<C::FilterId, F>,
+impl<F, C, FID> Serialize for HashMapFilterStorage<F, C>
+where
+    C: FilterCapacities<FilterId = FID> + Serialize,
+    F: Filter<C::Budget> + Serialize,
+    FID: Serialize,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut state =
+            serializer.serialize_struct("HashMapFilterStorage", 2)?;
+        state.serialize_field("capacities", &self.capacities)?;
+        state.serialize_field("filters", &self.filters)?;
+        state.end()
+    }
 }
 
 impl<F, C> FilterStorage for HashMapFilterStorage<F, C>

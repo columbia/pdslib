@@ -51,8 +51,12 @@ where
 
     /// Attributes a value to each event in `relevant_events_per_epoch`, which
     /// will be obtained by retrieving *relevant* events from the event
-    /// storage. Events can point to the relevant_events_per_epoch, hence
-    /// the lifetime.
+    /// storage.
+    ///
+    /// Events with value 0 can be omitted since whey won't appear in the `compute_report` sum. Histogram buckets are padded with zeros at aggregation time.
+    ///
+    /// Events can point to the relevant_events_per_epoch, hence
+    /// the lifetime. Returns an (ordered) vector of tuples (event, value), which will be browsed in order by `compute_histogram_report`. Ordering can depend on timestamp or other conditions (e.g. order of the vector of events for one epoch) in the implementation.
     fn event_values<'a>(
         &self,
         relevant_events_per_epoch: &'a HashMap<
@@ -98,9 +102,8 @@ where
         // selected, so the sum is juat that singular value.
         //
         // The order matters, since events that are attributed last might be
-        // dropped by the contribution cap.
-        //
-        // TODO(https://github.com/columbia/pdslib/issues/19):  Use an ordered map for relevant_events_per_epoch?
+        // dropped by the contribution cap. `event_values` is in charge of ordering
+        // the events from `relevant_events_per_epoch`.
         let mut report = HistogramReport {
             bin_values: HashMap::new(),
         };

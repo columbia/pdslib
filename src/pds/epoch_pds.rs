@@ -123,7 +123,6 @@ pub struct EpochPrivateDataService<
 }
 
 /// Report returned by Pds, potentially augmented with debugging information
-/// TODO: add more detailed information about which filters/quotas kicked in.
 #[derive(Default, Debug)]
 pub struct PdsReport<Q: EpochReportRequest> {
     pub filtered_report: Q::Report,

@@ -122,7 +122,7 @@ mod tests {
     use super::*;
     use crate::{
         budget::pure_dp_filter::{PureDPBudget, PureDPBudgetFilter},
-        pds::epoch_pds::{FilterId, StaticCapacities},
+        pds::quotas::{FilterId, StaticCapacities},
     };
 
     #[test]

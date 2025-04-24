@@ -1,6 +1,6 @@
 use crate::{
     budget::pure_dp_filter::PureDPBudget, events::traits::EventUris,
-    pds::epoch_pds::StaticCapacities, queries::traits::ReportRequestUris,
+    pds::quotas::StaticCapacities, queries::traits::ReportRequestUris,
 };
 
 // Sample mock values to reduce boilerplate in tests.

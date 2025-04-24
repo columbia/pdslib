@@ -231,21 +231,26 @@ impl<U: Uri> HistogramRequest for PpaHistogramRequest<U> {
     ) -> Vec<(&'a PpaEvent<U>, f64)> {
         // Supporting only one attribution logic for now.
         match self.logic {
-            // Attribute all the value to the most recent relevant event, across all epochs
+            // Attribute all the value to the most recent relevant event, across
+            // all epochs
             AttributionLogic::LastTouch => {
-                // Browse epochs in the order given by `epoch_ids`, most recent first.
+                // Browse epochs in the order given by `epoch_ids`, most recent
+                // first.
                 let epoch_ids = self.epoch_ids();
                 for epoch_id in epoch_ids {
                     let relevant_events =
                         relevant_events_per_epoch.get(&epoch_id);
                     if let Some(relevant_events) = relevant_events {
-                        // Start from the most recent event in the epoch and go backwards.
+                        // Start from the most recent event in the epoch and go
+                        // backwards.
                         for event in relevant_events.iter().rev() {
                             if event.histogram_index < self.histogram_size {
-                                // Found a relevant event with a valid bucket key, we're done.
+                                // Found a relevant event with a valid bucket
+                                // key, we're done.
                                 return vec![(event, self.attributable_value)];
                             } else {
-                                // Log error for dropped events, and keep searching.
+                                // Log error for dropped events, and keep
+                                // searching.
                                 log::error!(
                                 "Dropping event with id {} due to invalid bucket key {}",
                                 event.id,

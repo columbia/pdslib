@@ -10,7 +10,7 @@ use pdslib::{
         hashmap_event_storage::HashMapEventStorage, simple_event::SimpleEvent,
         traits::EventUris,
     },
-    pds::epoch_pds::{EpochPrivateDataService, StaticCapacities},
+    pds::{epoch_pds::EpochPrivateDataService, quotas::StaticCapacities},
     queries::{
         simple_last_touch_histogram::{
             SimpleLastTouchHistogramRequest, SimpleRelevantEventSelector,

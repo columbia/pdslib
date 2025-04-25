@@ -58,10 +58,6 @@ pub trait EpochEvents: Debug {
 
 /// Selector that can tag relevant events one by one or in bulk.
 /// Can carry some immutable state.
-///
-/// TODO: do we really need a separate trait? We could also add
-/// `is_relevant_event` directly to the `ReportRequest` trait, and pass the
-/// whole request to the `EventStorage` when needed.
 pub trait RelevantEventSelector {
     type Event: Event;
 

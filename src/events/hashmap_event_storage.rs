@@ -72,7 +72,7 @@ where
         selector: &RES,
     ) -> Result<Option<VecEpochEvents<E>>, Self::Error> {
         // Return relevant events for a given epoch_id
-        // TODO: instead of returning an empty Vec, return None?
+        // TODO(https://github.com/columbia/pdslib/issues/54): instead of returning an empty Vec, return None?
         let events = self.epochs.get(epoch_id).map(|events| {
             events
                 .iter()
@@ -90,7 +90,7 @@ where
     ) -> EpochSourceEventsResult<Self::Uri, Self::EpochEvents, Self::Error>
     {
         // Return relevant events for a given epoch_id
-        // TODO: instead of returning an empty Vec, return None?
+        // TODO(https://github.com/columbia/pdslib/issues/54): instead of returning an empty Vec, return None?
         let events_map = self.epochs.get(epoch_id).map(|events| {
             events
                 .iter()

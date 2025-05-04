@@ -240,7 +240,7 @@ where
         // Try to consume the privacy loss from the filters
         let mut oob_filters = vec![];
         for (fid, loss) in filters_to_consume {
-            self.initialize_filter_if_necessary(fid.clone())?;
+            self.filter_storage.ensure_filter(fid.clone())?;
             let filter_status =
                 self.filter_storage.maybe_consume(&fid, loss, dry_run)?;
             if filter_status == FilterStatus::OutOfBudget {
@@ -254,24 +254,6 @@ where
             return Ok(PdsFilterStatus::OutOfBudget(oob_filters));
         }
         Ok(PdsFilterStatus::Continue)
-    }
-
-    fn initialize_filter_if_necessary(
-        &mut self,
-        filter_id: FilterId<Q::EpochId, Q::Uri>,
-    ) -> Result<(), ERR> {
-        let filter_initialized =
-            self.filter_storage.is_initialized(&filter_id)?;
-
-        if !filter_initialized {
-            let create_filter_result =
-                self.filter_storage.new_filter(filter_id);
-
-            if create_filter_result.is_err() {
-                return Ok(());
-            }
-        }
-        Ok(())
     }
 
     fn is_optimization_query(

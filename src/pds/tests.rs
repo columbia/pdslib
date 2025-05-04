@@ -1,24 +1,22 @@
 use std::collections::HashMap;
 
-use super::{
-    epoch_pds::*,
-    quotas::{FilterId::*, *},
-};
+use super::quotas::{FilterId::*, *};
 use crate::{
     budget::{
-        hashmap_filter_storage::HashMapFilterStorage,
-        pure_dp_filter::{PureDPBudget, PureDPBudgetFilter},
+        pure_dp_filter::PureDPBudget,
         traits::FilterStorage,
     },
     events::{
-        hashmap_event_storage::HashMapEventStorage, ppa_event::PpaEvent,
-        traits::EventUris,
+        ppa_event::PpaEvent, traits::EventUris,
+    },
+    pds::aliases::{
+        PpaEventStorage, PpaFilterStorage, PpaPds, SimpleEventStorage,
+        SimpleFilterStorage, SimplePds,
     },
     queries::{
         ppa_histogram::{
             PpaHistogramConfig, PpaHistogramRequest, PpaRelevantEventSelector,
         },
-        simple_last_touch_histogram::SimpleLastTouchHistogramRequest,
         traits::{PassivePrivacyLossRequest, ReportRequestUris},
     },
 };
@@ -27,18 +25,9 @@ use crate::{
 fn test_account_for_passive_privacy_loss() -> Result<(), anyhow::Error> {
     let capacities: StaticCapacities<FilterId, PureDPBudget> =
         StaticCapacities::mock();
-    let filters: HashMapFilterStorage<PureDPBudgetFilter, _> =
-        HashMapFilterStorage::new(capacities)?;
-    let events = HashMapEventStorage::new();
-
-    let mut pds = EpochPrivateDataService {
-        filter_storage: filters,
-        event_storage: events,
-        _phantom_request: std::marker::PhantomData::<
-            SimpleLastTouchHistogramRequest,
-        >,
-        _phantom_error: std::marker::PhantomData::<anyhow::Error>,
-    };
+    let filters = SimpleFilterStorage::new(capacities)?;
+    let events = SimpleEventStorage::new();
+    let mut pds = SimplePds::new(filters, events);
 
     let uris = ReportRequestUris::mock();
 
@@ -69,7 +58,7 @@ fn test_account_for_passive_privacy_loss() -> Result<(), anyhow::Error> {
             (FilterId::QTrigger(epoch_id, uris.trigger_uri.clone()), 1.0),
         ];
 
-        assert_remaining_budgets(&pds.filter_storage, &expected_budgets)?;
+        assert_remaining_budgets(&pds.core.filter_storage, &expected_budgets)?;
     }
 
     // Attempting to consume more should fail.
@@ -102,11 +91,12 @@ fn test_account_for_passive_privacy_loss() -> Result<(), anyhow::Error> {
             (QTrigger(epoch_id, uris.trigger_uri.clone()), 1.0),
         ];
 
-        assert_remaining_budgets(&pds.filter_storage, &expected_budgets)?;
+        assert_remaining_budgets(&pds.core.filter_storage, &expected_budgets)?;
     }
 
     // epoch 3's nc-filter and q-conv should be out of budget
     let remaining = pds
+        .core
         .filter_storage
         .remaining_budget(&Nc(3, uris.querier_uris[0].clone()))?;
     assert_eq!(remaining, PureDPBudget::Epsilon(0.0));
@@ -144,19 +134,9 @@ fn test_budget_rollback_on_depletion() -> Result<(), anyhow::Error> {
             PureDPBudget::Epsilon(5.0),  // q-source
         );
 
-    let filters: HashMapFilterStorage<PureDPBudgetFilter, _> =
-        HashMapFilterStorage::new(capacities)?;
-
-    let events = HashMapEventStorage::new();
-
-    let mut pds = EpochPrivateDataService {
-        filter_storage: filters,
-        event_storage: events,
-        _phantom_request: std::marker::PhantomData::<
-            SimpleLastTouchHistogramRequest,
-        >,
-        _phantom_error: std::marker::PhantomData::<anyhow::Error>,
-    };
+    let filters = SimpleFilterStorage::new(capacities)?;
+    let events = SimpleEventStorage::new();
+    let mut pds = SimplePds::new(filters, events);
 
     // Create a sample request uris with multiple queriers
     let mut uris = ReportRequestUris::mock();
@@ -176,7 +156,7 @@ fn test_budget_rollback_on_depletion() -> Result<(), anyhow::Error> {
     ];
 
     for filter_id in &filter_ids {
-        pds.filter_storage.new_filter(filter_id.clone())?;
+        pds.core.filter_storage.new_filter(filter_id.clone())?;
     }
 
     // Record initial budgets
@@ -184,13 +164,13 @@ fn test_budget_rollback_on_depletion() -> Result<(), anyhow::Error> {
     for filter_id in &filter_ids {
         initial_budgets.insert(
             filter_id.clone(),
-            pds.filter_storage.remaining_budget(filter_id)?,
+            pds.core.filter_storage.remaining_budget(filter_id)?,
         );
     }
 
     // Set up a request that will succeed for most filters but fail for one
     // Make the NC filter for querier1 have only 0.5 epsilon left
-    pds.filter_storage.try_consume(
+    pds.core.filter_storage.try_consume(
         &FilterId::Nc(epoch_id, uris.querier_uris[0].clone()),
         &PureDPBudget::Epsilon(0.5),
     )?;
@@ -213,7 +193,7 @@ fn test_budget_rollback_on_depletion() -> Result<(), anyhow::Error> {
     // Check that all other filters were not modified
     // First verify that querier1's NC filter still has 0.5 epsilon
     assert_eq!(
-        pds.filter_storage.remaining_budget(&FilterId::Nc(
+        pds.core.filter_storage.remaining_budget(&FilterId::Nc(
             epoch_id,
             uris.querier_uris[0].clone()
         ))?,
@@ -229,7 +209,8 @@ fn test_budget_rollback_on_depletion() -> Result<(), anyhow::Error> {
             continue;
         }
 
-        let current_budget = pds.filter_storage.remaining_budget(filter_id)?;
+        let current_budget =
+            pds.core.filter_storage.remaining_budget(filter_id)?;
         let initial_budget = initial_budgets.get(filter_id).unwrap();
 
         assert_eq!(
@@ -247,18 +228,10 @@ fn test_cross_report_optimization() -> Result<(), anyhow::Error> {
     log4rs::init_file("logging_config.yaml", Default::default()).unwrap();
 
     // Create PDS with mock capacities
-    let events =
-        HashMapEventStorage::<PpaEvent, PpaRelevantEventSelector>::new();
     let capacities = StaticCapacities::mock();
-    let filters: HashMapFilterStorage<PureDPBudgetFilter, _> =
-        HashMapFilterStorage::new(capacities)?;
-
-    let mut pds = EpochPrivateDataService {
-        filter_storage: filters,
-        event_storage: events,
-        _phantom_request: std::marker::PhantomData::<PpaHistogramRequest>,
-        _phantom_error: std::marker::PhantomData::<anyhow::Error>,
-    };
+    let filters = PpaFilterStorage::new(capacities)?;
+    let events = PpaEventStorage::new();
+    let mut pds = PpaPds::<_>::new(filters, events);
 
     // Create test URIs
     let source_uri = "blog.example.com".to_string();
@@ -347,9 +320,11 @@ fn test_cross_report_optimization() -> Result<(), anyhow::Error> {
     .map_err(|e| anyhow::anyhow!("Failed to create request: {}", e))?;
     // Initialize and check the initial beneficiary's NC filter
     let beneficiary_filter_id = FilterId::Nc(1, beneficiary_uri.clone());
-    pds.filter_storage
+    pds.core
+        .filter_storage
         .new_filter(beneficiary_filter_id.clone())?;
     let initial_budget = pds
+        .core
         .filter_storage
         .remaining_budget(&beneficiary_filter_id)?;
 
@@ -396,6 +371,7 @@ fn test_cross_report_optimization() -> Result<(), anyhow::Error> {
     // Verify the privacy budget was deducted only once
     // Despite two reports being generated (one for each intermediary)
     let post_budget = pds
+        .core
         .filter_storage
         .remaining_budget(&beneficiary_filter_id)?;
 

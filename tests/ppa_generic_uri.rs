@@ -9,7 +9,7 @@ use pdslib::{
         hashmap_event_storage::HashMapEventStorage, ppa_event::PpaEvent,
         traits::EventUris,
     },
-    pds::{epoch_pds::EpochPrivateDataService, quotas::StaticCapacities},
+    pds::{private_data_service::PrivateDataService, quotas::StaticCapacities},
     queries::{
         ppa_histogram::{
             PpaHistogramConfig, PpaHistogramRequest, PpaRelevantEventSelector,
@@ -40,12 +40,8 @@ fn main() -> Result<(), anyhow::Error> {
     let filters: HashMapFilterStorage<PureDPBudgetFilter, _> =
         HashMapFilterStorage::new(capacities)?;
 
-    let mut pds = EpochPrivateDataService {
-        filter_storage: filters,
-        event_storage: events,
-        _phantom_request: std::marker::PhantomData::<TestHistogramRequest>,
-        _phantom_error: std::marker::PhantomData::<anyhow::Error>,
-    };
+    let mut pds =
+        PrivateDataService::<_, _, _, anyhow::Error>::new(filters, events);
 
     let event_uris = EventUris {
         source_uri: CustomUri {},

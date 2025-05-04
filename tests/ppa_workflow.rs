@@ -2,15 +2,15 @@ mod common;
 
 use common::logging;
 use pdslib::{
-    budget::{
-        hashmap_filter_storage::HashMapFilterStorage,
-        pure_dp_filter::PureDPBudgetFilter, traits::FilterStorage,
-    },
+    budget::traits::FilterStorage,
     events::{
-        hashmap_event_storage::HashMapEventStorage, simple_event::SimpleEvent,
+        simple_event::SimpleEvent,
         traits::EventUris,
     },
-    pds::{epoch_pds::EpochPrivateDataService, quotas::StaticCapacities},
+    pds::{
+        aliases::{SimpleEventStorage, SimpleFilterStorage, SimplePds},
+        quotas::StaticCapacities,
+    },
     queries::{
         simple_last_touch_histogram::{
             SimpleLastTouchHistogramRequest, SimpleRelevantEventSelector,
@@ -27,19 +27,10 @@ fn main() -> Result<(), anyhow::Error> {
     // Scenario similar to https://arxiv.org/pdf/2405.16719, Section 3.3
 
     // Set up storage and Private Data Service.
-    let events = HashMapEventStorage::new();
     let capacities = StaticCapacities::mock();
-    let filters: HashMapFilterStorage<PureDPBudgetFilter, _> =
-        HashMapFilterStorage::new(capacities)?;
-
-    let mut pds = EpochPrivateDataService {
-        filter_storage: filters,
-        event_storage: events,
-        _phantom_request: std::marker::PhantomData::<
-            SimpleLastTouchHistogramRequest,
-        >,
-        _phantom_error: std::marker::PhantomData::<anyhow::Error>,
-    };
+    let filters = SimpleFilterStorage::new(capacities)?;
+    let events = SimpleEventStorage::new();
+    let mut pds = SimplePds::new(filters, events);
 
     let sample_event_uris = EventUris::mock();
     let sample_report_uris = ReportRequestUris {

@@ -151,7 +151,7 @@ fn test_budget_rollback_on_depletion() -> Result<(), anyhow::Error> {
     ];
 
     for filter_id in &filter_ids {
-        pds.core.filter_storage.new_filter(&filter_id)?;
+        pds.core.filter_storage.new_filter(filter_id.clone())?;
     }
 
     // Record initial budgets
@@ -316,7 +316,7 @@ fn test_cross_report_optimization() -> Result<(), anyhow::Error> {
     // Initialize and check the initial beneficiary's NC filter
     let beneficiary_filter_id = FilterId::Nc(1, beneficiary_uri.clone());
     pds.core.filter_storage
-        .new_filter(&beneficiary_filter_id)?;
+        .new_filter(beneficiary_filter_id.clone())?;
     let initial_budget = pds
         .core
         .filter_storage

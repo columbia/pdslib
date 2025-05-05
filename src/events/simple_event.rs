@@ -21,8 +21,8 @@ impl<U: Uri> Event for SimpleEvent<U> {
         self.epoch_number
     }
 
-    fn event_uris(&self) -> EventUris<U> {
-        self.uris.clone()
+    fn event_uris(&self) -> &EventUris<U> {
+        &self.uris
     }
 }
 

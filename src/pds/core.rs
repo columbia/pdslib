@@ -28,7 +28,11 @@ where
     >,
     ERR: From<FS::Error>,
 {
+    /// Filter storage interface.
     pub filter_storage: FS,
+
+    /// Defining these generics on each individual function causes much more
+    /// boilerplate, compared to defining them once here on the struct.
     _phantom: std::marker::PhantomData<(Q, ERR)>,
 }
 

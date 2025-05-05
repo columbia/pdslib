@@ -355,14 +355,14 @@ where
 
     fn initialize_filter_if_necessary(
         &mut self,
-        filter_id: FilterId<EI, U>,
+        filter_id: &FilterId<EI, U>,
     ) -> Result<(), ERR> {
         let filter_initialized =
             self.filter_storage.is_initialized(&filter_id)?;
 
         if !filter_initialized {
             let create_filter_result =
-                self.filter_storage.new_filter(filter_id);
+                self.filter_storage.new_filter(&filter_id);
 
             if create_filter_result.is_err() {
                 return Ok(());
@@ -384,11 +384,11 @@ where
         let mut device_epoch_filter_ids = Vec::new();
         for query_uri in uris.querier_uris {
             device_epoch_filter_ids
-                .push(FilterId::Nc(epoch_id.clone(), query_uri));
+                .push(FilterId::Nc(*epoch_id, query_uri));
         }
         device_epoch_filter_ids
-            .push(FilterId::QTrigger(epoch_id.clone(), uris.trigger_uri));
-        device_epoch_filter_ids.push(FilterId::C(epoch_id.clone()));
+            .push(FilterId::QTrigger(*epoch_id, uris.trigger_uri));
+        device_epoch_filter_ids.push(FilterId::C(*epoch_id));
 
         // NC, C and QTrigger all have the same device-epoch level loss
         let mut filters_to_consume = HashMap::new();
@@ -398,14 +398,14 @@ where
 
         // Add the QSource filters with their own device-epoch-source level loss
         for (source, loss) in source_losses {
-            let fid = FilterId::QSource(epoch_id.clone(), source.clone());
+            let fid = FilterId::QSource(*epoch_id, source.clone());
             filters_to_consume.insert(fid, loss);
         }
 
         // Try to consume the privacy loss from the filters
         let mut oob_filters = vec![];
         for (fid, loss) in filters_to_consume {
-            self.initialize_filter_if_necessary(fid.clone())?;
+            self.initialize_filter_if_necessary(&fid)?;
             let filter_status =
                 self.filter_storage.maybe_consume(&fid, loss, dry_run)?;
             if filter_status == FilterStatus::OutOfBudget {

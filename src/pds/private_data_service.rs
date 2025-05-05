@@ -1,5 +1,3 @@
-//! TODO(https://github.com/columbia/pdslib/issues/66): refactor this file
-
 use std::{collections::HashMap, fmt::Debug};
 
 use log::debug;
@@ -103,8 +101,6 @@ where
     }
 
     /// Computes a report for the given report request.
-    /// This function follows `compute_attribution_report` from the Cookie
-    /// Monster Algorithm (https://arxiv.org/pdf/2405.16719, Code Listing 1)
     pub fn compute_report(
         &mut self,
         request: &Q,

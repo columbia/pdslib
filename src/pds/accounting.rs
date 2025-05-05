@@ -73,13 +73,12 @@ pub fn compute_epoch_source_losses<Q: EpochReportRequest>(
     let mut per_source_losses = HashMap::new();
 
     // Collect sources and noise scale from the request.
-    let requested_sources = request.report_uris().source_uris;
     let NoiseScale::Laplace(noise_scale) = request.noise_scale();
 
     // Count requested sources for case analysis
-    let num_requested_sources = requested_sources.len();
+    let num_requested_sources = request.report_uris().source_uris.len();
 
-    for source in requested_sources {
+    for source in request.report_uris().clone().source_uris {
         // No relevant events map, or no events for this source, or empty
         // events
         let has_no_relevant_events = match relevant_events_per_epoch_source {

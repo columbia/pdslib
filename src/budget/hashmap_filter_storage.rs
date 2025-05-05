@@ -61,11 +61,11 @@ where
 
     fn new_filter(
         &mut self,
-        filter_id: &Self::FilterId,
+        filter_id: Self::FilterId,
     ) -> Result<(), Self::Error> {
         let capacity = self.capacities.capacity(&filter_id)?;
         let filter = F::new(capacity)?;
-        self.filters.insert(filter_id.clone(), filter);
+        self.filters.insert(filter_id, filter);
 
         Ok(())
     }
@@ -132,7 +132,7 @@ mod tests {
             HashMapFilterStorage::new(capacities)?;
 
         let fid: FilterId<i32, ()> = FilterId::C(1);
-        storage.new_filter(&fid)?;
+        storage.new_filter(fid)?;
         assert_eq!(
             storage.try_consume(&fid, &PureDPBudget::Epsilon(10.0))?,
             FilterStatus::Continue

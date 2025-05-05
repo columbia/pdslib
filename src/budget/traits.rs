@@ -63,7 +63,7 @@ pub trait FilterStorage {
     /// Initializes a new filter with an associated filter ID and capacity.
     fn new_filter(
         &mut self,
-        filter_id: &Self::FilterId,
+        filter_id: Self::FilterId,
     ) -> Result<(), Self::Error>;
 
     /// Checks if filter `filter_id` is initialized.

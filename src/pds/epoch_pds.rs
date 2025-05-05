@@ -188,7 +188,7 @@ where
                 &epoch_id,
                 &individual_privacy_loss,
                 &source_losses,
-                request.report_uris(),
+                request.report_uris().clone(),
                 true, // dry run
             )?;
 
@@ -199,7 +199,7 @@ where
                         &epoch_id,
                         &individual_privacy_loss,
                         &source_losses,
-                        request.report_uris(),
+                        request.report_uris().clone(),
                         false, // actually consume
                     )?;
 
@@ -278,13 +278,13 @@ where
                             oob_filters: main_report.oob_filters.clone(),
                         };
 
-                        // Add this code to deduct budget for the intermediary
-                        // Create a modified request URIs with the intermediary
-                        // as the querier
-                        let mut intermediary_report_uris =
-                            request.report_uris().clone();
-                        intermediary_report_uris.querier_uris =
-                            vec![intermediary_uri.clone()];
+                        // // Add this code to deduct budget for the intermediary
+                        // // Create a modified request URIs with the intermediary
+                        // // as the querier
+                        // let mut intermediary_report_uris =
+                        //     request.report_uris().clone();
+                        // intermediary_report_uris.querier_uris =
+                        //     vec![intermediary_uri.clone()];
 
                         intermediary_reports
                             .insert(intermediary_uri, intermediary_pds_report);
@@ -362,7 +362,7 @@ where
 
         if !filter_initialized {
             let create_filter_result =
-                self.filter_storage.new_filter(&filter_id);
+                self.filter_storage.new_filter(filter_id.clone());
 
             if create_filter_result.is_err() {
                 return Ok(());

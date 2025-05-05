@@ -15,7 +15,7 @@ use crate::budget::traits::{Budget, Filter, FilterStatus};
 /// TODO(https://github.com/columbia/pdslib/issues/14): use OpenDP accountant (even though it seems
 ///     to also use f64) or move to a positive rational type or fixed point.
 ///     We could also generalize to RDP/zCDP.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PureDPBudget {
     /// Infinite budget, for filters with no set capacity, or requests that
     /// don't add any noise
@@ -125,7 +125,7 @@ impl Filter<PureDPBudget> for PureDPBudgetFilter {
     }
 
     fn remaining_budget(&self) -> Result<PureDPBudget, anyhow::Error> {
-        Ok(self.remaining_budget.clone())
+        Ok(self.remaining_budget)
     }
 }
 

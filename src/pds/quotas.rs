@@ -4,7 +4,7 @@ use serde::Serialize;
 
 use crate::budget::traits::{Budget, FilterCapacities};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 pub enum FilterId<
     E = usize,  // Epoch ID
     U = String, // URI

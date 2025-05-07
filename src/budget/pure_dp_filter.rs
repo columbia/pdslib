@@ -1,6 +1,6 @@
 use core::f64;
 
-use log::debug;
+use log::{debug, warn};
 use serde::Serialize;
 
 use crate::budget::traits::{Budget, Filter, FilterStatus};
@@ -41,7 +41,19 @@ impl Filter<PureDPBudget> for PureDPBudgetFilter {
     fn can_consume(&self, budget: &PureDPBudget) -> Result<bool, Self::Error> {
         match self.capacity {
             None => Ok(true),
-            Some(capacity) => Ok(self.consumed + budget <= capacity)
+            Some(capacity) => {
+                let remaining = capacity - self.consumed;
+                let diff = (remaining - budget).abs();
+
+                if diff < 1e-9 && diff > 0.0 {
+                    warn!(
+                        "can_consume: difference between remaining budget ({}) and requested budget ({}) is very small, diff = {}",
+                        remaining, budget, diff
+                    );
+                }
+
+                Ok(self.consumed + budget <= capacity)
+            }
         }
     }
 
@@ -62,6 +74,16 @@ impl Filter<PureDPBudget> for PureDPBudgetFilter {
                 FilterStatus::Continue
             }
             Some(capacity) => {
+                let remaining = capacity - self.consumed;
+                let diff = (remaining - budget).abs();
+
+                if diff < 1e-9 && diff > 0.0 {
+                    warn!(
+                        "try_consume: difference between remaining budget ({}) and requested budget ({}) is very small, diff = {}",
+                        remaining, budget, diff
+                    );
+                }
+
                 if self.consumed + budget <= capacity {
                     self.consumed += budget;
                     FilterStatus::Continue
@@ -76,7 +98,7 @@ impl Filter<PureDPBudget> for PureDPBudgetFilter {
 
     fn remaining_budget(&self) -> Result<PureDPBudget, anyhow::Error> {
         match self.capacity {
-            None => Ok(f64::INFINITY), //  TODO: is this ok?
+            None => Ok(f64::INFINITY),
             Some(capactity) => Ok(capactity - self.consumed),
         }
     }

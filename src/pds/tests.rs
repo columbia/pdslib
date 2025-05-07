@@ -24,11 +24,11 @@ use crate::{
 };
 
 #[test]
-fn test_account_for_passive_privacy_loss() -> Result<(), anyhow::Error> {
-    let capacities: StaticCapacities<FilterId, PureDPBudget> =
-        StaticCapacities::mock();
+fn test_account_for_passive_privacy_loss() -> Result<(), anyhow::Error> {    
+    let capacities = StaticCapacities::mock();
     let filters: HashMapFilterStorage<PureDPBudgetFilter, _> =
         HashMapFilterStorage::new(capacities)?;
+
     let events = HashMapEventStorage::new();
 
     let mut pds = EpochPrivateDataService {
@@ -45,7 +45,7 @@ fn test_account_for_passive_privacy_loss() -> Result<(), anyhow::Error> {
     // First request should succeed
     let request = PassivePrivacyLossRequest {
         epoch_ids: vec![1, 2, 3],
-        privacy_budget: PureDPBudget::Epsilon(0.2),
+        privacy_budget: PureDPBudget::from(0.2),
         uris: uris.clone(),
     };
     let result = pds.account_for_passive_privacy_loss(request)?;
@@ -54,7 +54,7 @@ fn test_account_for_passive_privacy_loss() -> Result<(), anyhow::Error> {
     // Second request with same budget should succeed (2.0 total)
     let request = PassivePrivacyLossRequest {
         epoch_ids: vec![1, 2, 3],
-        privacy_budget: PureDPBudget::Epsilon(0.3),
+        privacy_budget: PureDPBudget::from(0.3),
         uris: uris.clone(),
     };
     let result = pds.account_for_passive_privacy_loss(request)?;
@@ -75,7 +75,7 @@ fn test_account_for_passive_privacy_loss() -> Result<(), anyhow::Error> {
     // Attempting to consume more should fail.
     let request = PassivePrivacyLossRequest {
         epoch_ids: vec![2, 3],
-        privacy_budget: PureDPBudget::Epsilon(2.0),
+        privacy_budget: PureDPBudget::from(2.0),
         uris: uris.clone(),
     };
     let result = pds.account_for_passive_privacy_loss(request)?;
@@ -88,7 +88,7 @@ fn test_account_for_passive_privacy_loss() -> Result<(), anyhow::Error> {
     // Consume from just one epoch.
     let request = PassivePrivacyLossRequest {
         epoch_ids: vec![3],
-        privacy_budget: PureDPBudget::Epsilon(0.5),
+        privacy_budget: PureDPBudget::from(0.5),
         uris: uris.clone(),
     };
     let result = pds.account_for_passive_privacy_loss(request)?;
@@ -109,7 +109,7 @@ fn test_account_for_passive_privacy_loss() -> Result<(), anyhow::Error> {
     let remaining = pds
         .filter_storage
         .remaining_budget(&Nc(3, uris.querier_uris[0].clone()))?;
-    assert_eq!(remaining, PureDPBudget::Epsilon(0.0));
+    assert_eq!(remaining, PureDPBudget::from(0.0));
 
     Ok(())
 }
@@ -123,7 +123,7 @@ fn assert_remaining_budgets<FS: FilterStorage<Budget = PureDPBudget>>(
         let remaining = filter_storage.remaining_budget(filter_id)?;
         assert_eq!(
             remaining,
-            PureDPBudget::Epsilon(*expected_budget),
+            PureDPBudget::from(*expected_budget),
             "Remaining budget for {:?} is not as expected",
             filter_id
         );
@@ -138,10 +138,10 @@ fn test_budget_rollback_on_depletion() -> Result<(), anyhow::Error> {
     // PDS with several filters
     let capacities: StaticCapacities<FilterId, PureDPBudget> =
         StaticCapacities::new(
-            PureDPBudget::Epsilon(1.0),  // nc
-            PureDPBudget::Epsilon(20.0), // c
-            PureDPBudget::Epsilon(2.0),  // q-trigger
-            PureDPBudget::Epsilon(5.0),  // q-source
+            PureDPBudget::from(1.0),  // nc
+            PureDPBudget::from(20.0), // c
+            PureDPBudget::from(2.0),  // q-trigger
+            PureDPBudget::from(5.0),  // q-source
         );
 
     let filters: HashMapFilterStorage<PureDPBudgetFilter, _> =
@@ -192,14 +192,14 @@ fn test_budget_rollback_on_depletion() -> Result<(), anyhow::Error> {
     // Make the NC filter for querier1 have only 0.5 epsilon left
     pds.filter_storage.try_consume(
         &FilterId::Nc(epoch_id, uris.querier_uris[0].clone()),
-        &PureDPBudget::Epsilon(0.5),
+        &PureDPBudget::from(0.5),
     )?;
 
     // Now attempt a deduction that requires 0.7 epsilon
     // This should fail because querier1's NC filter only has 0.5 left
     let request = PassivePrivacyLossRequest {
         epoch_ids: vec![epoch_id],
-        privacy_budget: PureDPBudget::Epsilon(0.7),
+        privacy_budget: PureDPBudget::from(0.7),
         uris: uris.clone(),
     };
 
@@ -217,7 +217,7 @@ fn test_budget_rollback_on_depletion() -> Result<(), anyhow::Error> {
             epoch_id,
             uris.querier_uris[0].clone()
         ))?,
-        PureDPBudget::Epsilon(0.5),
+        PureDPBudget::from(0.5),
         "Filter that was insufficient should still have its partial budget"
     );
 
@@ -400,7 +400,7 @@ fn test_cross_report_optimization() -> Result<(), anyhow::Error> {
         .remaining_budget(&beneficiary_filter_id)?;
 
     match (initial_budget.clone(), post_budget) {
-        (PureDPBudget::Epsilon(initial), PureDPBudget::Epsilon(remaining)) => {
+        (initial, remaining) => {
             let deduction = initial - remaining;
 
             // Verify budget was actually deducted

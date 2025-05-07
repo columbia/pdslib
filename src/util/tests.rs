@@ -9,10 +9,10 @@ impl<FID> StaticCapacities<FID, PureDPBudget> {
     /// Sample capacitiy values for testing.
     pub fn mock() -> Self {
         Self::new(
-            PureDPBudget::Epsilon(1.0),
-            PureDPBudget::Epsilon(20.0),
-            PureDPBudget::Epsilon(1.5),
-            PureDPBudget::Epsilon(4.0),
+            PureDPBudget::from(1.0),
+            PureDPBudget::from(20.0),
+            PureDPBudget::from(1.5),
+            PureDPBudget::from(4.0),
         )
     }
 }

@@ -121,7 +121,7 @@ where
 mod tests {
     use super::*;
     use crate::{
-        budget::pure_dp_filter::{PureDPBudget, PureDPBudgetFilter},
+        budget::pure_dp_filter::PureDPBudgetFilter,
         pds::quotas::{FilterId, StaticCapacities},
     };
 
@@ -134,17 +134,17 @@ mod tests {
         let fid: FilterId<i32, ()> = FilterId::C(1);
         storage.new_filter(fid.clone())?;
         assert_eq!(
-            storage.try_consume(&fid, &PureDPBudget::Epsilon(10.0))?,
+            storage.try_consume(&fid, &10.0)?,
             FilterStatus::Continue
         );
         assert_eq!(
-            storage.try_consume(&fid, &PureDPBudget::Epsilon(11.0))?,
+            storage.try_consume(&fid, &11.0)?,
             FilterStatus::OutOfBudget,
         );
 
         // Filter C(2) does not exist
         assert!(storage
-            .try_consume(&FilterId::C(2), &PureDPBudget::Epsilon(1.0))
+            .try_consume(&FilterId::C(2), &1.0)
             .is_err());
 
         Ok(())

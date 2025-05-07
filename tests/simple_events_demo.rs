@@ -26,10 +26,10 @@ fn main() -> Result<(), anyhow::Error> {
     let events = HashMapEventStorage::new();
 
     let capacities = StaticCapacities::new(
-        PureDPBudget::Epsilon(3.0),
-        PureDPBudget::Epsilon(20.0),
-        PureDPBudget::Epsilon(3.5),
-        PureDPBudget::Epsilon(8.0),
+        PureDPBudget::from(3.0),
+        PureDPBudget::from(20.0),
+        PureDPBudget::from(3.5),
+        PureDPBudget::from(8.0),
     );
     let filters: HashMapFilterStorage<PureDPBudgetFilter, _> =
         HashMapFilterStorage::new(capacities)?;

@@ -49,11 +49,13 @@ pub trait EpochEvents: Debug {
 
     fn new() -> Self;
 
-    fn is_empty(&self) -> bool;
+    fn iter(&self) -> impl Iterator<Item = &Self::Event>;
+
+    fn is_empty(&self) -> bool {
+        self.iter().next().is_none()
+    }
 
     fn push(&mut self, event: Self::Event);
-
-    fn iter(&self) -> std::slice::Iter<Self::Event>;
 }
 
 /// Selector that can tag relevant events one by one or in bulk.

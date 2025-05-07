@@ -22,7 +22,7 @@ impl<E: Event> EpochEvents for VecEpochEvents<E> {
         self.push(event);
     }
 
-    fn iter(&self) -> std::slice::Iter<Self::Event> {
+    fn iter(&self) -> impl Iterator<Item = &Self::Event> {
         self.as_slice().iter()
     }
 }

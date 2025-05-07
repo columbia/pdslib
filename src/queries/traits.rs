@@ -48,13 +48,13 @@ pub trait Report: Debug + Default {}
 
 /// Trait for an epoch-based query.
 pub trait EpochReportRequest: Debug {
+    type Uri: Uri;
     type EpochId: EpochId;
-    type Event: Event;
-    type EpochEvents: EpochEvents;
+    type Event: Event<Uri = Self::Uri, EpochId = Self::EpochId>;
+    type EpochEvents: EpochEvents<Event = Self::Event>;
     type RelevantEventSelector: RelevantEventSelector<Event = Self::Event>;
     type PrivacyBudget;
     type Report: Report;
-    type Uri: Uri;
 
     fn report_uris(&self) -> ReportRequestUris<Self::Uri>;
 

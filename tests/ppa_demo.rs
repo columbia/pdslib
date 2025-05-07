@@ -5,15 +5,15 @@ use std::collections::HashMap;
 use common::logging;
 use log::info;
 use pdslib::{
-    budget::{
-        hashmap_filter_storage::HashMapFilterStorage,
-        pure_dp_filter::PureDPBudgetFilter, traits::FilterStorage,
-    },
+    budget::traits::FilterStorage,
     events::{
-        hashmap_event_storage::HashMapEventStorage, ppa_event::PpaEvent,
+        ppa_event::PpaEvent,
         traits::EventUris,
     },
-    pds::{epoch_pds::EpochPrivateDataService, quotas::StaticCapacities},
+    pds::{
+        aliases::{PpaEventStorage, PpaFilterStorage, PpaPds},
+        quotas::StaticCapacities,
+    },
     queries::{
         ppa_histogram::{
             PpaHistogramConfig, PpaHistogramRequest, PpaRelevantEventSelector,
@@ -25,18 +25,11 @@ use pdslib::{
 #[test]
 fn main() -> Result<(), anyhow::Error> {
     logging::init_default_logging();
-    let events =
-        HashMapEventStorage::<PpaEvent, PpaRelevantEventSelector>::new();
     let capacities = StaticCapacities::mock();
-    let filters: HashMapFilterStorage<PureDPBudgetFilter, _> =
-        HashMapFilterStorage::new(capacities)?;
+    let filters = PpaFilterStorage::new(capacities)?;
+    let events = PpaEventStorage::new();
 
-    let mut pds = EpochPrivateDataService {
-        filter_storage: filters,
-        event_storage: events,
-        _phantom_request: std::marker::PhantomData::<PpaHistogramRequest>,
-        _phantom_error: std::marker::PhantomData::<anyhow::Error>,
-    };
+    let mut pds = PpaPds::<_>::new(filters, events);
 
     let sample_event_uris = EventUris::mock();
     let event_uris_irrelevant_due_to_source = EventUris {

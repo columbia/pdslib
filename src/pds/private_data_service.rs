@@ -7,16 +7,11 @@ use super::{
     quotas::{FilterId, PdsFilterStatus},
 };
 use crate::{
-    budget::{
-        pure_dp_filter::PureDPBudget,
-        traits::FilterStorage,
-    },
+    budget::{pure_dp_filter::PureDPBudget, traits::FilterStorage},
     events::traits::{
         EpochEvents, EpochId, Event, EventStorage, RelevantEventSelector, Uri,
     },
-    queries::traits::{
-        EpochReportRequest, PassivePrivacyLossRequest,
-    },
+    queries::traits::{EpochReportRequest, PassivePrivacyLossRequest},
 };
 
 /// Epoch-based private data service, using generic filter
@@ -137,12 +132,16 @@ where
 
         // For each epoch, try to consume the privacy budget.
         for epoch_id in request.epoch_ids {
-            // Phase 1: dry run.
-            let check_status = self.core.deduct_budget(
+            let filters_to_consume = self.core.filters_to_consume(
                 &epoch_id,
                 &request.privacy_budget,
                 &source_losses,
                 request.uris.clone(),
+            );
+
+            // Phase 1: dry run.
+            let check_status = self.core.deduct_budget(
+                &filters_to_consume,
                 true, // dry run
             )?;
             if check_status != PdsFilterStatus::Continue {
@@ -151,10 +150,7 @@ where
 
             // Phase 2: Consume the budget
             let consume_status = self.core.deduct_budget(
-                &epoch_id,
-                &request.privacy_budget,
-                &source_losses,
-                request.uris.clone(),
+                &filters_to_consume,
                 false, // actually consume
             )?;
 

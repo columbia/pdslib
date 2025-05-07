@@ -141,12 +141,16 @@ where
             // Step 5. Try to consume budget from current epoch, drop events if
             // OOB. Two phase commit.
 
-            // Phase 1: dry run.
-            let check_status = self.deduct_budget(
+            let filters_to_consume = self.filters_to_consume(
                 &epoch_id,
                 &individual_privacy_loss,
                 &source_losses,
                 request.report_uris(),
+            );
+
+            // Phase 1: dry run.
+            let check_status = self.deduct_budget(
+                &filters_to_consume,
                 true, // dry run
             )?;
 
@@ -154,10 +158,7 @@ where
                 PdsFilterStatus::Continue => {
                     // Phase 2: Consume the budget
                     let consume_status = self.deduct_budget(
-                        &epoch_id,
-                        &individual_privacy_loss,
-                        &source_losses,
-                        request.report_uris(),
+                        &filters_to_consume,
                         false, // actually consume
                     )?;
 
@@ -209,16 +210,15 @@ where
         Ok(HashMap::from([(querier_uri.clone(), main_report)]))
     }
 
-    /// Deduct the privacy loss from the various filters.
-    #[allow(clippy::type_complexity)]
-    pub fn deduct_budget(
-        &mut self,
-        epoch_id: &Q::EpochId,
-        loss: &FS::Budget,
-        source_losses: &HashMap<Q::Uri, FS::Budget>,
+    /// Calculate how much privacy to deduct from which filters,
+    /// for the given epoch and losses.
+    pub fn filters_to_consume<'a>(
+        &self,
+        epoch_id: &'a Q::EpochId,
+        loss: &'a FS::Budget,
+        source_losses: &'a HashMap<Q::Uri, FS::Budget>,
         uris: ReportRequestUris<Q::Uri>,
-        dry_run: bool,
-    ) -> Result<PdsFilterStatus<FilterId<Q::EpochId, Q::Uri>>, ERR> {
+    ) -> HashMap<FilterId<Q::EpochId, Q::Uri>, &'a PureDPBudget> {
         // Build the filter IDs for NC, C and QTrigger
         let mut device_epoch_filter_ids = Vec::new();
         for query_uri in uris.querier_uris {
@@ -241,14 +241,27 @@ where
             filters_to_consume.insert(fid, loss);
         }
 
+        filters_to_consume
+    }
+
+    /// Deduct the privacy loss from the various filters.
+    #[allow(clippy::type_complexity)]
+    pub fn deduct_budget(
+        &mut self,
+        filters_to_consume: &HashMap<
+            FilterId<Q::EpochId, Q::Uri>,
+            &PureDPBudget,
+        >,
+        dry_run: bool,
+    ) -> Result<PdsFilterStatus<FilterId<Q::EpochId, Q::Uri>>, ERR> {
         // Try to consume the privacy loss from the filters
         let mut oob_filters = vec![];
         for (fid, loss) in filters_to_consume {
             self.filter_storage.ensure_filter(fid.clone())?;
             let filter_status =
-                self.filter_storage.maybe_consume(&fid, loss, dry_run)?;
+                self.filter_storage.maybe_consume(fid, loss, dry_run)?;
             if filter_status == FilterStatus::OutOfBudget {
-                oob_filters.push(fid);
+                oob_filters.push(fid.clone());
             }
         }
 

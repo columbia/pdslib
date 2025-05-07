@@ -60,7 +60,7 @@ pub trait FilterStorage {
     where
         Self: Sized;
 
-    /// Initializes a new filter with an associated filter ID and capacity.
+    /// Initializes a new filter with an associated filter ID.
     fn new_filter(
         &mut self,
         filter_id: Self::FilterId,
@@ -71,6 +71,17 @@ pub trait FilterStorage {
         &mut self,
         filter_id: &Self::FilterId,
     ) -> Result<bool, Self::Error>;
+
+    /// Creates a new filter if not initialized.
+    fn ensure_filter(
+        &mut self,
+        filter_id: Self::FilterId,
+    ) -> Result<(), Self::Error> {
+        if !self.is_initialized(&filter_id)? {
+            self.new_filter(filter_id)?;
+        }
+        Ok(())
+    }
 
     /// Check if budget can be consumed without modifying state
     fn can_consume(

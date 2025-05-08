@@ -12,7 +12,7 @@ use crate::{
         pure_dp_filter::PureDPBudget,
         traits::{FilterStatus, FilterStorage},
     },
-    events::traits::{EpochEvents, Event},
+    events::relevant_events::RelevantEvents,
     queries::traits::{
         EpochReportRequest, QueryComputeResult, Report, ReportRequestUris,
     },
@@ -59,88 +59,51 @@ where
     /// Monster Algorithm (https://arxiv.org/pdf/2405.16719, Code Listing 1)
     pub fn compute_report(
         &mut self,
-        mut relevant_events_per_epoch: HashMap<Q::EpochId, Q::EpochEvents>,
         request: &Q,
+        // mutable, as we will drop out-of-budget epochs from it
+        mut relevant_events: RelevantEvents<Q::Event>,
     ) -> Result<HashMap<Q::Uri, PdsReport<Q>>, ERR> {
         debug!("Computing report for request {:?}", request);
 
+        let uris = request.report_uris();
+
         // Check if this is a multi-beneficiary query, which we don't support
         // yet
-        if request.report_uris().querier_uris.len() > 1 {
-            todo!("Implement multi-beneficiary queries");
+        if uris.querier_uris.len() > 1 {
+            unimplemented!("Multi-beneficiary queries");
         }
+        let querier_uri = &uris.querier_uris[0];
 
-        // For every epoch, organize events into buckets, per event's source URI.
-        let mut relevant_events_per_epoch_source: HashMap<
-            Q::EpochId,
-            HashMap<Q::Uri, Q::EpochEvents>,
-        > = HashMap::new();
-        for epoch_id in request.epoch_ids() {
-            let Some(epoch_events) = relevant_events_per_epoch.get(&epoch_id)
-            else {
-                continue;
-            };
-
-            // source URI => list of events
-            let mut events_per_source = HashMap::new();
-
-            let iter = epoch_events.iter();
-            for event in iter {
-                let source_uri = event.event_uris().source_uri;
-                events_per_source
-                    .entry(source_uri.clone())
-                    .or_insert_with(Q::EpochEvents::new)
-                    .push(event.clone());
-            }
-
-            if !events_per_source.is_empty() {
-                relevant_events_per_epoch_source
-                    .insert(epoch_id.clone(), events_per_source);
-            }
-        }
+        let epochs = request.epoch_ids();
+        let num_epochs = epochs.len();
 
         // Compute the raw report, useful for debugging and accounting.
-        let num_epochs: usize = request.epoch_ids().len();
-        let unfiltered_result =
-            request.compute_report(&relevant_events_per_epoch);
+        let unfiltered_result = request.compute_report(&relevant_events);
 
         // Browse epochs in the attribution window
         let mut oob_filters = vec![];
-        for epoch_id in request.epoch_ids() {
+        for epoch_id in epochs {
             // Step 1. Get relevant events for the current epoch `epoch_id`.
-            let epoch_relevant_events =
-                relevant_events_per_epoch.get(&epoch_id);
+            let epoch_relevant_events = relevant_events.for_epoch(&epoch_id);
 
             // Step 2. Compute individual loss for current epoch.
             let individual_privacy_loss = compute_epoch_loss(
                 request,
                 epoch_relevant_events,
-                unfiltered_result
-                    .uri_report_map
-                    .get(&request.report_uris().querier_uris[0])
-                    .unwrap(),
+                unfiltered_result.uri_report_map.get(querier_uri).unwrap(),
                 num_epochs,
             );
 
-            // Step 3. Get relevant events for the current epoch `epoch_id` per
-            // source.
-            let epoch_source_relevant_events =
-                relevant_events_per_epoch_source.get(&epoch_id);
-
-            // Step 4. Compute device-epoch-source losses.
+            // Step 3. Compute device-epoch-source losses.
             let source_losses = compute_epoch_source_losses(
                 request,
-                epoch_source_relevant_events,
-                unfiltered_result
-                    .uri_report_map
-                    .get(&request.report_uris().querier_uris[0])
-                    .unwrap(),
+                relevant_events.sources_for_epoch(&epoch_id),
+                unfiltered_result.uri_report_map.get(querier_uri).unwrap(),
                 num_epochs,
             );
 
-            // Step 5. Try to consume budget from current epoch, drop events if
+            // Step 4. Try to consume budget from current epoch, drop events if
             // OOB. Two phase commit.
-
             let filters_to_consume = self.filters_to_consume(
                 &epoch_id,
                 &individual_privacy_loss,
@@ -166,10 +129,11 @@ where
                         panic!("ERR: Phase 2 failed unexpectedly wtih status {consume_status:?} after Phase 1 succeeded");
                     }
                 }
+
                 PdsFilterStatus::OutOfBudget(mut filters) => {
                     // Not enough budget, drop events without any filter
                     // consumption
-                    relevant_events_per_epoch.remove(&epoch_id);
+                    relevant_events.drop_epoch(&epoch_id);
 
                     // Keep track of why we dropped this epoch
                     oob_filters.append(&mut filters);
@@ -178,10 +142,8 @@ where
         }
 
         // Now that we've dropped OOB epochs, we can compute the final report.
-        let filtered_result =
-            request.compute_report(&relevant_events_per_epoch);
+        let filtered_result = request.compute_report(&relevant_events);
 
-        let querier_uri = &request.report_uris().querier_uris[0];
         let filtered_report =
             filtered_result.uri_report_map.get(querier_uri).unwrap();
         let unfiltered_report =

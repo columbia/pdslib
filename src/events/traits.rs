@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Debug, hash::Hash};
+use std::{fmt::Debug, hash::Hash};
 
 /// Marker trait with bounds for epoch identifiers.
 pub trait EpochId: Hash + Eq + Clone + Debug {}
@@ -11,10 +11,6 @@ pub trait Uri: Hash + Eq + Clone + Debug {}
 
 /// Implement URI for all eligible types
 impl<T: Hash + Eq + Clone + Debug> Uri for T {}
-
-pub type EpochEventsMap<U, E> = HashMap<U, E>;
-pub type EpochSourceEventsResult<U, E, Err> =
-    Result<Option<EpochEventsMap<U, E>>, Err>;
 
 #[derive(Debug, Clone)]
 pub struct EventUris<U> {
@@ -43,21 +39,6 @@ pub trait Event: Debug + Clone {
     fn event_uris(&self) -> EventUris<Self::Uri>;
 }
 
-/// Collection of events for a given epoch.
-pub trait EpochEvents: Debug {
-    type Event: Event;
-
-    fn new() -> Self;
-
-    fn iter(&self) -> impl Iterator<Item = &Self::Event>;
-
-    fn is_empty(&self) -> bool {
-        self.iter().next().is_none()
-    }
-
-    fn push(&mut self, event: Self::Event);
-}
-
 /// Selector that can tag relevant events one by one or in bulk.
 /// Can carry some immutable state.
 pub trait RelevantEventSelector {
@@ -71,26 +52,15 @@ pub trait RelevantEventSelector {
 
 /// Interface to store events and retrieve them by epoch.
 pub trait EventStorage {
-    type Uri;
-    type Event: Event<Uri = Self::Uri>;
-    type EpochEvents: EpochEvents;
-    type RelevantEventSelector: RelevantEventSelector<Event = Self::Event>;
+    type Event: Event;
     type Error;
 
     /// Stores a new event.
     fn add_event(&mut self, event: Self::Event) -> Result<(), Self::Error>;
 
-    /// Retrieves all relevant events for a given epoch.
-    fn relevant_epoch_events(
+    /// Retrieves all events for a given epoch.
+    fn events_for_epoch(
         &self,
         epoch_id: &<Self::Event as Event>::EpochId,
-        relevant_event_selector: &Self::RelevantEventSelector,
-    ) -> Result<Option<Self::EpochEvents>, Self::Error>;
-
-    /// Retrieves all relevant events for a given epoch.
-    fn relevant_epoch_source_events(
-        &self,
-        epoch_id: &<Self::Event as Event>::EpochId,
-        relevant_event_selector: &Self::RelevantEventSelector,
-    ) -> EpochSourceEventsResult<Self::Uri, Self::EpochEvents, Self::Error>;
+    ) -> Result<impl Iterator<Item = Self::Event>, Self::Error>;
 }

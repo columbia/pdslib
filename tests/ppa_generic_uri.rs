@@ -33,8 +33,7 @@ fn main() -> Result<(), anyhow::Error> {
     // This is mainly to prevent a developer from accidentally hardcoding
     // Uri to String, for example.
 
-    let events: HashMapEventStorage<TestEvent, TestRelevantEventSelector> =
-        HashMapEventStorage::new();
+    let events: HashMapEventStorage<TestEvent> = HashMapEventStorage::new();
 
     let capacities = StaticCapacities::mock();
     let filters: HashMapFilterStorage<PureDPBudgetFilter, _> =

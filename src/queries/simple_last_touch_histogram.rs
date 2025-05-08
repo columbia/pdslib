@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::{
     budget::pure_dp_filter::PureDPBudget,
     events::{
-        hashmap_event_storage::VecEpochEvents, simple_event::SimpleEvent,
+        relevant_events::RelevantEvents, simple_event::SimpleEvent,
         traits::RelevantEventSelector,
     },
     mechanisms::{NoiseScale, NormType},
@@ -57,7 +57,6 @@ impl Report for SimpleLastTouchHistogramReport {}
 impl EpochReportRequest for SimpleLastTouchHistogramRequest {
     type EpochId = usize;
     type Event = SimpleEvent;
-    type EpochEvents = VecEpochEvents<SimpleEvent>;
     type PrivacyBudget = PureDPBudget;
     type RelevantEventSelector = SimpleRelevantEventSelector;
     type Report = SimpleLastTouchHistogramReport;
@@ -78,38 +77,35 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
 
     fn compute_report(
         &self,
-        relevant_epochs_per_epoch: &HashMap<usize, Self::EpochEvents>,
+        relevant_events: &RelevantEvents<Self::Event>,
     ) -> QueryComputeResult<Self::Uri, Self::Report> {
         // Browse epochs in the order given by `epoch_ids, most recent
         // epoch first. Within each epoch, we assume that events are
         // stored in the order that they occured
         for epoch_id in self.epoch_ids() {
-            if let Some(relevant_events) =
-                relevant_epochs_per_epoch.get(&epoch_id)
-            {
-                if let Some(last_impression) = relevant_events.last() {
-                    // `last_impression` is the most recent relevant impression
-                    // from the most recent non-empty epoch.
-                    let event_key = last_impression.event_key;
-                    let attributed_value = self.report_global_sensitivity;
+            let relevant_events_for_epoch =
+                relevant_events.for_epoch(&epoch_id);
 
-                    // Just use event_key as the bucket key.
-                    // See `ppa_histogram` for a more general impression_key ->
-                    // bucket_key mapping.
-                    return QueryComputeResult::new(
-                        HashMap::new(),
-                        HashMap::from([(
-                            self.report_uris
-                                .querier_uris
-                                .first()
-                                .unwrap()
-                                .clone(),
-                            SimpleLastTouchHistogramReport {
-                                bin_value: Some((event_key, attributed_value)),
-                            },
-                        )]),
-                    );
-                }
+            if !relevant_events_for_epoch.is_empty() {
+                let last_impression = relevant_events_for_epoch.last().unwrap();
+
+                // `last_impression` is the most recent relevant impression
+                // from the most recent non-empty epoch.
+                let event_key = last_impression.event_key;
+                let attributed_value = self.report_global_sensitivity;
+
+                // Just use event_key as the bucket key.
+                // See `ppa_histogram` for a more general impression_key ->
+                // bucket_key mapping.
+                return QueryComputeResult::new(
+                    HashMap::new(),
+                    HashMap::from([(
+                        self.report_uris.querier_uris[0].clone(),
+                        SimpleLastTouchHistogramReport {
+                            bin_value: Some((event_key, attributed_value)),
+                        },
+                    )]),
+                );
             }
         }
 

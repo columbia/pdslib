@@ -1,10 +1,9 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use log::debug;
 
 use crate::{
     budget::pure_dp_filter::PureDPBudget,
-    events::traits::EpochEvents,
     mechanisms::{NoiseScale, NormType},
     queries::traits::EpochReportRequest,
 };
@@ -15,20 +14,13 @@ use crate::{
 /// TODO(https://github.com/columbia/pdslib/issues/21): generic budget.
 pub fn compute_epoch_loss<Q: EpochReportRequest>(
     request: &Q,
-    epoch_relevant_events: Option<&Q::EpochEvents>,
+    epoch_relevant_events: &[Q::Event],
     computed_attribution: &Q::Report,
     num_epochs: usize,
 ) -> PureDPBudget {
     // Case 1: Epoch with no relevant events
-    match epoch_relevant_events {
-        None => {
-            return PureDPBudget::Epsilon(0.0);
-        }
-        Some(epoch_events) => {
-            if epoch_events.is_empty() {
-                return PureDPBudget::Epsilon(0.0);
-            }
-        }
+    if epoch_relevant_events.is_empty() {
+        return PureDPBudget::Epsilon(0.0);
     }
 
     let individual_sensitivity = match num_epochs {
@@ -66,7 +58,8 @@ pub fn compute_epoch_loss<Q: EpochReportRequest>(
 /// From Big Bird, similar idea as Cookie Monster but at a finer granularity.
 pub fn compute_epoch_source_losses<Q: EpochReportRequest>(
     request: &Q,
-    relevant_events_per_epoch_source: Option<&HashMap<Q::Uri, Q::EpochEvents>>,
+    // set of source URIs for relevant events in this epoch
+    epoch_event_sources: HashSet<Q::Uri>,
     computed_attribution: &Q::Report,
     num_epochs: usize,
 ) -> HashMap<Q::Uri, PureDPBudget> {
@@ -80,17 +73,9 @@ pub fn compute_epoch_source_losses<Q: EpochReportRequest>(
     let num_requested_sources = requested_sources.len();
 
     for source in requested_sources {
-        // No relevant events map, or no events for this source, or empty
-        // events
-        let has_no_relevant_events = match relevant_events_per_epoch_source {
-            None => true,
-            Some(map) => match map.get(&source) {
-                None => true,
-                Some(events) => events.is_empty(),
-            },
-        };
+        let has_relevant_events = epoch_event_sources.contains(&source);
 
-        let individual_sensitivity = if has_no_relevant_events {
+        let individual_sensitivity = if !has_relevant_events {
             // Case 1: Epoch-source with no relevant events.
             0.0
         } else if num_epochs == 1 && num_requested_sources == 1 {

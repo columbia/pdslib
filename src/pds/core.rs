@@ -96,7 +96,7 @@ where
 
             if !events_per_source.is_empty() {
                 relevant_events_per_epoch_source
-                    .insert(epoch_id.clone(), events_per_source);
+                    .insert(epoch_id, events_per_source);
             }
         }
 
@@ -146,7 +146,7 @@ where
                 &epoch_id,
                 &individual_privacy_loss,
                 &source_losses,
-                &request.report_uris(),
+                request.report_uris(),
             );
 
             // Phase 1: dry run.
@@ -224,11 +224,11 @@ where
         let mut device_epoch_filter_ids = Vec::new();
         for query_uri in uris.querier_uris.clone() {
             device_epoch_filter_ids
-                .push(FilterId::Nc(epoch_id.clone(), query_uri));
+                .push(FilterId::Nc(*epoch_id, query_uri));
         }
         device_epoch_filter_ids
-            .push(FilterId::QTrigger(epoch_id.clone(), uris.trigger_uri.clone()));
-        device_epoch_filter_ids.push(FilterId::C(epoch_id.clone()));
+            .push(FilterId::QTrigger(*epoch_id, uris.trigger_uri.clone()));
+        device_epoch_filter_ids.push(FilterId::C(*epoch_id));
 
         // NC, C and QTrigger all have the same device-epoch level loss
         let mut filters_to_consume = HashMap::new();
@@ -238,7 +238,7 @@ where
 
         // Add the QSource filters with their own device-epoch-source level loss
         for (source, loss) in source_losses {
-            let fid = FilterId::QSource(epoch_id.clone(), source.clone());
+            let fid = FilterId::QSource(*epoch_id, source.clone());
             filters_to_consume.insert(fid, loss);
         }
 

@@ -2,13 +2,8 @@ use std::collections::HashMap;
 
 use super::quotas::{FilterId::*, *};
 use crate::{
-    budget::{
-        pure_dp_filter::PureDPBudget,
-        traits::FilterStorage,
-    },
-    events::{
-        ppa_event::PpaEvent, traits::EventUris,
-    },
+    budget::{pure_dp_filter::PureDPBudget, traits::FilterStorage},
+    events::{ppa_event::PpaEvent, traits::EventUris},
     pds::aliases::{
         PpaEventStorage, PpaFilterStorage, PpaPds, SimpleEventStorage,
         SimpleFilterStorage, SimplePds,
@@ -28,7 +23,7 @@ fn test_account_for_passive_privacy_loss() -> Result<(), anyhow::Error> {
     let filters = SimpleFilterStorage::new(capacities)?;
     let events = SimpleEventStorage::new();
     let mut pds = SimplePds::new(filters, events);
-  
+
     let uris = ReportRequestUris::mock();
 
     // First request should succeed
@@ -397,7 +392,6 @@ fn test_cross_report_optimization() -> Result<(), anyhow::Error> {
         );
     } else {
         panic!("Expected finite budget deduction");
-    }   
+    }
     Ok(())
 }
-

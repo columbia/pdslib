@@ -6,10 +6,7 @@ use common::logging;
 use log::info;
 use pdslib::{
     budget::traits::FilterStorage,
-    events::{
-        ppa_event::PpaEvent,
-        traits::EventUris,
-    },
+    events::{ppa_event::PpaEvent, traits::EventUris},
     pds::{
         aliases::{PpaEventStorage, PpaFilterStorage, PpaPds},
         quotas::StaticCapacities,

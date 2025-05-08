@@ -133,19 +133,14 @@ mod tests {
 
         let fid: FilterId<i32, ()> = FilterId::C(1);
         storage.new_filter(fid.clone())?;
-        assert_eq!(
-            storage.try_consume(&fid, &10.0)?,
-            FilterStatus::Continue
-        );
+        assert_eq!(storage.try_consume(&fid, &10.0)?, FilterStatus::Continue);
         assert_eq!(
             storage.try_consume(&fid, &11.0)?,
             FilterStatus::OutOfBudget,
         );
 
         // Filter C(2) does not exist
-        assert!(storage
-            .try_consume(&FilterId::C(2), &1.0)
-            .is_err());
+        assert!(storage.try_consume(&FilterId::C(2), &1.0).is_err());
 
         Ok(())
     }

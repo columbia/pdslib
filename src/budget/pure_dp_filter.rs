@@ -21,7 +21,7 @@ impl Budget for PureDPBudget {}
 
 /// A filter for pure differential privacy.
 #[derive(Debug, Serialize)]
-pub struct  PureDPBudgetFilter {
+pub struct PureDPBudgetFilter {
     pub consumed: PureDPBudget,
     pub capacity: Option<PureDPBudget>, // None = infinite budget
 }
@@ -60,12 +60,9 @@ impl Filter<PureDPBudget> for PureDPBudgetFilter {
         &mut self,
         budget: &PureDPBudget,
     ) -> Result<FilterStatus, Self::Error> {
-        debug!("The budget consumed in this epoch is {:?}, budget capactity for this epoch is  {:?}, and we need to consume this much budget {:?}", self.consumed, self.capacity, budget);
+        debug!("The budget consumed in this epoch is {:?}, budget capacity for this epoch is  {:?}, and we need to consume this much budget {:?}", self.consumed, self.capacity, budget);
 
         // Check that we have enough budget and if yes, deduct in place.
-        // We check `Infinite` manually instead of implementing `PartialOrd` and
-        // `SubAssign` because we just need this in filters, not to
-        // compare or subtract arbitrary budgets.
         let status = match self.capacity {
             None => {
                 // Infinite capacity
@@ -98,7 +95,7 @@ impl Filter<PureDPBudget> for PureDPBudgetFilter {
     fn remaining_budget(&self) -> Result<PureDPBudget, anyhow::Error> {
         match self.capacity {
             None => Ok(f64::INFINITY),
-            Some(capactity) => Ok(capactity - self.consumed),
+            Some(capacity) => Ok(capacity - self.consumed),
         }
     }
 }
@@ -110,17 +107,14 @@ mod tests {
     #[test]
     fn test_pure_dp_budget_filter() -> Result<(), anyhow::Error> {
         let mut filter = PureDPBudgetFilter::new(1.0)?;
-        assert_eq!(
-            filter.try_consume(&0.5)?,
-            FilterStatus::Continue
-        );
-        assert_eq!(
-            filter.try_consume(&0.6)?,
-            FilterStatus::OutOfBudget
-        );
+        assert_eq!(filter.try_consume(&0.5)?, FilterStatus::Continue);
+        assert_eq!(filter.try_consume(&0.6)?, FilterStatus::OutOfBudget);
 
-        //test infinite capacity
-        let mut infinite_filter = PureDPBudgetFilter {consumed: 0.0, capacity: None };
+        // Test infinite capacity
+        let mut infinite_filter = PureDPBudgetFilter {
+            consumed: 0.0,
+            capacity: None,
+        };
         assert_eq!(
             infinite_filter.try_consume(&100.0)?,
             FilterStatus::Continue

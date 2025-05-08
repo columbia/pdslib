@@ -15,7 +15,6 @@ use crate::budget::traits::{Budget, Filter, FilterStatus};
 /// TODO(https://github.com/columbia/pdslib/issues/14): use OpenDP accountant (even though it seems
 ///     to also use f64) or move to a positive rational type or fixed point.
 ///     We could also generalize to RDP/zCDP.
-
 pub type PureDPBudget = f64;
 
 impl Budget for PureDPBudget {}

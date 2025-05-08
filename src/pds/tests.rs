@@ -375,31 +375,29 @@ fn test_cross_report_optimization() -> Result<(), anyhow::Error> {
         .filter_storage
         .remaining_budget(&beneficiary_filter_id)?;
 
-    match (initial_budget.clone(), post_budget) {
-        (initial, remaining) => {
-            let deduction = initial - remaining;
+    if initial_budget.is_finite() && post_budget.is_finite() {
+        let deduction = initial_budget - post_budget;
 
-            // Verify budget was actually deducted
-            assert!(
-                deduction == 0.5,
-                "Expected budget deduction but got {deduction}",
-            );
+        // Verify budget was actually deducted
+        assert!(
+            deduction == 0.5,
+            "Expected budget deduction but got {deduction}",
+        );
 
-            // Calculate what would be deducted with vs. without
-            // optimization
-            let expected_single_deduction =
-                config.attributable_value / config.max_attributable_value;
+        // Calculate what would be deducted with vs. without
+        // optimization
+        let expected_single_deduction =
+            config.attributable_value / config.max_attributable_value;
 
-            // Verify deduction is close to single event (cross-report
-            // optimization working)
-            assert!(
-                deduction == expected_single_deduction,
-                "Budget deduction indicates optimization is not working"
-            );
-        }
-        _ => {
-            panic!("Expected finite budget deduction");
-        }
-    }
+        // Verify deduction is close to single event (cross-report
+        // optimization working)
+        assert!(
+            deduction == expected_single_deduction,
+            "Budget deduction indicates optimization is not working"
+        );
+    } else {
+        panic!("Expected finite budget deduction");
+    }   
     Ok(())
 }
+

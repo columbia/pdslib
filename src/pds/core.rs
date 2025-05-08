@@ -70,7 +70,8 @@ where
             todo!("Implement multi-beneficiary queries");
         }
 
-        // For every epoch, organize events into buckets, per event's source URI.
+        // For every epoch, organize events into buckets, per event's source
+        // URI.
         let mut relevant_events_per_epoch_source: HashMap<
             Q::EpochId,
             HashMap<Q::Uri, Q::EpochEvents>,

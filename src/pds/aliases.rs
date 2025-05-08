@@ -1,3 +1,8 @@
+use super::{
+    core::PrivateDataServiceCore,
+    private_data_service::PrivateDataService,
+    quotas::{FilterId, StaticCapacities},
+};
 use crate::{
     budget::{
         hashmap_filter_storage::HashMapFilterStorage,
@@ -13,12 +18,6 @@ use crate::{
             SimpleLastTouchHistogramRequest, SimpleRelevantEventSelector,
         },
     },
-};
-
-use super::{
-    core::PrivateDataServiceCore,
-    private_data_service::PrivateDataService,
-    quotas::{FilterId, StaticCapacities},
 };
 
 pub type SimpleFilterStorage = HashMapFilterStorage<

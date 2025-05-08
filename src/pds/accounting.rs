@@ -74,18 +74,17 @@ pub fn compute_epoch_source_losses<Q: EpochReportRequest>(
     let mut per_source_losses = HashMap::new();
 
     // Collect sources and noise scale from the request.
-    let requested_sources = request.report_uris().source_uris;
     let NoiseScale::Laplace(noise_scale) = request.noise_scale();
 
     // Count requested sources for case analysis
-    let num_requested_sources = requested_sources.len();
+    let num_requested_sources = request.report_uris().source_uris.len();
 
-    for source in requested_sources {
+    for source in &request.report_uris().source_uris {
         // No relevant events map, or no events for this source, or empty
         // events
         let has_no_relevant_events = match relevant_events_per_epoch_source {
             None => true,
-            Some(map) => match map.get(&source) {
+            Some(map) => match map.get(source) {
                 None => true,
                 Some(events) => events.is_empty(),
             },
@@ -114,12 +113,12 @@ pub fn compute_epoch_source_losses<Q: EpochReportRequest>(
         // debugging. The machine precision `f64::EPSILON` is
         // not related to privacy.
         if noise_scale.abs() < f64::EPSILON {
-            per_source_losses.insert(source, PureDPBudget::from(f64::INFINITY));
+            per_source_losses.insert(source.clone(), PureDPBudget::from(f64::INFINITY));
         } else {
             // In Cookie Monster, we have `query_global_sensitivity` /
             // `requested_epsilon` instead of just `noise_scale`.
             per_source_losses.insert(
-                source,
+                source.clone(),
                 PureDPBudget::from(individual_sensitivity / noise_scale),
             );
         }

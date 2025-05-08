@@ -56,7 +56,7 @@ pub trait EpochReportRequest: Debug {
     type PrivacyBudget;
     type Report: Report;
 
-    fn report_uris(&self) -> ReportRequestUris<Self::Uri>;
+    fn report_uris(&self) -> &ReportRequestUris<Self::Uri>;
 
     /// Returns the list of requested epoch IDs, in the order the attribution
     /// should run.

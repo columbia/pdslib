@@ -315,8 +315,7 @@ fn test_cross_report_optimization() -> Result<(), anyhow::Error> {
     .map_err(|e| anyhow::anyhow!("Failed to create request: {}", e))?;
     // Initialize and check the initial beneficiary's NC filter
     let beneficiary_filter_id = FilterId::Nc(1, beneficiary_uri.clone());
-    pds.core
-        .filter_storage
+    pds.core.filter_storage
         .new_filter(beneficiary_filter_id.clone())?;
     let initial_budget = pds
         .core

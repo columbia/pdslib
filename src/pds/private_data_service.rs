@@ -136,7 +136,7 @@ where
                 &epoch_id,
                 &request.privacy_budget,
                 &source_losses,
-                request.uris.clone(),
+                &request.uris,
             );
 
             // Phase 1: dry run.

@@ -146,7 +146,7 @@ where
                 &epoch_id,
                 &individual_privacy_loss,
                 &source_losses,
-                request.report_uris().clone(),
+                &request.report_uris(),
             );
 
             // Phase 1: dry run.
@@ -218,16 +218,16 @@ where
         epoch_id: &'a Q::EpochId,
         loss: &'a FS::Budget,
         source_losses: &'a HashMap<Q::Uri, FS::Budget>,
-        uris: ReportRequestUris<Q::Uri>,
+        uris: &ReportRequestUris<Q::Uri>,
     ) -> HashMap<FilterId<Q::EpochId, Q::Uri>, &'a PureDPBudget> {
         // Build the filter IDs for NC, C and QTrigger
         let mut device_epoch_filter_ids = Vec::new();
-        for query_uri in uris.querier_uris {
+        for query_uri in uris.querier_uris.clone() {
             device_epoch_filter_ids
                 .push(FilterId::Nc(epoch_id.clone(), query_uri));
         }
         device_epoch_filter_ids
-            .push(FilterId::QTrigger(epoch_id.clone(), uris.trigger_uri));
+            .push(FilterId::QTrigger(epoch_id.clone(), uris.trigger_uri.clone()));
         device_epoch_filter_ids.push(FilterId::C(epoch_id.clone()));
 
         // NC, C and QTrigger all have the same device-epoch level loss

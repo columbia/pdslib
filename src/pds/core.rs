@@ -222,9 +222,9 @@ where
     ) -> HashMap<FilterId<Q::EpochId, Q::Uri>, &'a PureDPBudget> {
         // Build the filter IDs for NC, C and QTrigger
         let mut device_epoch_filter_ids = Vec::new();
-        for query_uri in uris.querier_uris.clone() {
+        for query_uri in &uris.querier_uris {
             device_epoch_filter_ids
-                .push(FilterId::Nc(*epoch_id, query_uri));
+                .push(FilterId::Nc(*epoch_id, query_uri.clone()));
         }
         device_epoch_filter_ids
             .push(FilterId::QTrigger(*epoch_id, uris.trigger_uri.clone()));

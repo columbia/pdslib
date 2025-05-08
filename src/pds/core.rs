@@ -87,7 +87,7 @@ where
 
             let iter = epoch_events.iter();
             for event in iter {
-                let source_uri = event.event_uris().source_uri;
+                let source_uri = event.event_uris().source_uri.clone();
                 events_per_source
                     .entry(source_uri.clone())
                     .or_insert_with(Q::EpochEvents::new)
@@ -146,7 +146,7 @@ where
                 &epoch_id,
                 &individual_privacy_loss,
                 &source_losses,
-                request.report_uris(),
+                request.report_uris().clone(),
             );
 
             // Phase 1: dry run.

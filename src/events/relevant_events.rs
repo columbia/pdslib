@@ -53,21 +53,6 @@ impl<E: Event> RelevantEvents<E> {
             .unwrap_or_default()
     }
 
-    /// Get the relevant events for a specific epoch, as well as source URI.
-    pub fn for_epoch_and_source(
-        &self,
-        epoch_id: &E::EpochId,
-        source: &E::Uri,
-    ) -> Vec<&E> {
-        let events_for_epoch = self.for_epoch(epoch_id);
-
-        // filter events for the given source
-        events_for_epoch
-            .iter()
-            .filter(|event| &event.event_uris().source_uri == source)
-            .collect::<Vec<&E>>()
-    }
-
     /// Get the set of unique source URIs for relevant events in the given epoch.
     pub fn sources_for_epoch(&self, epoch_id: &E::EpochId) -> HashSet<E::Uri> {
         let events_for_epoch = self.for_epoch(epoch_id);

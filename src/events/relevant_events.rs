@@ -32,7 +32,7 @@ impl<E: Event> RelevantEvents<E> {
                 .collect();
 
             // store the events in the map
-            events_per_epoch.insert(epoch_id.clone(), events);
+            events_per_epoch.insert(*epoch_id, events);
         }
 
         let this = Self::from_mapping(events_per_epoch);

@@ -62,12 +62,10 @@ impl<E: Event> RelevantEvents<E> {
         let events_for_epoch = self.for_epoch(epoch_id);
 
         // filter events for the given source
-        let events_for_source: Vec<&E> = events_for_epoch
+        events_for_epoch
             .iter()
             .filter(|event| &event.event_uris().source_uri == source)
-            .collect();
-
-        events_for_source
+            .collect::<Vec<&E>>()
     }
 
     /// Get the set of unique source URIs for relevant events in the given epoch.
@@ -75,11 +73,10 @@ impl<E: Event> RelevantEvents<E> {
         let events_for_epoch = self.for_epoch(epoch_id);
 
         // collect unique source URIs for the given epoch
-        let sources: HashSet<E::Uri> = events_for_epoch
+        events_for_epoch
             .iter()
             .map(|event| event.event_uris().source_uri)
-            .collect();
-        sources
+            .collect::<HashSet<E::Uri>>()
     }
 
     /// Drop and forget the given epoch and all its events.

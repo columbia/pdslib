@@ -22,7 +22,7 @@ use crate::{
 
 pub type SimpleFilterStorage = HashMapFilterStorage<
     PureDPBudgetFilter,
-    StaticCapacities<FilterId<usize, String>, PureDPBudget>,
+    StaticCapacities<FilterId<u64, String>, PureDPBudget>,
 >;
 pub type SimpleEventStorage = HashMapEventStorage<SimpleEvent>;
 pub type SimplePdsCore<FS = SimpleFilterStorage> =
@@ -34,7 +34,7 @@ pub type SimplePds<FS = SimpleFilterStorage, ES = SimpleEventStorage> =
 
 pub type PpaFilterStorage = HashMapFilterStorage<
     PureDPBudgetFilter,
-    StaticCapacities<FilterId<usize, String>, PureDPBudget>,
+    StaticCapacities<FilterId<u64, String>, PureDPBudget>,
 >;
 pub type PpaEventStorage = HashMapEventStorage<PpaEvent>;
 pub type PpaPdsCore<FS = PpaFilterStorage, ERR = anyhow::Error> =

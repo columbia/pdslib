@@ -14,8 +14,8 @@ use crate::{
 
 #[derive(Debug)]
 pub struct SimpleLastTouchHistogramRequest {
-    pub epoch_start: usize,
-    pub epoch_end: usize,
+    pub epoch_start: u64,
+    pub epoch_end: u64,
     pub report_global_sensitivity: f64,
     pub query_global_sensitivity: f64,
     pub requested_epsilon: f64,
@@ -47,15 +47,15 @@ impl std::fmt::Debug for SimpleRelevantEventSelector {
 pub struct SimpleLastTouchHistogramReport {
     // Value attributed to one bin or None if no attribution
     pub bin_value: Option<(
-        usize, // Bucket key (which is just event_key for now)
-        f64,   // Attributed value
+        u64, // Bucket key (which is just event_key for now)
+        f64, // Attributed value
     )>,
 }
 
 impl Report for SimpleLastTouchHistogramReport {}
 
 impl EpochReportRequest for SimpleLastTouchHistogramRequest {
-    type EpochId = usize;
+    type EpochId = u64;
     type Event = SimpleEvent;
     type PrivacyBudget = PureDPBudget;
     type RelevantEventSelector = SimpleRelevantEventSelector;

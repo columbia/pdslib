@@ -75,6 +75,17 @@ pub fn compute_epoch_source_losses<Q: EpochReportRequest>(
     for source in requested_sources {
         let has_relevant_events = epoch_event_sources.contains(&source);
 
+        /*  For Case 2, `computed_attribution` is the report computed on all the
+           relevant events, without filtering. If we have a single epoch and a
+           single source with relevant events, `computed_attribution` is also
+           the report computed on a single epoch and on the events from a single
+           source.
+
+           In Case 1 and Case 3, the epoch-source individual sensitivity is
+           independent on the actual events, since it is either 0 or the global
+           sensitivity.
+        */
+
         let individual_sensitivity = if !has_relevant_events {
             // Case 1: Epoch-source with no relevant events.
             0.0

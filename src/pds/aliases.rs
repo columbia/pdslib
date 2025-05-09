@@ -13,30 +13,30 @@ use crate::{
         simple_event::SimpleEvent,
     },
     queries::{
-        ppa_histogram::{PpaHistogramRequest, PpaRelevantEventSelector},
-        simple_last_touch_histogram::{
-            SimpleLastTouchHistogramRequest, SimpleRelevantEventSelector,
-        },
+        ppa_histogram::PpaHistogramRequest,
+        simple_last_touch_histogram::SimpleLastTouchHistogramRequest,
     },
 };
+
+// === SimplePds aliases ===
 
 pub type SimpleFilterStorage = HashMapFilterStorage<
     PureDPBudgetFilter,
     StaticCapacities<FilterId<usize, String>, PureDPBudget>,
 >;
-pub type SimpleEventStorage =
-    HashMapEventStorage<SimpleEvent, SimpleRelevantEventSelector>;
+pub type SimpleEventStorage = HashMapEventStorage<SimpleEvent>;
 pub type SimplePdsCore<FS = SimpleFilterStorage> =
     PrivateDataServiceCore<SimpleLastTouchHistogramRequest, FS, anyhow::Error>;
 pub type SimplePds<FS = SimpleFilterStorage, ES = SimpleEventStorage> =
     PrivateDataService<SimpleLastTouchHistogramRequest, FS, ES, anyhow::Error>;
 
+// === PPA aliases ===
+
 pub type PpaFilterStorage = HashMapFilterStorage<
     PureDPBudgetFilter,
     StaticCapacities<FilterId<usize, String>, PureDPBudget>,
 >;
-pub type PpaEventStorage =
-    HashMapEventStorage<PpaEvent, PpaRelevantEventSelector>;
+pub type PpaEventStorage = HashMapEventStorage<PpaEvent>;
 pub type PpaPdsCore<FS = PpaFilterStorage, ERR = anyhow::Error> =
     PrivateDataServiceCore<PpaHistogramRequest, FS, ERR>;
 pub type PpaPds<

@@ -8,8 +8,8 @@ use anyhow::{bail, Result};
 use crate::{
     budget::pure_dp_filter::PureDPBudget,
     events::{
-        hashmap_event_storage::VecEpochEvents,
         ppa_event::PpaEvent,
+        relevant_events::RelevantEvents,
         traits::{RelevantEventSelector, Uri},
     },
     mechanisms::NoiseScale,
@@ -21,7 +21,6 @@ use crate::{
 
 type PpaBucketKey = usize;
 type PpaEpochId = usize;
-type PpaEpochEvents<U> = VecEpochEvents<PpaEvent<U>>;
 
 pub struct PpaRelevantEventSelector<U: Uri = String> {
     pub report_request_uris: ReportRequestUris<U>,
@@ -208,7 +207,6 @@ impl<U: Uri> HistogramRequest for PpaHistogramRequest<U> {
     type BucketKey = PpaBucketKey;
     type HistogramEvent = PpaEvent<U>;
     type HistogramEpochId = PpaEpochId;
-    type HistogramEpochEvents = PpaEpochEvents<U>;
     type HistogramUri = U;
 
     fn bucket_key(&self, event: &Self::HistogramEvent) -> Self::BucketKey {
@@ -227,7 +225,7 @@ impl<U: Uri> HistogramRequest for PpaHistogramRequest<U> {
 
     fn event_values<'a>(
         &self,
-        relevant_events_per_epoch: &'a HashMap<PpaEpochId, PpaEpochEvents<U>>,
+        relevant_events: &'a RelevantEvents<PpaEvent<U>>,
     ) -> Vec<(&'a PpaEvent<U>, f64)> {
         // Supporting only one attribution logic for now.
         match self.logic {
@@ -238,12 +236,13 @@ impl<U: Uri> HistogramRequest for PpaHistogramRequest<U> {
                 // first.
                 let epoch_ids = self.epoch_ids();
                 for epoch_id in epoch_ids {
-                    let relevant_events =
-                        relevant_events_per_epoch.get(&epoch_id);
-                    if let Some(relevant_events) = relevant_events {
+                    let relevant_events_in_epoch =
+                        relevant_events.for_epoch(&epoch_id);
+
+                    if !relevant_events_in_epoch.is_empty() {
                         // Start from the most recent event in the epoch and go
                         // backwards.
-                        for event in relevant_events.iter().rev() {
+                        for event in relevant_events_in_epoch.iter().rev() {
                             if event.histogram_index < self.histogram_size {
                                 // Found a relevant event with a valid bucket
                                 // key, we're done.
@@ -275,7 +274,7 @@ impl<U: Uri> HistogramRequest for PpaHistogramRequest<U> {
         &self,
         report: &HistogramReport<Self::BucketKey>,
         intermediary_uri: &U,
-        _relevant_events_per_epoch: &HashMap<PpaEpochId, PpaEpochEvents<U>>,
+        _relevant_events_per_epoch: &RelevantEvents<Self::HistogramEvent>,
     ) -> Option<HistogramReport<Self::BucketKey>> {
         // Collect all usize keys whose value matches intermediary_uri
         let intermediary_buckets: HashSet<usize> = self
@@ -318,7 +317,6 @@ impl<U: Uri> EpochReportRequest for PpaHistogramRequest<U> {
     type Uri = U;
     type EpochId = PpaEpochId;
     type Event = PpaEvent<U>;
-    type EpochEvents = PpaEpochEvents<U>;
     type RelevantEventSelector = PpaRelevantEventSelector<U>;
     type PrivacyBudget = PureDPBudget;
     type Report = HistogramReport<PpaBucketKey>;
@@ -341,9 +339,9 @@ impl<U: Uri> EpochReportRequest for PpaHistogramRequest<U> {
 
     fn compute_report(
         &self,
-        relevant_events_per_epoch: &HashMap<Self::EpochId, Self::EpochEvents>,
+        relevant_events: &RelevantEvents<Self::Event>,
     ) -> super::traits::QueryComputeResult<Self::Uri, Self::Report> {
-        self.compute_histogram_report(relevant_events_per_epoch)
+        self.compute_histogram_report(relevant_events)
     }
 
     fn single_epoch_individual_sensitivity(

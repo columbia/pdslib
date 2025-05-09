@@ -1,7 +1,10 @@
 use std::{collections::HashMap, fmt::Debug};
 
 use crate::{
-    events::traits::{EpochEvents, EpochId, Event, RelevantEventSelector, Uri},
+    events::{
+        relevant_events::RelevantEvents,
+        traits::{EpochId, Event, RelevantEventSelector, Uri},
+    },
     mechanisms::{NoiseScale, NormType},
 };
 
@@ -51,7 +54,6 @@ pub trait EpochReportRequest: Debug {
     type Uri: Uri;
     type EpochId: EpochId;
     type Event: Event<Uri = Self::Uri, EpochId = Self::EpochId>;
-    type EpochEvents: EpochEvents<Event = Self::Event>;
     type RelevantEventSelector: RelevantEventSelector<Event = Self::Event>;
     type PrivacyBudget;
     type Report: Report;
@@ -69,7 +71,7 @@ pub trait EpochReportRequest: Debug {
     /// Computes the report for the given request and epoch events.
     fn compute_report(
         &self,
-        relevant_events_per_epoch: &HashMap<Self::EpochId, Self::EpochEvents>,
+        relevant_events: &RelevantEvents<Self::Event>,
     ) -> QueryComputeResult<Self::Uri, Self::Report>;
 
     /// Computes the individual sensitivity for the query when the report is

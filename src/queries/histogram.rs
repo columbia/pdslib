@@ -1,7 +1,10 @@
 use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
 use crate::{
-    events::traits::{EpochEvents, EpochId, Event, Uri},
+    events::{
+        relevant_events::RelevantEvents,
+        traits::{EpochId, Event, Uri},
+    },
     mechanisms::NormType,
     queries::traits::{QueryComputeResult, Report, ReportRequestUris},
 };
@@ -39,7 +42,6 @@ where
     type BucketKey: BucketKey;
     type HistogramEvent: Event;
     type HistogramEpochId: EpochId;
-    type HistogramEpochEvents: EpochEvents<Event = Self::HistogramEvent>;
     type HistogramUri: Uri;
 
     /// Maximum value (sum) attributable to all the events in a single epoch,
@@ -64,10 +66,7 @@ where
     /// events for one epoch) in the implementation.
     fn event_values<'a>(
         &self,
-        relevant_events_per_epoch: &'a HashMap<
-            Self::HistogramEpochId,
-            Self::HistogramEpochEvents,
-        >,
+        relevant_events: &'a RelevantEvents<Self::HistogramEvent>,
     ) -> Vec<(&'a Self::HistogramEvent, f64)>;
 
     fn histogram_report_uris(&self) -> ReportRequestUris<Self::HistogramUri>;
@@ -82,23 +81,20 @@ where
         &self,
         report: &HistogramReport<Self::BucketKey>,
         intermediary_uri: &Self::HistogramUri,
-        _: &HashMap<Self::HistogramEpochId, Self::HistogramEpochEvents>,
+        _: &RelevantEvents<Self::HistogramEvent>,
     ) -> Option<HistogramReport<Self::BucketKey>>;
 
     /// Computes the report by attributing values to events, and then summing
     /// events by bucket.
     fn compute_histogram_report(
         &self,
-        relevant_events_per_epoch: &HashMap<
-            Self::HistogramEpochId,
-            Self::HistogramEpochEvents,
-        >,
+        relevant_events: &RelevantEvents<Self::HistogramEvent>,
     ) -> QueryComputeResult<Self::HistogramUri, HistogramReport<Self::BucketKey>>
     {
         let mut bin_values: HashMap<Self::BucketKey, f64> = HashMap::new();
 
         let mut total_value: f64 = 0.0;
-        let event_values = self.event_values(relevant_events_per_epoch);
+        let event_values = self.event_values(relevant_events);
 
         // The event_values function selects the relevant events and assigns
         // values according to the requested attribution logic, so we
@@ -108,7 +104,7 @@ where
         //
         // The order matters, since events that are attributed last might be
         // dropped by the contribution cap. `event_values` is in charge of
-        // ordering the events from `relevant_events_per_epoch`.
+        // ordering the events from `relevant_events`.
         let mut report = HistogramReport {
             bin_values: HashMap::new(),
         };
@@ -144,7 +140,7 @@ where
             match self.filter_report_for_intermediary(
                 &report,
                 intermediary_uri,
-                relevant_events_per_epoch,
+                relevant_events,
             ) {
                 Some(filtered_report) => {
                     site_to_report_mapping

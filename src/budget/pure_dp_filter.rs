@@ -1,6 +1,6 @@
 use core::f64;
 
-use log::debug;
+use log::{debug, warn};
 use serde::Serialize;
 
 use crate::budget::traits::{Budget, Filter, FilterStatus};
@@ -15,57 +15,15 @@ use crate::budget::traits::{Budget, Filter, FilterStatus};
 /// TODO(https://github.com/columbia/pdslib/issues/14): use OpenDP accountant (even though it seems
 ///     to also use f64) or move to a positive rational type or fixed point.
 ///     We could also generalize to RDP/zCDP.
-#[derive(Debug, Clone, PartialEq)]
-pub enum PureDPBudget {
-    /// Infinite budget, for filters with no set capacity, or requests that
-    /// don't add any noise
-    Infinite,
-
-    /// Finite pure DP epsilon
-    Epsilon(f64),
-}
-
-impl PureDPBudget {
-    /// Create a new budget with the given epsilon.
-    /// Set to infinite if epsilon is NaN or negative.
-    pub fn new(epsilon: f64) -> Self {
-        if epsilon >= 0.0 {
-            PureDPBudget::Epsilon(epsilon)
-        } else {
-            PureDPBudget::Infinite
-        }
-    }
-}
-
-impl Serialize for PureDPBudget {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        match self {
-            PureDPBudget::Infinite => serializer.serialize_f64(f64::NAN),
-            PureDPBudget::Epsilon(epsilon) => {
-                serializer.serialize_f64(*epsilon)
-            }
-        }
-    }
-}
+pub type PureDPBudget = f64;
 
 impl Budget for PureDPBudget {}
 
 /// A filter for pure differential privacy.
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct PureDPBudgetFilter {
-    pub remaining_budget: PureDPBudget,
-}
-
-impl Serialize for PureDPBudgetFilter {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        self.remaining_budget.serialize(serializer)
-    }
+    pub consumed: PureDPBudget,
+    pub capacity: Option<PureDPBudget>, // None = infinite budget
 }
 
 impl Filter<PureDPBudget> for PureDPBudgetFilter {
@@ -73,19 +31,28 @@ impl Filter<PureDPBudget> for PureDPBudgetFilter {
 
     fn new(capacity: PureDPBudget) -> Result<Self, Self::Error> {
         let this = Self {
-            remaining_budget: capacity,
+            consumed: 0.0,
+            capacity: Some(capacity),
         };
         Ok(this)
     }
 
     fn can_consume(&self, budget: &PureDPBudget) -> Result<bool, Self::Error> {
-        match (&self.remaining_budget, budget) {
-            (PureDPBudget::Infinite, _) => Ok(true),
-            (
-                PureDPBudget::Epsilon(remaining),
-                PureDPBudget::Epsilon(requested),
-            ) => Ok(requested <= remaining),
-            _ => Ok(false), // Finite budget, infinite request
+        match self.capacity {
+            None => Ok(true),
+            Some(capacity) => {
+                let remaining = capacity - self.consumed;
+                let diff = (remaining - budget).abs();
+
+                if diff < 1e-9 && diff > 0.0 {
+                    warn!(
+                        "can_consume: difference between remaining budget ({}) and requested budget ({}) is very small, diff = {}",
+                        remaining, budget, diff
+                    );
+                }
+
+                Ok(self.consumed + budget <= capacity)
+            }
         }
     }
 
@@ -93,39 +60,43 @@ impl Filter<PureDPBudget> for PureDPBudgetFilter {
         &mut self,
         budget: &PureDPBudget,
     ) -> Result<FilterStatus, Self::Error> {
-        debug!("The budget that remains in this epoch is {:?}, and we need to consume this much budget {:?}", self.remaining_budget, budget);
+        debug!("The budget consumed in this epoch is {:?}, budget capacity for this epoch is  {:?}, and we need to consume this much budget {:?}", self.consumed, self.capacity, budget);
 
         // Check that we have enough budget and if yes, deduct in place.
-        // We check `Infinite` manually instead of implementing `PartialOrd` and
-        // `SubAssign` because we just need this in filters, not to
-        // compare or subtract arbitrary budgets.
-        let status = match self.remaining_budget {
-            // Infinite filters accept all requests, even if they are infinite
-            // too.
-            PureDPBudget::Infinite => FilterStatus::Continue,
-            PureDPBudget::Epsilon(remaining_epsilon) => match budget {
-                PureDPBudget::Epsilon(requested_epsilon) => {
-                    if *requested_epsilon <= remaining_epsilon {
-                        self.remaining_budget = PureDPBudget::Epsilon(
-                            remaining_epsilon - *requested_epsilon,
-                        );
-                        FilterStatus::Continue
-                    } else {
-                        // Use the provided filter_id and filter_type as debug
-                        // info
-                        FilterStatus::OutOfBudget
-                    }
+        let status = match self.capacity {
+            None => {
+                // Infinite capacity
+                self.consumed += budget;
+                FilterStatus::Continue
+            }
+            Some(capacity) => {
+                let remaining = capacity - self.consumed;
+                let diff = (remaining - budget).abs();
+
+                if diff < 1e-9 && diff > 0.0 {
+                    warn!(
+                        "try_consume: difference between remaining budget ({}) and requested budget ({}) is very small, diff = {}",
+                        remaining, budget, diff
+                    );
                 }
-                // Infinite requests on finite filters are always rejected
-                _ => FilterStatus::OutOfBudget,
-            },
+
+                if self.consumed + budget <= capacity {
+                    self.consumed += budget;
+                    FilterStatus::Continue
+                } else {
+                    FilterStatus::OutOfBudget
+                }
+            }
         };
 
         Ok(status)
     }
 
     fn remaining_budget(&self) -> Result<PureDPBudget, anyhow::Error> {
-        Ok(self.remaining_budget.clone())
+        match self.capacity {
+            None => Ok(f64::INFINITY),
+            Some(capacity) => Ok(capacity - self.consumed),
+        }
     }
 }
 
@@ -135,14 +106,18 @@ mod tests {
 
     #[test]
     fn test_pure_dp_budget_filter() -> Result<(), anyhow::Error> {
-        let mut filter = PureDPBudgetFilter::new(PureDPBudget::Epsilon(1.0))?;
+        let mut filter = PureDPBudgetFilter::new(1.0)?;
+        assert_eq!(filter.try_consume(&0.5)?, FilterStatus::Continue);
+        assert_eq!(filter.try_consume(&0.6)?, FilterStatus::OutOfBudget);
+
+        // Test infinite capacity
+        let mut infinite_filter = PureDPBudgetFilter {
+            consumed: 0.0,
+            capacity: None,
+        };
         assert_eq!(
-            filter.try_consume(&PureDPBudget::Epsilon(0.5))?,
+            infinite_filter.try_consume(&100.0)?,
             FilterStatus::Continue
-        );
-        assert_eq!(
-            filter.try_consume(&PureDPBudget::Epsilon(0.6))?,
-            FilterStatus::OutOfBudget
         );
 
         Ok(())

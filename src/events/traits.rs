@@ -1,10 +1,10 @@
 use std::{fmt::Debug, hash::Hash};
 
 /// Marker trait with bounds for epoch identifiers.
-pub trait EpochId: Hash + Eq + Clone + Debug {}
+pub trait EpochId: Clone + Copy + Debug + Eq + Hash {}
 
 /// Implement EpochId for all eligible types
-impl<T: Hash + Eq + Clone + Debug> EpochId for T {}
+impl<T: Clone + Copy + Debug + Eq + Hash> EpochId for T {}
 
 /// Marker trait for URIs.
 pub trait Uri: Hash + Eq + Clone + Debug {}
@@ -36,7 +36,7 @@ pub trait Event: Debug + Clone {
 
     fn epoch_id(&self) -> Self::EpochId;
 
-    fn event_uris(&self) -> EventUris<Self::Uri>;
+    fn event_uris(&self) -> &EventUris<Self::Uri>;
 }
 
 /// Selector that can tag relevant events one by one or in bulk.

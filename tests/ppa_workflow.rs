@@ -3,10 +3,7 @@ mod common;
 use common::logging;
 use pdslib::{
     budget::traits::FilterStorage,
-    events::{
-        simple_event::SimpleEvent,
-        traits::EventUris,
-    },
+    events::{simple_event::SimpleEvent, traits::EventUris},
     pds::{
         aliases::{SimpleEventStorage, SimpleFilterStorage, SimplePds},
         quotas::StaticCapacities,

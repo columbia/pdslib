@@ -119,6 +119,7 @@ pub trait FilterStorage {
     }
 
     /// Gets the remaining budget for a filter.
+    /// WARNING: this method is for testing and local visualization only.
     fn remaining_budget(
         &self,
         filter_id: &Self::FilterId,

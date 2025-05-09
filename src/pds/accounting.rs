@@ -1,3 +1,4 @@
+use core::f64;
 use std::collections::{HashMap, HashSet};
 
 use log::debug;
@@ -20,7 +21,7 @@ pub fn compute_epoch_loss<Q: EpochReportRequest>(
 ) -> PureDPBudget {
     // Case 1: Epoch with no relevant events
     if epoch_relevant_events.is_empty() {
-        return PureDPBudget::Epsilon(0.0);
+        return PureDPBudget::from(0.0);
     }
 
     let individual_sensitivity = match num_epochs {
@@ -46,12 +47,12 @@ pub fn compute_epoch_loss<Q: EpochReportRequest>(
     // infinite capacity, e.g. for debugging. The machine precision
     // `f64::EPSILON` is not related to privacy.
     if noise_scale.abs() < f64::EPSILON {
-        return PureDPBudget::Infinite;
+        return PureDPBudget::from(f64::INFINITY);
     }
 
     // In Cookie Monster, we have `query_global_sensitivity` /
     // `requested_epsilon` instead of just `noise_scale`.
-    PureDPBudget::Epsilon(individual_sensitivity / noise_scale)
+    PureDPBudget::from(individual_sensitivity / noise_scale)
 }
 
 /// Compute the privacy loss at the device-epoch-source level.
@@ -59,14 +60,14 @@ pub fn compute_epoch_loss<Q: EpochReportRequest>(
 pub fn compute_epoch_source_losses<Q: EpochReportRequest>(
     request: &Q,
     // set of source URIs for relevant events in this epoch
-    epoch_event_sources: HashSet<Q::Uri>,
+    epoch_event_sources: HashSet<&Q::Uri>,
     computed_attribution: &Q::Report,
     num_epochs: usize,
 ) -> HashMap<Q::Uri, PureDPBudget> {
     let mut per_source_losses = HashMap::new();
 
     // Collect sources and noise scale from the request.
-    let requested_sources = request.report_uris().source_uris;
+    let requested_sources = &request.report_uris().source_uris;
     let NoiseScale::Laplace(noise_scale) = request.noise_scale();
 
     // Count requested sources for case analysis
@@ -109,13 +110,14 @@ pub fn compute_epoch_source_losses<Q: EpochReportRequest>(
         // debugging. The machine precision `f64::EPSILON` is
         // not related to privacy.
         if noise_scale.abs() < f64::EPSILON {
-            per_source_losses.insert(source, PureDPBudget::Infinite);
+            per_source_losses
+                .insert(source.clone(), PureDPBudget::from(f64::INFINITY));
         } else {
             // In Cookie Monster, we have `query_global_sensitivity` /
             // `requested_epsilon` instead of just `noise_scale`.
             per_source_losses.insert(
-                source,
-                PureDPBudget::Epsilon(individual_sensitivity / noise_scale),
+                source.clone(),
+                PureDPBudget::from(individual_sensitivity / noise_scale),
             );
         }
     }

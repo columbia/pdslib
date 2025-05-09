@@ -2,13 +2,8 @@ use std::collections::HashMap;
 
 use super::quotas::{FilterId::*, *};
 use crate::{
-    budget::{
-        pure_dp_filter::PureDPBudget,
-        traits::FilterStorage,
-    },
-    events::{
-        ppa_event::PpaEvent, traits::EventUris,
-    },
+    budget::{pure_dp_filter::PureDPBudget, traits::FilterStorage},
+    events::{ppa_event::PpaEvent, traits::EventUris},
     pds::aliases::{
         PpaEventStorage, PpaFilterStorage, PpaPds, SimpleEventStorage,
         SimpleFilterStorage, SimplePds,
@@ -34,7 +29,7 @@ fn test_account_for_passive_privacy_loss() -> Result<(), anyhow::Error> {
     // First request should succeed
     let request = PassivePrivacyLossRequest {
         epoch_ids: vec![1, 2, 3],
-        privacy_budget: PureDPBudget::Epsilon(0.2),
+        privacy_budget: PureDPBudget::from(0.2),
         uris: uris.clone(),
     };
     let result = pds.account_for_passive_privacy_loss(request)?;
@@ -43,7 +38,7 @@ fn test_account_for_passive_privacy_loss() -> Result<(), anyhow::Error> {
     // Second request with same budget should succeed (2.0 total)
     let request = PassivePrivacyLossRequest {
         epoch_ids: vec![1, 2, 3],
-        privacy_budget: PureDPBudget::Epsilon(0.3),
+        privacy_budget: PureDPBudget::from(0.3),
         uris: uris.clone(),
     };
     let result = pds.account_for_passive_privacy_loss(request)?;
@@ -64,7 +59,7 @@ fn test_account_for_passive_privacy_loss() -> Result<(), anyhow::Error> {
     // Attempting to consume more should fail.
     let request = PassivePrivacyLossRequest {
         epoch_ids: vec![2, 3],
-        privacy_budget: PureDPBudget::Epsilon(2.0),
+        privacy_budget: PureDPBudget::from(2.0),
         uris: uris.clone(),
     };
     let result = pds.account_for_passive_privacy_loss(request)?;
@@ -77,7 +72,7 @@ fn test_account_for_passive_privacy_loss() -> Result<(), anyhow::Error> {
     // Consume from just one epoch.
     let request = PassivePrivacyLossRequest {
         epoch_ids: vec![3],
-        privacy_budget: PureDPBudget::Epsilon(0.5),
+        privacy_budget: PureDPBudget::from(0.5),
         uris: uris.clone(),
     };
     let result = pds.account_for_passive_privacy_loss(request)?;
@@ -99,7 +94,7 @@ fn test_account_for_passive_privacy_loss() -> Result<(), anyhow::Error> {
         .core
         .filter_storage
         .remaining_budget(&Nc(3, uris.querier_uris[0].clone()))?;
-    assert_eq!(remaining, PureDPBudget::Epsilon(0.0));
+    assert_eq!(remaining, PureDPBudget::from(0.0));
 
     Ok(())
 }
@@ -113,7 +108,7 @@ fn assert_remaining_budgets<FS: FilterStorage<Budget = PureDPBudget>>(
         let remaining = filter_storage.remaining_budget(filter_id)?;
         assert_eq!(
             remaining,
-            PureDPBudget::Epsilon(*expected_budget),
+            PureDPBudget::from(*expected_budget),
             "Remaining budget for {:?} is not as expected",
             filter_id
         );
@@ -128,10 +123,10 @@ fn test_budget_rollback_on_depletion() -> Result<(), anyhow::Error> {
     // PDS with several filters
     let capacities: StaticCapacities<FilterId, PureDPBudget> =
         StaticCapacities::new(
-            PureDPBudget::Epsilon(1.0),  // nc
-            PureDPBudget::Epsilon(20.0), // c
-            PureDPBudget::Epsilon(2.0),  // q-trigger
-            PureDPBudget::Epsilon(5.0),  // q-source
+            PureDPBudget::from(1.0),  // nc
+            PureDPBudget::from(20.0), // c
+            PureDPBudget::from(2.0),  // q-trigger
+            PureDPBudget::from(5.0),  // q-source
         );
 
     let filters = SimpleFilterStorage::new(capacities)?;
@@ -172,14 +167,14 @@ fn test_budget_rollback_on_depletion() -> Result<(), anyhow::Error> {
     // Make the NC filter for querier1 have only 0.5 epsilon left
     pds.core.filter_storage.try_consume(
         &FilterId::Nc(epoch_id, uris.querier_uris[0].clone()),
-        &PureDPBudget::Epsilon(0.5),
+        &PureDPBudget::from(0.5),
     )?;
 
     // Now attempt a deduction that requires 0.7 epsilon
     // This should fail because querier1's NC filter only has 0.5 left
     let request = PassivePrivacyLossRequest {
         epoch_ids: vec![epoch_id],
-        privacy_budget: PureDPBudget::Epsilon(0.7),
+        privacy_budget: PureDPBudget::from(0.7),
         uris: uris.clone(),
     };
 
@@ -197,7 +192,7 @@ fn test_budget_rollback_on_depletion() -> Result<(), anyhow::Error> {
             epoch_id,
             uris.querier_uris[0].clone()
         ))?,
-        PureDPBudget::Epsilon(0.5),
+        PureDPBudget::from(0.5),
         "Filter that was insufficient should still have its partial budget"
     );
 
@@ -320,8 +315,7 @@ fn test_cross_report_optimization() -> Result<(), anyhow::Error> {
     .map_err(|e| anyhow::anyhow!("Failed to create request: {}", e))?;
     // Initialize and check the initial beneficiary's NC filter
     let beneficiary_filter_id = FilterId::Nc(1, beneficiary_uri.clone());
-    pds.core
-        .filter_storage
+    pds.core.filter_storage
         .new_filter(beneficiary_filter_id.clone())?;
     let initial_budget = pds
         .core
@@ -375,31 +369,28 @@ fn test_cross_report_optimization() -> Result<(), anyhow::Error> {
         .filter_storage
         .remaining_budget(&beneficiary_filter_id)?;
 
-    match (initial_budget.clone(), post_budget) {
-        (PureDPBudget::Epsilon(initial), PureDPBudget::Epsilon(remaining)) => {
-            let deduction = initial - remaining;
+    if initial_budget.is_finite() && post_budget.is_finite() {
+        let deduction = initial_budget - post_budget;
 
-            // Verify budget was actually deducted
-            assert!(
-                deduction == 0.5,
-                "Expected budget deduction but got {deduction}",
-            );
+        // Verify budget was actually deducted
+        assert!(
+            deduction == 0.5,
+            "Expected budget deduction but got {deduction}",
+        );
 
-            // Calculate what would be deducted with vs. without
-            // optimization
-            let expected_single_deduction =
-                config.attributable_value / config.max_attributable_value;
+        // Calculate what would be deducted with vs. without
+        // optimization
+        let expected_single_deduction =
+            config.attributable_value / config.max_attributable_value;
 
-            // Verify deduction is close to single event (cross-report
-            // optimization working)
-            assert!(
-                deduction == expected_single_deduction,
-                "Budget deduction indicates optimization is not working"
-            );
-        }
-        _ => {
-            panic!("Expected finite budget deduction");
-        }
+        // Verify deduction is close to single event (cross-report
+        // optimization working)
+        assert!(
+            deduction == expected_single_deduction,
+            "Budget deduction indicates optimization is not working"
+        );
+    } else {
+        panic!("Expected finite budget deduction");
     }
     Ok(())
 }

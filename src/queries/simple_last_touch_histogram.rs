@@ -62,8 +62,8 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
     type Report = SimpleLastTouchHistogramReport;
     type Uri = String;
 
-    fn report_uris(&self) -> ReportRequestUris<String> {
-        self.report_uris.clone()
+    fn report_uris(&self) -> &ReportRequestUris<String> {
+        &self.report_uris
     }
 
     fn epoch_ids(&self) -> Vec<Self::EpochId> {

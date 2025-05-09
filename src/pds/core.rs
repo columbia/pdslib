@@ -105,7 +105,7 @@ where
             // Step 4. Try to consume budget from current epoch, drop events if
             // OOB. Two phase commit.
             let filters_to_consume = self.filters_to_consume(
-                &epoch_id,
+                epoch_id,
                 &individual_privacy_loss,
                 &source_losses,
                 request.report_uris(),
@@ -176,20 +176,20 @@ where
     /// for the given epoch and losses.
     pub fn filters_to_consume<'a>(
         &self,
-        epoch_id: &'a Q::EpochId,
+        epoch_id: Q::EpochId,
         loss: &'a FS::Budget,
         source_losses: &'a HashMap<Q::Uri, FS::Budget>,
-        uris: ReportRequestUris<Q::Uri>,
+        uris: &ReportRequestUris<Q::Uri>,
     ) -> HashMap<FilterId<Q::EpochId, Q::Uri>, &'a PureDPBudget> {
         // Build the filter IDs for NC, C and QTrigger
         let mut device_epoch_filter_ids = Vec::new();
-        for query_uri in uris.querier_uris {
+        for query_uri in &uris.querier_uris {
             device_epoch_filter_ids
-                .push(FilterId::Nc(epoch_id.clone(), query_uri));
+                .push(FilterId::Nc(epoch_id, query_uri.clone()));
         }
         device_epoch_filter_ids
-            .push(FilterId::QTrigger(epoch_id.clone(), uris.trigger_uri));
-        device_epoch_filter_ids.push(FilterId::C(epoch_id.clone()));
+            .push(FilterId::QTrigger(epoch_id, uris.trigger_uri.clone()));
+        device_epoch_filter_ids.push(FilterId::C(epoch_id));
 
         // NC, C and QTrigger all have the same device-epoch level loss
         let mut filters_to_consume = HashMap::new();
@@ -199,7 +199,7 @@ where
 
         // Add the QSource filters with their own device-epoch-source level loss
         for (source, loss) in source_losses {
-            let fid = FilterId::QSource(epoch_id.clone(), source.clone());
+            let fid = FilterId::QSource(epoch_id, source.clone());
             filters_to_consume.insert(fid, loss);
         }
 

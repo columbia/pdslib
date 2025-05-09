@@ -333,8 +333,8 @@ impl<U: Uri> EpochReportRequest for PpaHistogramRequest<U> {
         &self.relevant_event_selector
     }
 
-    fn report_uris(&self) -> ReportRequestUris<Self::Uri> {
-        self.relevant_event_selector.report_request_uris.clone()
+    fn report_uris(&self) -> &ReportRequestUris<Self::Uri> {
+        &self.relevant_event_selector.report_request_uris
     }
 
     fn compute_report(

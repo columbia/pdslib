@@ -103,10 +103,10 @@ where
         // For each epoch, try to consume the privacy budget.
         for epoch_id in request.epoch_ids {
             let filters_to_consume = self.core.filters_to_consume(
-                &epoch_id,
+                epoch_id,
                 &request.privacy_budget,
                 &source_losses,
-                request.uris.clone(),
+                &request.uris,
             );
 
             // Phase 1: dry run.

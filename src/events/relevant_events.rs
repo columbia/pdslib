@@ -55,14 +55,14 @@ impl<E: Event> RelevantEvents<E> {
 
     /// Get the set of unique source URIs that have at least one relevant event
     /// in the given epoch.
-    pub fn sources_for_epoch(&self, epoch_id: &E::EpochId) -> HashSet<E::Uri> {
+    pub fn sources_for_epoch(&self, epoch_id: &E::EpochId) -> HashSet<&E::Uri> {
         let events_for_epoch = self.for_epoch(epoch_id);
 
         // collect unique source URIs for the given epoch
         events_for_epoch
             .iter()
-            .map(|event| event.event_uris().source_uri)
-            .collect::<HashSet<E::Uri>>()
+            .map(|event| &event.event_uris().source_uri)
+            .collect::<HashSet<&E::Uri>>()
     }
 
     /// Drop and forget the given epoch and all its events.

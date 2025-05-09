@@ -53,7 +53,8 @@ impl<E: Event> RelevantEvents<E> {
             .unwrap_or_default()
     }
 
-    /// Get the set of unique source URIs for relevant events in the given epoch.
+    /// Get the set of unique source URIs that have at least one relevant event
+    /// in the given epoch.
     pub fn sources_for_epoch(&self, epoch_id: &E::EpochId) -> HashSet<E::Uri> {
         let events_for_epoch = self.for_epoch(epoch_id);
 

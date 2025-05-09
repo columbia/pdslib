@@ -9,14 +9,14 @@ use crate::{
 };
 
 pub struct QueryComputeResult<U, R> {
-    pub bucket_uri_map: HashMap<usize, U>,
+    pub bucket_uri_map: HashMap<u64, U>,
     pub uri_report_map: HashMap<U, R>,
 }
 
 impl<U, R> QueryComputeResult<U, R> {
     // Example methods, if you need them
     pub fn new(
-        bucket_uri_map: HashMap<usize, U>,
+        bucket_uri_map: HashMap<u64, U>,
         uri_report_map: HashMap<U, R>,
     ) -> Self {
         Self {

@@ -7,14 +7,14 @@ use crate::events::traits::{Event, EventUris};
 /// richer type.
 #[derive(Debug, Clone)]
 pub struct SimpleEvent<U: Uri = String> {
-    pub id: usize,
-    pub epoch_number: usize,
-    pub event_key: usize,
+    pub id: u64,
+    pub epoch_number: u64,
+    pub event_key: u64,
     pub uris: EventUris<U>,
 }
 
 impl<U: Uri> Event for SimpleEvent<U> {
-    type EpochId = usize;
+    type EpochId = u64;
     type Uri = U;
 
     fn epoch_id(&self) -> Self::EpochId {

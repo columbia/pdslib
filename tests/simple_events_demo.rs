@@ -215,7 +215,7 @@ fn main() -> Result<(), anyhow::Error> {
         report_uris: sample_report_uris.clone(),
     };
     let report4 = pds.compute_report(&report_request4)?;
-    let bucket4: Option<(usize, f64)> = None;
+    let bucket4: Option<(u64, f64)> = None;
     assert_eq!(
         report4
             .get(&report_request4.report_uris.querier_uris[0])

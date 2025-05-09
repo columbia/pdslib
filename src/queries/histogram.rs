@@ -18,7 +18,7 @@ pub struct HistogramReport<BucketKey> {
 pub trait BucketKey: Debug + Hash + Eq + Clone {}
 
 /// Default type for bucket keys.
-impl BucketKey for usize {}
+impl BucketKey for u64 {}
 
 /// Default histogram has no bins (null report).
 impl<BK> Default for HistogramReport<BK> {
@@ -74,7 +74,7 @@ where
     /// Gets the querier bucket mapping for filtering histograms
     fn get_bucket_intermediary_mapping(
         &self,
-    ) -> Option<&HashMap<usize, Self::HistogramUri>>;
+    ) -> Option<&HashMap<u64, Self::HistogramUri>>;
 
     /// Filter a histogram for a specific querier
     fn filter_report_for_intermediary(

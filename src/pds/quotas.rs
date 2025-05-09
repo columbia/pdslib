@@ -6,7 +6,7 @@ use crate::budget::traits::{Budget, FilterCapacities};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
 pub enum FilterId<
-    E = usize,  // Epoch ID
+    E = u64,    // Epoch ID
     U = String, // URI
 > {
     /// Non-collusion per-querier filter

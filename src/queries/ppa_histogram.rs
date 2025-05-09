@@ -19,13 +19,13 @@ use crate::{
     },
 };
 
-type PpaBucketKey = usize;
-type PpaEpochId = usize;
+type PpaBucketKey = u64;
+type PpaEpochId = u64;
 
 pub struct PpaRelevantEventSelector<U: Uri = String> {
     pub report_request_uris: ReportRequestUris<U>,
     pub is_matching_event: Box<dyn Fn(u64) -> bool>,
-    pub bucket_intermediary_mapping: HashMap<usize, U>,
+    pub bucket_intermediary_mapping: HashMap<u64, U>,
 }
 
 impl<U: Uri> std::fmt::Debug for PpaRelevantEventSelector<U> {
@@ -40,8 +40,8 @@ impl<U: Uri> std::fmt::Debug for PpaRelevantEventSelector<U> {
 /// global sensitivity) instead of directly Laplace noise scale.
 #[derive(Debug, Clone)]
 pub struct PpaHistogramConfig {
-    pub start_epoch: usize,
-    pub end_epoch: usize,
+    pub start_epoch: u64,
+    pub end_epoch: u64,
 
     /// Conversion value that is spread across events for this conversion.
     pub attributable_value: f64,
@@ -51,7 +51,7 @@ pub struct PpaHistogramConfig {
 
     /// Budget spent on the batch, considering the max_attributable_value.
     pub requested_epsilon: f64,
-    pub histogram_size: usize,
+    pub histogram_size: u64,
 }
 
 /// Alternative configuration that directly provides Laplace noise scale.
@@ -59,12 +59,12 @@ pub struct PpaHistogramConfig {
 /// configuration.
 #[derive(Debug, Clone)]
 pub struct DirectPpaHistogramConfig {
-    pub start_epoch: usize,
-    pub end_epoch: usize,
+    pub start_epoch: u64,
+    pub end_epoch: u64,
     /// Conversion value that is spread across events
     pub attributable_value: f64,
     pub laplace_noise_scale: f64,
-    pub histogram_size: usize,
+    pub histogram_size: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -109,12 +109,12 @@ impl<U: Uri> RelevantEventSelector for PpaRelevantEventSelector<U> {
 
 #[derive(Debug)]
 pub struct PpaHistogramRequest<U: Uri = String> {
-    start_epoch: usize,
-    end_epoch: usize,
+    start_epoch: u64,
+    end_epoch: u64,
     /// Conversion value that is spread across events
     attributable_value: f64,
     laplace_noise_scale: f64,
-    histogram_size: usize,
+    histogram_size: u64,
     relevant_event_selector: PpaRelevantEventSelector<U>,
     logic: AttributionLogic,
 }
@@ -182,14 +182,14 @@ impl<U: Uri> PpaHistogramRequest<U> {
         })
     }
 
-    pub fn get_bucket_intermediary_mapping(&self) -> &HashMap<usize, U> {
+    pub fn get_bucket_intermediary_mapping(&self) -> &HashMap<u64, U> {
         &self.relevant_event_selector.bucket_intermediary_mapping
     }
 
     // Helper to check if a bucket is for a specific intermediary
     pub fn is_bucket_for_intermediary(
         &self,
-        bucket_key: usize,
+        bucket_key: u64,
         intermediary_uri: &U,
     ) -> bool {
         match self
@@ -266,7 +266,7 @@ impl<U: Uri> HistogramRequest for PpaHistogramRequest<U> {
         vec![]
     }
 
-    fn get_bucket_intermediary_mapping(&self) -> Option<&HashMap<usize, U>> {
+    fn get_bucket_intermediary_mapping(&self) -> Option<&HashMap<u64, U>> {
         Some(&self.relevant_event_selector.bucket_intermediary_mapping)
     }
 
@@ -276,8 +276,8 @@ impl<U: Uri> HistogramRequest for PpaHistogramRequest<U> {
         intermediary_uri: &U,
         _relevant_events_per_epoch: &RelevantEvents<Self::HistogramEvent>,
     ) -> Option<HistogramReport<Self::BucketKey>> {
-        // Collect all usize keys whose value matches intermediary_uri
-        let intermediary_buckets: HashSet<usize> = self
+        // Collect all u64 keys whose value matches intermediary_uri
+        let intermediary_buckets: HashSet<u64> = self
             .relevant_event_selector
             .bucket_intermediary_mapping
             .iter()

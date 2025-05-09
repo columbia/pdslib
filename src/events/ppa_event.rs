@@ -8,14 +8,14 @@ use crate::events::traits::{Event, EventUris};
 pub struct PpaEvent<U: Uri = String> {
     /// Event ID, e.g., counter or random ID. Unused in Firefox but kept for
     /// debugging purposes.
-    pub id: usize,
+    pub id: u64,
 
     /// Timestamp, also for debugging purposes.
     pub timestamp: u64,
 
-    pub epoch_number: usize,
+    pub epoch_number: u64,
 
-    pub histogram_index: usize,
+    pub histogram_index: u64,
 
     pub uris: EventUris<U>,
 
@@ -28,7 +28,7 @@ pub struct PpaEvent<U: Uri = String> {
 }
 
 impl<U: Uri> Event for PpaEvent<U> {
-    type EpochId = usize;
+    type EpochId = u64;
     type Uri = U;
 
     fn epoch_id(&self) -> Self::EpochId {

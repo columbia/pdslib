@@ -1,4 +1,4 @@
-use std::{collections::HashMap, vec};
+use std::{cell::Cell, collections::HashMap, marker::PhantomData, vec};
 
 use log::debug;
 
@@ -33,7 +33,11 @@ where
 
     /// Defining these generics on each individual function causes much more
     /// boilerplate, compared to defining them once here on the struct.
-    _phantom: std::marker::PhantomData<(Q, ERR)>,
+    _phantom: PhantomData<(Q, ERR)>,
+
+    /// PDS is single-threaded only. This phantom type ensures that
+    /// PrivateDataServiceCore is !Sync, so can't be used from multiple threads.
+    _phantom_sync: PhantomData<Cell<()>>,
 }
 
 impl<R, Q, FS, ERR> PrivateDataServiceCore<Q, FS, ERR>
@@ -50,7 +54,8 @@ where
     pub fn new(filter_storage: FS) -> Self {
         Self {
             filter_storage,
-            _phantom: std::marker::PhantomData,
+            _phantom: PhantomData,
+            _phantom_sync: PhantomData,
         }
     }
 

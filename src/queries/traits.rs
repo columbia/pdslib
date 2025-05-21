@@ -8,6 +8,7 @@ use crate::{
     mechanisms::{NoiseScale, NormType},
 };
 
+#[derive(Debug)]
 pub struct QueryComputeResult<U, R> {
     pub bucket_uri_map: HashMap<u64, U>,
     pub uri_report_map: HashMap<U, R>,

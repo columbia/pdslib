@@ -1,4 +1,9 @@
-use std::{fmt::Debug, hash::Hash, vec};
+use core::fmt;
+use std::{
+    fmt::{Debug, Display},
+    hash::Hash,
+    vec,
+};
 
 use serde::Serialize;
 
@@ -20,6 +25,25 @@ pub enum FilterId<
 
     /// Quota filter regulating c-filter consumption per source_uri
     QSource(E, U /* source URI */),
+}
+
+impl<E: Display, U: Display> fmt::Display for FilterId<E, U> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            FilterId::Nc(epoch_id, querier_uri) => {
+                write!(f, "Nc({epoch_id}, {querier_uri})")
+            }
+            FilterId::C(epoch_id) => {
+                write!(f, "C({epoch_id})")
+            }
+            FilterId::QTrigger(epoch_id, trigger_uri) => {
+                write!(f, "QTrigger({epoch_id}, {trigger_uri})")
+            }
+            FilterId::QSource(epoch_id, source_uri) => {
+                write!(f, "QSource({epoch_id}, {source_uri})")
+            }
+        }
+    }
 }
 
 /// Struct containing the default capacity for each type of filter.

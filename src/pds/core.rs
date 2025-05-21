@@ -72,7 +72,10 @@ where
         if uris.querier_uris.len() > 1 {
             unimplemented!("Multi-beneficiary queries");
         }
-        let querier_uri = &uris.querier_uris[0];
+        let querier_uri = uris
+            .querier_uris
+            .first()
+            .expect("Need at least one querier URI");
 
         let epochs = request.epoch_ids();
         let num_epochs = epochs.len();

@@ -20,7 +20,7 @@ pub type PureDPBudget = f64;
 impl Budget for PureDPBudget {}
 
 /// A filter for pure differential privacy.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct PureDPBudgetFilter {
     pub consumed: PureDPBudget,
     pub capacity: Option<PureDPBudget>, // None = infinite budget

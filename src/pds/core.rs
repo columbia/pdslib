@@ -34,8 +34,8 @@ where
     /// This PhantomData serves two purposes:
     /// 1. It Defines the Q and ERR generics on the struct instead of on each
     ///    individual function, reducing boilerplate
-    /// 2. Cell<> ensures this struct is not Sync, thus not usable from multiple
-    ///    multiple threads simultaneously
+    /// 2. Cell<> ensures this struct is not Sync, thus not usable from
+    ///    multiple multiple threads simultaneously
     _phantom: PhantomData<Cell<(Q, ERR)>>,
 }
 
@@ -225,10 +225,15 @@ where
         // Try to consume the privacy loss from the filters
         let mut oob_filters = vec![];
         for (fid, loss) in filters_to_consume {
-            self.filter_storage.ensure_filter(fid.clone())?;
-            let filter_status =
-                self.filter_storage.maybe_consume(fid, loss, dry_run)?;
-            if filter_status == FilterStatus::OutOfBudget {
+            let out_of_budget = match dry_run {
+                true => !self.filter_storage.can_consume(fid, loss)?,
+                false => {
+                    self.filter_storage.try_consume(fid, loss)?
+                        == FilterStatus::OutOfBudget
+                }
+            };
+
+            if out_of_budget {
                 oob_filters.push(fid.clone());
             }
         }

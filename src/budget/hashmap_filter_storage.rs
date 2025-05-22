@@ -1,11 +1,8 @@
 use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
-use anyhow::Context;
 use serde::{ser::SerializeStruct, Serialize};
 
-use crate::budget::traits::{
-    Filter, FilterCapacities, FilterStatus, FilterStorage,
-};
+use crate::budget::traits::{Filter, FilterCapacities, FilterStorage};
 
 /// Simple implementation of FilterStorage using a HashMap.
 /// Works for any Filter that implements the Filter trait.
@@ -39,11 +36,12 @@ where
 
 impl<F, C> FilterStorage for HashMapFilterStorage<F, C>
 where
-    F: Filter<C::Budget, Error = anyhow::Error>,
+    F: Filter<C::Budget, Error = anyhow::Error> + Clone,
     C: FilterCapacities<Error = anyhow::Error>,
     C::FilterId: Clone + Eq + Hash + Debug,
 {
     type FilterId = C::FilterId;
+    type Filter = F;
     type Budget = C::Budget;
     type Capacities = C;
     type Error = anyhow::Error;
@@ -59,61 +57,25 @@ where
         Ok(this)
     }
 
-    fn new_filter(
+    fn capacities(&self) -> &Self::Capacities {
+        &self.capacities
+    }
+
+    fn get_filter(
         &mut self,
-        filter_id: Self::FilterId,
+        filter_id: &Self::FilterId,
+    ) -> Result<Option<Self::Filter>, Self::Error> {
+        let filter = self.filters.get(filter_id).cloned();
+        Ok(filter)
+    }
+
+    fn set_filter(
+        &mut self,
+        filter_id: &Self::FilterId,
+        filter: Self::Filter,
     ) -> Result<(), Self::Error> {
-        let capacity = self.capacities.capacity(&filter_id)?;
-        let filter = F::new(capacity)?;
-        self.filters.insert(filter_id, filter);
-
+        self.filters.insert(filter_id.clone(), filter);
         Ok(())
-    }
-
-    fn is_initialized(
-        &mut self,
-        filter_id: &Self::FilterId,
-    ) -> Result<bool, Self::Error> {
-        let entry = self.filters.get_mut(filter_id);
-        Ok(entry.is_some())
-    }
-
-    fn can_consume(
-        &self,
-        filter_id: &Self::FilterId,
-        budget: &Self::Budget,
-    ) -> Result<bool, Self::Error> {
-        let filter = self
-            .filters
-            .get(filter_id)
-            .context("Filter for epoch not initialized")?;
-
-        filter.can_consume(budget)
-    }
-
-    fn try_consume(
-        &mut self,
-        filter_id: &Self::FilterId,
-        budget: &Self::Budget,
-    ) -> Result<FilterStatus, Self::Error> {
-        let filter = self
-            .filters
-            .get_mut(filter_id)
-            .context("Filter for epoch not initialized")?;
-
-        filter.try_consume(budget)
-    }
-
-    fn remaining_budget(
-        &self,
-        filter_id: &Self::FilterId,
-    ) -> Result<Self::Budget, Self::Error> {
-        let filter = self
-            .filters
-            .get(filter_id)
-            .context("Filter for epoch not initialized")?;
-
-        filter.remaining_budget()
     }
 }
 
@@ -121,7 +83,7 @@ where
 mod tests {
     use super::*;
     use crate::{
-        budget::pure_dp_filter::PureDPBudgetFilter,
+        budget::{pure_dp_filter::PureDPBudgetFilter, traits::FilterStatus},
         pds::quotas::{FilterId, StaticCapacities},
     };
 
@@ -132,18 +94,11 @@ mod tests {
             HashMapFilterStorage::new(capacities)?;
 
         let fid: FilterId<i32, ()> = FilterId::C(1);
-        storage.new_filter(fid.clone())?;
-        assert_eq!(
-            storage.try_consume(&fid, &10.0)?,
-            FilterStatus::Continue,
-        );
+        assert_eq!(storage.try_consume(&fid, &10.0)?, FilterStatus::Continue);
         assert_eq!(
             storage.try_consume(&fid, &11.0)?,
             FilterStatus::OutOfBudget,
         );
-
-        // Filter C(2) does not exist
-        assert!(storage.try_consume(&FilterId::C(2), &1.0).is_err());
 
         Ok(())
     }

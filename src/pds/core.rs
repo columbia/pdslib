@@ -31,13 +31,12 @@ where
     /// Filter storage interface.
     pub filter_storage: FS,
 
-    /// Defining these generics on each individual function causes much more
-    /// boilerplate, compared to defining them once here on the struct.
-    _phantom: PhantomData<(Q, ERR)>,
-
-    /// PDS is single-threaded only. This phantom type ensures that
-    /// PrivateDataServiceCore is !Sync, so can't be used from multiple threads.
-    _phantom_sync: PhantomData<Cell<()>>,
+    /// This PhantomData serves two purposes:
+    /// 1. It Defines the Q and ERR generics on the struct instead of on each
+    ///    individual function, reducing boilerplate
+    /// 2. Cell<> ensures this struct is not Sync, thus not usable from multiple
+    ///    multiple threads simultaneously
+    _phantom: PhantomData<Cell<(Q, ERR)>>,
 }
 
 impl<R, Q, FS, ERR> PrivateDataServiceCore<Q, FS, ERR>
@@ -55,7 +54,6 @@ where
         Self {
             filter_storage,
             _phantom: PhantomData,
-            _phantom_sync: PhantomData,
         }
     }
 

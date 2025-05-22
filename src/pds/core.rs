@@ -1,4 +1,4 @@
-use std::{collections::HashMap, vec};
+use std::{cell::Cell, collections::HashMap, marker::PhantomData, vec};
 
 use log::debug;
 
@@ -31,9 +31,12 @@ where
     /// Filter storage interface.
     pub filter_storage: FS,
 
-    /// Defining these generics on each individual function causes much more
-    /// boilerplate, compared to defining them once here on the struct.
-    _phantom: std::marker::PhantomData<(Q, ERR)>,
+    /// This PhantomData serves two purposes:
+    /// 1. It Defines the Q and ERR generics on the struct instead of on each
+    ///    individual function, reducing boilerplate
+    /// 2. Cell<> ensures this struct is not Sync, thus not usable from multiple
+    ///    multiple threads simultaneously
+    _phantom: PhantomData<Cell<(Q, ERR)>>,
 }
 
 impl<R, Q, FS, ERR> PrivateDataServiceCore<Q, FS, ERR>
@@ -50,7 +53,7 @@ where
     pub fn new(filter_storage: FS) -> Self {
         Self {
             filter_storage,
-            _phantom: std::marker::PhantomData,
+            _phantom: PhantomData,
         }
     }
 
@@ -72,7 +75,10 @@ where
         if uris.querier_uris.len() > 1 {
             unimplemented!("Multi-beneficiary queries");
         }
-        let querier_uri = &uris.querier_uris[0];
+        let querier_uri = uris
+            .querier_uris
+            .first()
+            .expect("Need at least one querier URI");
 
         let epochs = request.epoch_ids();
         let num_epochs = epochs.len();

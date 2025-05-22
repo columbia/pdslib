@@ -1,5 +1,7 @@
+use std::fmt::Debug;
+
 /// Trait for privacy budgets
-pub trait Budget: Clone {
+pub trait Budget: Clone + Debug {
     // For now just a marker trait requiring Clone
 }
 

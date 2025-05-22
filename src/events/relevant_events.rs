@@ -6,6 +6,7 @@ use super::traits::{Event, EventStorage, RelevantEventSelector};
 ///
 /// Can be constructed either from an `EventStorage`, or directly from a
 /// mapping of relevant events per epoch.
+#[derive(Debug, Clone)]
 pub struct RelevantEvents<E: Event> {
     pub events_per_epoch: HashMap<E::EpochId, Vec<E>>,
 }

@@ -15,7 +15,7 @@ impl<E: Event> RelevantEvents<E> {
     /// Fetches and filters relevant events from the given event storage,
     /// for the specified epochs.
     pub fn from_event_storage<ES>(
-        event_storage: &ES,
+        event_storage: &mut ES,
         epoch_ids: &[E::EpochId],
         selector: &impl RelevantEventSelector<Event = E>,
     ) -> Result<Self, ES::Error>

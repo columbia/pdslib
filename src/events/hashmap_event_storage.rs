@@ -35,7 +35,7 @@ where
     }
 
     fn events_for_epoch(
-        &self,
+        &mut self,
         epoch_id: &<Self::Event as Event>::EpochId,
     ) -> Result<impl Iterator<Item = Self::Event>, Self::Error> {
         let events = self.epochs.get(epoch_id).cloned().unwrap_or_default();

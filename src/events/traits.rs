@@ -60,7 +60,7 @@ pub trait EventStorage {
 
     /// Retrieves all events for a given epoch.
     fn events_for_epoch(
-        &self,
+        &mut self,
         epoch_id: &<Self::Event as Event>::EpochId,
     ) -> Result<impl Iterator<Item = Self::Event>, Self::Error>;
 }

@@ -79,7 +79,7 @@ where
     ) -> Result<HashMap<Q::Uri, PdsReport<Q>>, ERR> {
         let relevant_event_selector = request.relevant_event_selector();
         let relevant_events = RelevantEvents::from_event_storage(
-            &self.event_storage,
+            &mut self.event_storage,
             &request.epoch_ids(),
             relevant_event_selector,
         )?;

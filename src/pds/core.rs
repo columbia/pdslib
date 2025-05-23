@@ -225,15 +225,12 @@ where
         // Try to consume the privacy loss from the filters
         let mut oob_filters = vec![];
         for (fid, loss) in filters_to_consume {
-            let out_of_budget = match dry_run {
-                true => !self.filter_storage.can_consume(fid, loss)?,
-                false => {
-                    self.filter_storage.try_consume(fid, loss)?
-                        == FilterStatus::OutOfBudget
-                }
+            let filter_status = match dry_run {
+                true => self.filter_storage.can_consume(fid, loss)?,
+                false => self.filter_storage.try_consume(fid, loss)?,
             };
 
-            if out_of_budget {
+            if filter_status == FilterStatus::OutOfBudget {
                 oob_filters.push(fid.clone());
             }
         }

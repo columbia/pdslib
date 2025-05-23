@@ -15,7 +15,7 @@ pub trait Filter<T: Budget> {
         Self: Sized;
 
     /// Checks if the filter has enough budget without consuming
-    fn can_consume(&self, budget: &T) -> Result<bool, Self::Error>;
+    fn can_consume(&self, budget: &T) -> Result<FilterStatus, Self::Error>;
 
     /// Attempts to consume the budget if sufficient.
     /// TODO(https://github.com/columbia/pdslib/issues/39): Simplify the logic, as OOB event should not happen within this function now.
@@ -103,7 +103,7 @@ pub trait FilterStorage {
         &mut self,
         filter_id: &Self::FilterId,
         budget: &Self::Budget,
-    ) -> Result<bool, Self::Error> {
+    ) -> Result<FilterStatus, Self::Error> {
         self.get_filter_or_new(filter_id)?.can_consume(budget)
     }
 

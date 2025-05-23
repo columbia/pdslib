@@ -37,21 +37,28 @@ impl Filter<PureDPBudget> for PureDPBudgetFilter {
         Ok(this)
     }
 
-    fn can_consume(&self, budget: &PureDPBudget) -> Result<bool, Self::Error> {
+    fn can_consume(
+        &self,
+        budget: &PureDPBudget,
+    ) -> Result<FilterStatus, Self::Error> {
         match self.capacity {
-            None => Ok(true),
+            None => Ok(FilterStatus::Continue),
             Some(capacity) => {
                 let remaining = capacity - self.consumed;
-                let diff = (remaining - budget).abs();
 
+                let diff = (remaining - budget).abs();
                 if diff < 1e-9 && diff > 0.0 {
                     warn!(
-                        "can_consume: difference between remaining budget ({}) and requested budget ({}) is very small, diff = {}",
-                        remaining, budget, diff
+                        "can_consume: difference between remaining budget ({remaining}) and requested budget ({budget}) is very small, diff = {diff}",
                     );
                 }
 
-                Ok(self.consumed + budget <= capacity)
+                let out_of_budget = self.consumed + budget > capacity;
+                let status = match out_of_budget {
+                    true => FilterStatus::OutOfBudget,
+                    false => FilterStatus::Continue,
+                };
+                Ok(status)
             }
         }
     }
@@ -62,33 +69,10 @@ impl Filter<PureDPBudget> for PureDPBudgetFilter {
     ) -> Result<FilterStatus, Self::Error> {
         debug!("The budget consumed in this epoch is {:?}, budget capacity for this epoch is  {:?}, and we need to consume this much budget {:?}", self.consumed, self.capacity, budget);
 
-        // Check that we have enough budget and if yes, deduct in place.
-        let status = match self.capacity {
-            None => {
-                // Infinite capacity
-                self.consumed += budget;
-                FilterStatus::Continue
-            }
-            Some(capacity) => {
-                let remaining = capacity - self.consumed;
-                let diff = (remaining - budget).abs();
-
-                if diff < 1e-9 && diff > 0.0 {
-                    warn!(
-                        "try_consume: difference between remaining budget ({}) and requested budget ({}) is very small, diff = {}",
-                        remaining, budget, diff
-                    );
-                }
-
-                if self.consumed + budget <= capacity {
-                    self.consumed += budget;
-                    FilterStatus::Continue
-                } else {
-                    FilterStatus::OutOfBudget
-                }
-            }
-        };
-
+        let status = self.can_consume(budget)?;
+        if status == FilterStatus::Continue {
+            self.consumed += budget;
+        }
         Ok(status)
     }
 

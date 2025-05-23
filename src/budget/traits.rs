@@ -69,6 +69,8 @@ pub trait FilterStorage {
 
     /// Get the filter with the given ID from the storage.
     /// Returns None if the filter has not been set yet.
+    /// Note: for the privacy proof to be valid, get_filter() must always
+    /// return exactly what was set by set_filter().
     fn get_filter(
         &mut self,
         filter_id: &Self::FilterId,

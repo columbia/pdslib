@@ -53,7 +53,10 @@ fn test_account_for_passive_privacy_loss() -> Result<(), anyhow::Error> {
             (FilterId::QTrigger(epoch_id, uris.trigger_uri.clone()), 1.0),
         ];
 
-        assert_remaining_budgets(&pds.core.filter_storage, &expected_budgets)?;
+        assert_remaining_budgets(
+            &mut pds.core.filter_storage,
+            &expected_budgets,
+        )?;
     }
 
     // Attempting to consume more should fail.
@@ -86,7 +89,10 @@ fn test_account_for_passive_privacy_loss() -> Result<(), anyhow::Error> {
             (QTrigger(epoch_id, uris.trigger_uri.clone()), 1.0),
         ];
 
-        assert_remaining_budgets(&pds.core.filter_storage, &expected_budgets)?;
+        assert_remaining_budgets(
+            &mut pds.core.filter_storage,
+            &expected_budgets,
+        )?;
     }
 
     // epoch 3's nc-filter and q-conv should be out of budget
@@ -101,7 +107,7 @@ fn test_account_for_passive_privacy_loss() -> Result<(), anyhow::Error> {
 
 #[track_caller]
 fn assert_remaining_budgets<FS: FilterStorage<Budget = PureDPBudget>>(
-    filter_storage: &FS,
+    filter_storage: &mut FS,
     expected_budgets: &[(FS::FilterId, f64)],
 ) -> Result<(), FS::Error> {
     for (filter_id, expected_budget) in expected_budgets {
@@ -149,10 +155,6 @@ fn test_budget_rollback_on_depletion() -> Result<(), anyhow::Error> {
         FilterId::QTrigger(epoch_id, uris.trigger_uri.clone()),
         FilterId::QSource(epoch_id, uris.source_uris[0].clone()),
     ];
-
-    for filter_id in &filter_ids {
-        pds.core.filter_storage.new_filter(filter_id.clone())?;
-    }
 
     // Record initial budgets
     let mut initial_budgets = HashMap::new();
@@ -315,8 +317,6 @@ fn test_cross_report_optimization() -> Result<(), anyhow::Error> {
     .map_err(|e| anyhow::anyhow!("Failed to create request: {}", e))?;
     // Initialize and check the initial beneficiary's NC filter
     let beneficiary_filter_id = FilterId::Nc(1, beneficiary_uri.clone());
-    pds.core.filter_storage
-        .new_filter(beneficiary_filter_id.clone())?;
     let initial_budget = pds
         .core
         .filter_storage

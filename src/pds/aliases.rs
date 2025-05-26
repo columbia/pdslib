@@ -36,11 +36,12 @@ pub type PpaFilterStorage = HashMapFilterStorage<
     PureDPBudgetFilter,
     StaticCapacities<FilterId<u64, String>, PureDPBudget>,
 >;
-pub type PpaEventStorage = HashMapEventStorage<PpaEvent>;
-pub type PpaPdsCore<FS = PpaFilterStorage, ERR = anyhow::Error> =
-    PrivateDataServiceCore<PpaHistogramRequest, FS, ERR>;
+pub type PpaEventStorage<U = String> = HashMapEventStorage<PpaEvent<U>>;
+pub type PpaPdsCore<FS = PpaFilterStorage, U = String, ERR = anyhow::Error> =
+    PrivateDataServiceCore<PpaHistogramRequest<U>, FS, ERR>;
 pub type PpaPds<
     FS = PpaFilterStorage,
     ES = PpaEventStorage,
+    U = String,
     ERR = anyhow::Error,
-> = PrivateDataService<PpaHistogramRequest, FS, ES, ERR>;
+> = PrivateDataService<PpaHistogramRequest<U>, FS, ES, ERR>;

@@ -222,8 +222,6 @@ fn test_budget_rollback_on_depletion() -> Result<(), anyhow::Error> {
 
 #[test]
 fn test_cross_report_optimization() -> Result<(), anyhow::Error> {
-    log4rs::init_file("logging_config.yaml", Default::default()).unwrap();
-
     // Create PDS with mock capacities
     let capacities = StaticCapacities::mock();
     let filters = PpaFilterStorage::new(capacities)?;
@@ -305,7 +303,7 @@ fn test_cross_report_optimization() -> Result<(), anyhow::Error> {
     };
 
     let request = PpaHistogramRequest::new(
-        config.clone(),
+        &config,
         PpaRelevantEventSelector {
             report_request_uris,
             is_matching_event: Box::new(|event_filter_data: u64| {

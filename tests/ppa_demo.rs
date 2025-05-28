@@ -92,7 +92,7 @@ fn main() -> Result<(), anyhow::Error> {
 
     // Test basic attribution
     let request1 = PpaHistogramRequest::new(
-        PpaHistogramConfig {
+        &PpaHistogramConfig {
             start_epoch: 1,
             end_epoch: 2,
             attributable_value: 32768.0,
@@ -126,7 +126,7 @@ fn main() -> Result<(), anyhow::Error> {
 
     // Test error case when requested_epsilon is 0.
     let request2 = PpaHistogramRequest::new(
-        PpaHistogramConfig {
+        &PpaHistogramConfig {
             start_epoch: 1,
             end_epoch: 2,
             attributable_value: 32768.0,
@@ -145,7 +145,7 @@ fn main() -> Result<(), anyhow::Error> {
     assert!(request2.is_err());
 
     let request3 = PpaHistogramRequest::new(
-        PpaHistogramConfig {
+        &PpaHistogramConfig {
             start_epoch: 1,
             end_epoch: 2,
             attributable_value: 32768.0,

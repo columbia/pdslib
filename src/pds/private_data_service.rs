@@ -56,7 +56,7 @@ where
         FilterId = FilterId<Q::EpochId, Q::Uri>,
     >,
     ES: EventStorage<Event = Q::Event>,
-    ERR: From<FS::Error> + From<ES::Error> + From<anyhow::Error>,
+    ERR: From<FS::Error> + From<ES::Error>,
 {
     pub fn new(filter_storage: FS, event_storage: ES) -> Self {
         Self {
@@ -124,12 +124,10 @@ where
                 false, // actually consume
             )?;
 
-            if consume_status != PdsFilterStatus::Continue {
-                return Err(anyhow::anyhow!(
-                    "ERR: Phase 2 failed unexpectedly wtih status {:?} after Phase 1 succeeded", 
-                    consume_status,
-                ).into());
-            }
+            assert_eq!(
+                consume_status, PdsFilterStatus::Continue,
+                "ERR: Phase 2 failed unexpectedly wtih status {consume_status:?} after Phase 1 succeeded",
+            );
 
             // TODO(https://github.com/columbia/pdslib/issues/16): semantics are still unclear, for now we ignore the request if
             // it would exhaust the filter.

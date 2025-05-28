@@ -81,7 +81,7 @@ fn main() -> Result<(), anyhow::Error> {
         histogram_size: 1,
     };
     let report_request =
-        TestHistogramRequest::new(config, always_relevant_event_selector)
+        TestHistogramRequest::new(&config, always_relevant_event_selector)
             .unwrap();
     let _report = pds.compute_report(&report_request)?;
 

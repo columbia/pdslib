@@ -126,7 +126,7 @@ impl<U: Uri> PpaHistogramRequest<U> {
     /// Takes sensitivity as an input to reverse-engineer the attributable
     /// value.
     pub fn new(
-        config: PpaHistogramConfig,
+        config: &PpaHistogramConfig,
         relevant_event_selector: PpaRelevantEventSelector<U>,
     ) -> Result<Self> {
         if config.requested_epsilon <= 0.0 {

@@ -126,7 +126,7 @@ where
 
             assert_eq!(
                 consume_status, PdsFilterStatus::Continue,
-                "ERR: Phase 2 failed unexpectedly wtih status {consume_status:?} after Phase 1 succeeded",
+                "ERR: Phase 2 failed unexpectedly with status {consume_status:?} after Phase 1 succeeded",
             );
 
             // TODO(https://github.com/columbia/pdslib/issues/16): semantics are still unclear, for now we ignore the request if

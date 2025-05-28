@@ -70,6 +70,10 @@ impl Filter<PureDPBudget> for PureDPBudgetReleaseFilter {
 }
 
 impl ReleaseFilter<PureDPBudget> for PureDPBudgetReleaseFilter {
+    fn get_capacity(&self) -> Result<PureDPBudget, Self::Error> {
+        Ok(self.capacity)
+    }
+
     fn set_capacity(
         &mut self,
         capacity: PureDPBudget,

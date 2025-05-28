@@ -650,18 +650,17 @@ where
             for epoch in &all_epochs {
                 let filter_id = FilterId::QSource(*epoch, source.clone());
 
-                let consumed_budget: FS::Budget = if self.public_info {
-                    self.public_filters
-                        .get_filter_or_new(&filter_id)?
-                        .remaining_budget() // TODO: ok to use remaining instead
-                                            // of capacity?
+                let filter = if self.public_info {
+                    self.public_filters.get_filter_or_new(&filter_id)?
                 } else {
                     self.pds
                         .core
                         .filter_storage
                         .get_filter_or_new(&filter_id)?
-                        .remaining_budget()
-                }?;
+                };
+
+                let consumed_budget =
+                    filter.get_capacity()? - filter.remaining_budget()?;
 
                 source_total_budget = source_total_budget.max(consumed_budget);
             }

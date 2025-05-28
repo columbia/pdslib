@@ -32,6 +32,9 @@ pub trait Filter<B: Budget> {
 
 /// Trait for a filter that can release budget over time.
 pub trait ReleaseFilter<B: Budget>: Filter<B> {
+    /// Gets the current capacity of the filter.
+    fn get_capacity(&self) -> Result<B, Self::Error>;
+
     /// Updates the capacity of the filter.
     fn set_capacity(&mut self, capacity: B) -> Result<(), Self::Error>;
 
@@ -122,6 +125,8 @@ pub trait FilterStorage {
         Ok(filter)
     }
 
+    /// Edit the filter with the given ID, creating a new one if it does not
+    /// exist.
     fn edit_filter_or_new<R>(
         &mut self,
         filter_id: &Self::FilterId,

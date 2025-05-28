@@ -40,10 +40,6 @@ pub struct BatchedRequest<Q: EpochReportRequest> {
 
     /// The actual request.
     request: Q,
-
-    /// Cache the most recent result received for this request, even if it was
-    /// a null report.
-    report: Option<PdsReport<Q>>,
 }
 
 impl<Q: EpochReportRequest> BatchedRequest<Q> {
@@ -63,7 +59,6 @@ impl<Q: EpochReportRequest> BatchedRequest<Q> {
             request_id,
             n_remaining_scheduling_attempts: n_scheduling_attempts,
             request,
-            report: None,
         }
     }
 }
@@ -115,10 +110,6 @@ where
     /// Amount of c-filter budget to be released per scheduling interval.
     pub eps_c_per_release: FS::Budget,
 
-    /// Whether to use only public information to sort and try to allocate
-    /// requests
-    pub public_info: bool,
-
     /// NOTE: these filters are not actually directly visible to a querier,
     /// because of report identifiers, to clarify.
     pub public_filters: FS,
@@ -160,7 +151,6 @@ where
     pub fn new(
         pds: PrivateDataService<Q, FS, ES, ERR>,
         n_releases: usize,
-        public_info: bool,
     ) -> Result<Self, ERR> {
         let capacities = pds.core.filter_storage.capacities().clone();
 
@@ -174,14 +164,12 @@ where
         };
 
         debug!(
-            "BatchPDS: capacities after dividing by {n_releases} releases: \
-            {capacities:?}, public_info {public_info}",
+            "BatchPDS: capacities after dividing by {n_releases} releases: {capacities:?}"
         );
 
         Ok(BatchPrivateDataService {
             pds,
             eps_c_per_release,
-            public_info,
             public_filters: FS::new(capacities)?,
 
             current_scheduling_interval: 0,
@@ -265,26 +253,21 @@ where
         epoch: Q::EpochId,
         capacity: PureDPBudget,
     ) -> Result<(), ERR> {
-        // TODO(P1): use only public info.
         if let Some(sources) = self.sources_per_epoch.get(&epoch) {
             let filter_ids = sources
                 .iter()
                 .map(|source| FilterId::QSource(epoch, source.clone()))
                 .collect::<Vec<_>>();
-            let filter_storage = &mut self.pds.core.filter_storage;
+            let pds_filter_storage = &mut self.pds.core.filter_storage;
 
             for filter_id in filter_ids {
-                filter_storage.edit_filter_or_new(&filter_id, |f| {
+                pds_filter_storage.edit_filter_or_new(&filter_id, |f| {
                     f.set_capacity(capacity)
                 })?;
 
-                // Also for the public filter
-                if self.public_info {
-                    self.public_filters
-                        .edit_filter_or_new(&filter_id, |f| {
-                            f.set_capacity(capacity)
-                        })?;
-                }
+                self.public_filters.edit_filter_or_new(&filter_id, |f| {
+                    f.set_capacity(capacity)
+                })?;
             }
         }
 
@@ -478,69 +461,43 @@ where
     ) -> Result<Vec<BatchedRequest<Q>>, ERR> {
         // Go through requests one by one and try to allocate them.
         let mut unallocated_requests = vec![];
-        for mut request in requests {
+        for request in requests {
             let querier_uri = &request.request.report_uris().querier_uris[0];
 
-            if self.public_info {
-                if (allocate_final_attempts
-                    && request.n_remaining_scheduling_attempts == 0)
-                    || self.can_probably_allocate(&request.request)?
-                {
-                    debug!(
-                        "Request {} can probably be allocated: {:?}",
-                        request.request_id, request
-                    );
+            if (allocate_final_attempts
+                && request.n_remaining_scheduling_attempts == 0)
+                || self.can_probably_allocate(&request.request)?
+            {
+                debug!(
+                    "Request {} can probably be allocated: {request:?}",
+                    request.request_id
+                );
 
-                    // Compute the actual report. It might be null though.
-                    let mut report =
-                        self.pds.compute_report(&request.request)?;
-                    let report = report.remove(querier_uri).unwrap();
-
-                    if !report.oob_filters.is_empty() {
-                        for filter_id in report.oob_filters.iter() {
-                            if let FilterId::QSource(_, _) = filter_id {
-                                warn!(
-                                        "Request {} was not allocated: {:?}. Final attempt? {}",
-                                        request.request_id, report.oob_filters, allocate_final_attempts
-                                    );
-                                // Qimp should never block a request if we have
-                                // perfect upper bounds for the public filters.
-                                panic!()
-                            }
-                        }
-                    }
-
-                    self.update_allocation_statistics(&request.request)?;
-
-                    // Keep the result for when the time is right.
-                    self.send_report_for_release(&request, report);
-                } else {
-                    // TODO(P1): compute the report at the end if None?
-                    unallocated_requests.push(request);
-                }
-            } else {
-                // Directly compute the report to check whether we can allocate
-                // the request or not
+                // Compute the actual report. It might be null though.
                 let mut report = self.pds.compute_report(&request.request)?;
                 let report = report.remove(querier_uri).unwrap();
 
-                if (allocate_final_attempts
-                    && request.n_remaining_scheduling_attempts == 0)
-                    || report.oob_filters.is_empty()
-                {
-                    debug!(
-                        "Request {} was successfully allocated: {:?} or final attempt {}",
-                        request.request_id, report, request.n_remaining_scheduling_attempts
-                    );
-
-                    self.send_report_for_release(&request, report);
-                } else {
-                    // Keep the request for later. Cache the report in case we
-                    // need it. TODO(P3): no need for this
-                    // anymore.
-                    request.report = Some(report);
-                    unallocated_requests.push(request);
+                if !report.oob_filters.is_empty() {
+                    for filter_id in report.oob_filters.iter() {
+                        if let FilterId::QSource(_, _) = filter_id {
+                            warn!(
+                                        "Request {} was not allocated: {:?}. Final attempt? {}",
+                                        request.request_id, report.oob_filters, allocate_final_attempts
+                                    );
+                            // Qimp should never block a request if we have
+                            // perfect upper bounds for the public filters.
+                            panic!()
+                        }
+                    }
                 }
+
+                self.update_allocation_statistics(&request.request)?;
+
+                // Keep the result for when the time is right.
+                self.send_report_for_release(&request, report);
+            } else {
+                // TODO(P1): compute the report at the end if None?
+                unallocated_requests.push(request);
             }
         }
 
@@ -588,11 +545,9 @@ where
                 f.release(&self.eps_c_per_release)
             })?;
 
-        if self.public_info {
-            self.public_filters.edit_filter_or_new(&filter_id, |f| {
-                f.release(&self.eps_c_per_release)
-            })?;
-        }
+        self.public_filters.edit_filter_or_new(&filter_id, |f| {
+            f.release(&self.eps_c_per_release)
+        })?;
 
         Ok(())
     }
@@ -650,15 +605,8 @@ where
             for epoch in &all_epochs {
                 let filter_id = FilterId::QSource(*epoch, source.clone());
 
-                let filter = if self.public_info {
-                    self.public_filters.get_filter_or_new(&filter_id)?
-                } else {
-                    self.pds
-                        .core
-                        .filter_storage
-                        .get_filter_or_new(&filter_id)?
-                };
-
+                let filter =
+                    self.public_filters.get_filter_or_new(&filter_id)?;
                 let consumed_budget =
                     filter.get_capacity()? - filter.remaining_budget()?;
 
@@ -767,10 +715,6 @@ mod tests {
         },
     };
 
-    // const PUBLIC_INFO_VARIANTS: [bool; 2] = [true, false];
-    // const PUBLIC_INFO_VARIANTS: [bool; 1] = [false];
-    const PUBLIC_INFO_VARIANTS: [bool; 1] = [true];
-
     fn event_storage_with_events<E: Event>(
         events: Vec<E>,
     ) -> HashMapEventStorage<E> {
@@ -783,14 +727,6 @@ mod tests {
 
     #[test]
     fn schedule_one_batch() -> Result<()> {
-        for public_info in PUBLIC_INFO_VARIANTS {
-            info!("Testing with public info: {public_info}");
-            schedule_one_batch_variant(public_info)?;
-        }
-        Ok(())
-    }
-
-    fn schedule_one_batch_variant(public_info: bool) -> Result<()> {
         let _ = log4rs::init_file("logging_config.yaml", Default::default());
 
         let capacities = StaticCapacities::new(10.0, 5.0, 10.0, 4.0);
@@ -809,7 +745,7 @@ mod tests {
             HashMapFilterStorage::new(capacities)?;
         let pds: PrivateDataService<_, _, _, anyhow::Error> =
             PrivateDataService::new(filter_storage, event_storage);
-        let mut batch_pds = BatchPrivateDataService::new(pds, 2, public_info)?;
+        let mut batch_pds = BatchPrivateDataService::new(pds, 2)?;
 
         let mut request_config = PpaHistogramConfig {
             start_epoch: 1,
@@ -893,14 +829,6 @@ mod tests {
     /// Test that mimics the example from the paper that motivates batching.
     #[test]
     fn utilization_example() -> Result<()> {
-        for public_info in PUBLIC_INFO_VARIANTS {
-            info!("Testing with public info: {public_info}");
-            utilization_example_variant(public_info)?;
-        }
-        Ok(())
-    }
-
-    fn utilization_example_variant(public_info: bool) -> Result<()> {
         let _ = log4rs::init_file("logging_config.yaml", Default::default());
 
         let capacities = StaticCapacities::new(1.0, 10.0, 1.0, 5.0);
@@ -946,7 +874,7 @@ mod tests {
             HashMapFilterStorage::new(capacities)?;
         let pds: PrivateDataService<_, _, _, anyhow::Error> =
             PrivateDataService::new(filter_storage, event_storage);
-        let mut batch_pds = BatchPrivateDataService::new(pds, 1, public_info)?;
+        let mut batch_pds = BatchPrivateDataService::new(pds, 1)?;
 
         let mut request_config = PpaHistogramConfig {
             start_epoch: 1,
@@ -1063,14 +991,6 @@ mod tests {
     /// let a single site take all the budget.
     #[test]
     fn order_fairness() -> Result<()> {
-        for public_info in PUBLIC_INFO_VARIANTS {
-            info!("Testing with public info: {}", public_info);
-            order_fairness_variant(public_info)?;
-        }
-        Ok(())
-    }
-
-    fn order_fairness_variant(public_info: bool) -> Result<()> {
         let _ = log4rs::init_file("logging_config.yaml", Default::default());
 
         let capacities = StaticCapacities::new(
@@ -1130,7 +1050,7 @@ mod tests {
             HashMapFilterStorage::new(capacities)?;
         let pds: PrivateDataService<_, _, _, anyhow::Error> =
             PrivateDataService::new(filter_storage, event_storage);
-        let mut batch_pds = BatchPrivateDataService::new(pds, 2, public_info)?;
+        let mut batch_pds = BatchPrivateDataService::new(pds, 2)?;
 
         let mut request_config = PpaHistogramConfig {
             start_epoch: 1,

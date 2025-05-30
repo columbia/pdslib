@@ -297,7 +297,7 @@ where
 
                 // Filter report for this intermediary
                 if let Some(intermediary_filtered_report) =
-                    unfiltered_result.uri_report_map.get(&intermediary_uri)
+                    filtered_result.uri_report_map.get(&intermediary_uri)
                 {
                     // Create PdsReport for this intermediary
                     let unfiltered_report = unfiltered_result

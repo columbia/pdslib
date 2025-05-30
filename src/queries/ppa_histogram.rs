@@ -141,8 +141,16 @@ impl<U: Uri> PpaHistogramRequest<U> {
             bail!("histogram_size must be greater than 0");
         }
 
-        // Sensitivity for a histogram with multiple bins.
-        let query_global_sensitivity = config.max_attributable_value * 2.0;
+        // Sensitivity for a histogram query with multiple bins, where all
+        // reports have the same attributable value and a device-epoch
+        // participates in at most one report. Reverse of
+        // `report_global_sensitivity`
+        let query_global_sensitivity = if config.end_epoch == config.start_epoch
+        {
+            config.max_attributable_value
+        } else {
+            2.0 * config.max_attributable_value
+        };
         let laplace_noise_scale =
             query_global_sensitivity / config.requested_epsilon;
 
@@ -326,7 +334,11 @@ impl<U: Uri> EpochReportRequest for PpaHistogramRequest<U> {
     }
 
     fn report_global_sensitivity(&self) -> f64 {
-        self.histogram_report_global_sensitivity()
+        if self.start_epoch == self.end_epoch {
+            self.histogram_single_epoch_report_global_sensitivity()
+        } else {
+            self.histogram_multi_epoch_report_global_sensitivity()
+        }
     }
 
     fn relevant_event_selector(&self) -> &Self::RelevantEventSelector {

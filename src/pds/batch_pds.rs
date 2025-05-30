@@ -774,7 +774,6 @@ where
 #[cfg(test)]
 mod tests {
     use log::info;
-    use log4rs;
 
     use super::*;
     use crate::{

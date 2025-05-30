@@ -1,6 +1,6 @@
 use std::{cell::Cell, collections::HashMap, marker::PhantomData, vec};
 
-use log::debug;
+use log::{debug, info};
 
 use super::{
     accounting::{compute_epoch_loss, compute_epoch_source_losses},
@@ -149,6 +149,7 @@ where
 
         // Now that we've dropped OOB epochs, we can compute the final report.
         let filtered_result = request.compute_report(&relevant_events);
+        debug!("Filtered result: {filtered_result:?}");
 
         let filtered_report =
             filtered_result.uri_report_map.get(querier_uri).unwrap();
@@ -168,7 +169,7 @@ where
                 request,
                 unfiltered_result,
                 filtered_result,
-                main_report.oob_filters,
+                main_report.oob_filters.clone(),
             )?;
             return Ok(intermediate_reports);
         }
@@ -247,6 +248,10 @@ where
         &self,
         site_to_report_mapping: &HashMap<Q::Uri, Q::Report>,
     ) -> bool {
+        debug!(
+            "Checking if this mapping is an optimization query: {site_to_report_mapping:?}",
+        );
+
         // TODO: May need to change this based on assumption changes.
         // If the mapping has more then 3 keys, that means it has at least 2
         // intermediary sites (since we map the main report only to the first
@@ -317,8 +322,6 @@ where
         }
 
         // Return optimization result with all intermediary reports
-        // If the querier needs to receive a report for itself too, need to
-        // add itself as an intermediary in the request
         Ok(intermediary_reports)
     }
 }

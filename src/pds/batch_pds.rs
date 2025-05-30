@@ -1,5 +1,6 @@
 use core::panic;
 use std::{
+    borrow::Borrow,
     cmp::Ordering::{Greater, Less},
     collections::{HashMap, HashSet},
     fmt::Debug,
@@ -8,7 +9,7 @@ use std::{
 };
 
 use anyhow::Result;
-use log::{debug, warn};
+use log::debug;
 
 use super::{
     private_data_service::{PdsReport, PrivateDataService},
@@ -258,6 +259,8 @@ where
                 .iter()
                 .map(|source| FilterId::QSource(epoch, source.clone()))
                 .collect::<Vec<_>>();
+            self.initialize_filters(filter_ids.iter())?;
+
             let pds_filter_storage = &mut self.pds.core.filter_storage;
 
             for filter_id in filter_ids {
@@ -280,14 +283,18 @@ where
         &mut self,
         batched_requests: Vec<BatchedRequest<Q>>,
     ) -> Result<Vec<BatchedRequest<Q>>, ERR> {
+        let imp_capacity = self.pds.core.filter_storage.capacities().qsource;
+
         // Just try all the past epochs since our experiments just have a
         // few. Could eventually discard epochs that have reached their
         // lifetime if that becomes a bottleneck.
-        let imp_capacity = self.pds.core.filter_storage.capacities().qsource;
         let epoch_ids =
             self.sources_per_epoch.keys().copied().collect::<Vec<_>>();
         for epoch_id in epoch_ids {
+            // Release (unlock) a fraction of this epoch's global budget
             self.release_budget(epoch_id)?;
+
+            // Turn on the impression-site quota
             self.set_imp_quota_capacity(epoch_id, imp_capacity)?;
         }
 
@@ -317,7 +324,8 @@ where
         let epoch_ids =
             self.sources_per_epoch.keys().copied().collect::<Vec<_>>();
         for epoch_id in epoch_ids {
-            // Set the capacity of the imp quotas to infinite.
+            // Turn the impression-site quotas off by setting their capacity
+            // to infinity.
             self.set_imp_quota_capacity(epoch_id, f64::INFINITY)?;
         }
 
@@ -473,6 +481,9 @@ where
                     request.request_id
                 );
 
+                // pre-initialize filters to unlock non-C filters
+                self.initialize_filters_for_request(&request.request)?;
+
                 // Compute the actual report. It might be null though.
                 let mut report = self.pds.compute_report(&request.request)?;
                 let report = report.remove(querier_uri).unwrap();
@@ -480,13 +491,12 @@ where
                 if !report.oob_filters.is_empty() {
                     for filter_id in report.oob_filters.iter() {
                         if let FilterId::QSource(_, _) = filter_id {
-                            warn!(
-                                        "Request {} was not allocated: {:?}. Final attempt? {}",
-                                        request.request_id, report.oob_filters, allocate_final_attempts
-                                    );
                             // Qimp should never block a request if we have
                             // perfect upper bounds for the public filters.
-                            panic!()
+                            panic!(
+                                "Request {} was not allocated: {:?}. Final attempt? {}",
+                                request.request_id, report.oob_filters, allocate_final_attempts
+                            );
                         }
                     }
                 }
@@ -679,6 +689,75 @@ where
         Ok(sorted_requests)
     }
 
+    /// Given a request, calculate the list of filters that will be deducted
+    /// from by PDS core, and pre-initialize them, so that all non-C filters
+    /// are unlocked and act as regular filters.
+    fn initialize_filters_for_request(
+        &mut self,
+        request: &Q,
+    ) -> Result<(), ERR> {
+        let uris = request.report_uris();
+
+        // We (mis-)use PDS's filters_to_consume() method to get a list of
+        // filters that will be deducted for this request.
+
+        for epoch_id in request.epoch_ids() {
+            let mut source_losses = HashMap::new();
+            for source in &uris.source_uris {
+                source_losses.insert(source.clone(), 0.0);
+            }
+
+            let filter_ids = self.pds.core.filters_to_consume(
+                epoch_id,
+                &0.0, // just set to 0, we only care about the filter IDs
+                &source_losses,
+                request.report_uris(),
+            );
+            self.initialize_filters(filter_ids.keys())?;
+        }
+        Ok(())
+    }
+
+    /// Given a list of filter IDs, initialize them in the filter storage,
+    /// such that non-C filters are unlocked and act as regular filters.
+    fn initialize_filters<'f, FID>(
+        &mut self,
+        filters: impl Iterator<Item = FID>,
+    ) -> Result<(), ERR>
+    where
+        // accept both owned and borrowed FilterIDs
+        FID: Borrow<&'f FilterId<Q::EpochId, Q::Uri>> + 'f,
+        Q::EpochId: 'f, // required by borrow checker
+        Q::Uri: 'f,
+    {
+        for filter_id in filters {
+            let filter_id = filter_id.borrow();
+
+            // Only C-filters should act as release filters. Nc, q-conv and
+            // q-imp act as regular PureDPBudget filters.
+            // As FilterStorage only supports storing one type of filter,
+            // we fully unlock all other filter types before consuming.
+            // As such, they act as regular non-release filters.
+            let should_unlock = !matches!(filter_id, FilterId::C(_));
+
+            // if we don't need to unlock, we don't need to do anything
+            if !should_unlock {
+                continue;
+            }
+
+            for filter_storage in
+                [&mut self.pds.core.filter_storage, &mut self.public_filters]
+            {
+                filter_storage.edit_filter_or_new(filter_id, |f| {
+                    // unlock the filter so it acts as a regular filter
+                    f.release(&f64::INFINITY)
+                })?;
+            }
+        }
+
+        Ok(())
+    }
+
     #[allow(dead_code)] // used in tests
     fn collect_request_ids(&self, requests: &[BatchedRequest<Q>]) -> Vec<u64> {
         requests.iter().map(|r| r.request_id).collect::<Vec<_>>()
@@ -751,14 +830,22 @@ mod tests {
             start_epoch: 1,
             end_epoch: 1,
             attributable_value: 1.0,
-            max_attributable_value: 0.5,
+            max_attributable_value: 1.0,
             requested_epsilon: 1.1,
             histogram_size: 5,
         };
+
+        let mut report_uris = ReportRequestUris::mock();
+        let querier_uri = &report_uris.querier_uris[0];
+        report_uris.intermediary_uris.push(querier_uri.clone());
+
         let always_relevant_selector = || PpaRelevantEventSelector {
-            report_request_uris: ReportRequestUris::mock(),
+            report_request_uris: report_uris.clone(),
             is_matching_event: Box::new(|_: u64| true),
-            bucket_intermediary_mapping: HashMap::new(),
+            bucket_intermediary_mapping: HashMap::from([(
+                0,
+                querier_uri.clone(),
+            )]),
         };
 
         // Request that will be answered in the first scheduling attempt.
@@ -792,11 +879,7 @@ mod tests {
             2,
             PpaHistogramRequest::new(
                 &request_config,
-                PpaRelevantEventSelector {
-                    report_request_uris: ReportRequestUris::mock(),
-                    is_matching_event: Box::new(|_: u64| true),
-                    bucket_intermediary_mapping: HashMap::new(),
-                },
+                always_relevant_selector(),
             )?,
         ))?;
 
@@ -880,7 +963,7 @@ mod tests {
             start_epoch: 1,
             end_epoch: 1,
             attributable_value: 1.0,
-            max_attributable_value: 0.5,
+            max_attributable_value: 1.0,
             requested_epsilon: 99.9, // will be set per request
             histogram_size: 5,
         };
@@ -1056,7 +1139,7 @@ mod tests {
             start_epoch: 1,
             end_epoch: 1,
             attributable_value: 1.0,
-            max_attributable_value: 0.5,
+            max_attributable_value: 1.0,
             requested_epsilon: 99.9, // will be set per request
             histogram_size: 5,
         };

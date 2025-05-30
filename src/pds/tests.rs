@@ -3,16 +3,20 @@ use std::collections::HashMap;
 use super::quotas::{FilterId::*, *};
 use crate::{
     budget::{pure_dp_filter::PureDPBudget, traits::FilterStorage},
-    events::{ppa_event::PpaEvent, traits::EventUris},
+    events::{
+        ppa_event::PpaEvent, relevant_events::RelevantEvents, traits::EventUris,
+    },
     pds::aliases::{
-        PpaEventStorage, PpaFilterStorage, PpaPds, SimpleEventStorage,
-        SimpleFilterStorage, SimplePds,
+        PpaEventStorage, PpaFilterStorage, PpaPds, PpaPdsCore,
+        SimpleEventStorage, SimpleFilterStorage, SimplePds,
     },
     queries::{
         ppa_histogram::{
             PpaHistogramConfig, PpaHistogramRequest, PpaRelevantEventSelector,
         },
-        traits::{PassivePrivacyLossRequest, ReportRequestUris},
+        traits::{
+            EpochReportRequest, PassivePrivacyLossRequest, ReportRequestUris,
+        },
     },
 };
 
@@ -390,5 +394,58 @@ fn test_cross_report_optimization() -> Result<(), anyhow::Error> {
     } else {
         panic!("Expected finite budget deduction");
     }
+    Ok(())
+}
+
+#[test]
+fn test_cross_report_optim_oob() -> Result<(), anyhow::Error> {
+    let capacities = StaticCapacities::new(0.0, 0.0, 0.0, 0.0);
+    let filters = PpaFilterStorage::new(capacities)?;
+    let mut pds = PpaPdsCore::<_>::new(filters);
+
+    let event = PpaEvent {
+        id: 1,
+        timestamp: 0,
+        epoch_number: 1,
+        histogram_index: 0,
+        uris: EventUris::mock(),
+        filter_data: 1,
+    };
+
+    let mut events_per_epoch = HashMap::new();
+    events_per_epoch.insert(1, vec![event]);
+    let relevant_events = RelevantEvents::from_mapping(events_per_epoch);
+
+    let request_config = PpaHistogramConfig {
+        start_epoch: 1,
+        end_epoch: 1,
+        attributable_value: 100.0,
+        max_attributable_value: 100.0,
+        requested_epsilon: 0.0001,
+        histogram_size: 5,
+    };
+
+    let mut report_uris = ReportRequestUris::mock();
+    let querier_uri = report_uris.querier_uris[0].clone();
+    report_uris.intermediary_uris.push(querier_uri.clone());
+
+    let always_relevant_selector = PpaRelevantEventSelector {
+        report_request_uris: report_uris,
+        is_matching_event: Box::new(|_: u64| true),
+        bucket_intermediary_mapping: HashMap::from([(0, querier_uri.clone())]),
+    };
+    let request =
+        PpaHistogramRequest::new(&request_config, always_relevant_selector)?;
+
+    let report = pds.compute_report(&request, relevant_events)?;
+
+    // the report will have run out of budget, so it should be null
+    let querier_uri = &request.report_uris().querier_uris[0];
+    let report = &report[querier_uri];
+
+    for bin_value in report.filtered_report.bin_values.values() {
+        assert_eq!(*bin_value, 0.0, "Report should be null");
+    }
+
     Ok(())
 }

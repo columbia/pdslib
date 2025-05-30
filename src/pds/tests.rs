@@ -18,6 +18,7 @@ use crate::{
             EpochReportRequest, PassivePrivacyLossRequest, ReportRequestUris,
         },
     },
+    util::tests::init_default_logging,
 };
 
 #[test]
@@ -399,6 +400,8 @@ fn test_cross_report_optimization() -> Result<(), anyhow::Error> {
 
 #[test]
 fn test_cross_report_optim_oob() -> Result<(), anyhow::Error> {
+    init_default_logging();
+
     let capacities = StaticCapacities::new(0.0, 0.0, 0.0, 0.0);
     let filters = PpaFilterStorage::new(capacities)?;
     let mut pds = PpaPdsCore::<_>::new(filters);
@@ -444,7 +447,11 @@ fn test_cross_report_optim_oob() -> Result<(), anyhow::Error> {
     let report = &report[querier_uri];
 
     for bin_value in report.filtered_report.bin_values.values() {
-        assert_eq!(*bin_value, 0.0, "Report should be null");
+        assert_eq!(
+            *bin_value, 0.0,
+            "Report should be null: {:?}",
+            report.filtered_report.bin_values
+        );
     }
 
     Ok(())

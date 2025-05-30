@@ -792,6 +792,7 @@ mod tests {
             },
             traits::ReportRequestUris,
         },
+        util::tests::init_default_logging,
     };
 
     fn event_storage_with_events<E: Event>(
@@ -806,7 +807,7 @@ mod tests {
 
     #[test]
     fn schedule_one_batch() -> Result<()> {
-        let _ = log4rs::init_file("logging_config.yaml", Default::default());
+        init_default_logging();
 
         let capacities = StaticCapacities::new(10.0, 5.0, 10.0, 4.0);
 
@@ -912,7 +913,7 @@ mod tests {
     /// Test that mimics the example from the paper that motivates batching.
     #[test]
     fn utilization_example() -> Result<()> {
-        let _ = log4rs::init_file("logging_config.yaml", Default::default());
+        init_default_logging();
 
         let capacities = StaticCapacities::new(1.0, 10.0, 1.0, 5.0);
 
@@ -1074,7 +1075,7 @@ mod tests {
     /// let a single site take all the budget.
     #[test]
     fn order_fairness() -> Result<()> {
-        let _ = log4rs::init_file("logging_config.yaml", Default::default());
+        init_default_logging();
 
         let capacities = StaticCapacities::new(
             1.0,
@@ -1249,11 +1250,6 @@ mod tests {
         assert_eq!(n_non_null_reports, 5);
         debug!("Reports: {:?}", reports);
 
-        Ok(())
-    }
-
-    #[test]
-    fn more_epochs_and_sources() -> Result<()> {
         Ok(())
     }
 }

@@ -1,6 +1,6 @@
 use std::{cell::Cell, collections::HashMap, marker::PhantomData, vec};
 
-use log::{debug, info};
+use log::debug;
 
 use super::{
     accounting::{compute_epoch_loss, compute_epoch_source_losses},
@@ -146,6 +146,10 @@ where
                 }
             }
         }
+
+        debug!(
+            "Relevant events after filtering OOB epochs: {relevant_events:?}"
+        );
 
         // Now that we've dropped OOB epochs, we can compute the final report.
         let filtered_result = request.compute_report(&relevant_events);

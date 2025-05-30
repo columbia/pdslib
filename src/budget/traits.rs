@@ -96,19 +96,6 @@ pub trait FilterStorage {
         filter: Self::Filter,
     ) -> Result<(), Self::Error>;
 
-    fn edit_filter_if_exists<R>(
-        &mut self,
-        filter_id: &Self::FilterId,
-        f: impl FnOnce(&mut Self::Filter) -> Result<R, Self::Error>,
-    ) -> Result<Option<R>, Self::Error> {
-        if let Some(mut filter) = self.get_filter(filter_id)? {
-            let r = f(&mut filter)?;
-            self.set_filter(filter_id, filter)?;
-            return Ok(Some(r));
-        }
-        Ok(None)
-    }
-
     /// Get the filter with the given ID from the storage, or return a new one
     /// with default capacity if it does not exist.
     fn get_filter_or_new(

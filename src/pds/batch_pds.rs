@@ -391,6 +391,8 @@ where
             }
         }
 
+        self.initialize_filters(filter_ids.iter())?;
+
         // Try to consume the privacy loss from the filters
         let mut oob_filters = vec![];
         for fid in filter_ids {

@@ -36,7 +36,7 @@ pub struct BatchedRequest<Q: EpochReportRequest> {
     /// E.g. if this is equal to 1, this request goes through only one
     /// `schedule_batch` call. It has to be answered by the end of the
     /// call. If it didn't get allocated in the initialization, online or batch
-    /// phase then it is answered with a null report.
+    /// phase, then it is answered with a null report.
     n_remaining_scheduling_attempts: u64,
 
     /// The actual request.
@@ -50,7 +50,8 @@ impl<Q: EpochReportRequest> BatchedRequest<Q> {
         request: Q,
     ) -> Self {
         if n_scheduling_attempts == 0 {
-            // TODO(https://github.com/columbia/pdslib/issues/90): allow requests with 0 batch scheduling attempt for
+            // TODO(https://github.com/columbia/pdslib/issues/90): allow requests \
+            // with 0 batch scheduling attempt for
             // real-time queries. But for now we only consider batched, where a
             // query goes through at least one batch phase.
             panic!("The request should have at least one scheduling attempt.");
@@ -65,19 +66,14 @@ impl<Q: EpochReportRequest> BatchedRequest<Q> {
 }
 
 /// [Experimental] Batch wrapper for private data service.
-// pub struct BatchPrivateDataService<U: Uri = String, B: Budget = PureDPBudget>
-// {
 pub struct BatchPrivateDataService<Q, FS, ES, ERR>
 where
     Q: EpochReportRequest,
     Q::Report: Clone,
     FS: FilterStorage<
         Budget = PureDPBudget,
-        FilterId = FilterId<Q::EpochId, Q::Uri>,
-        Capacities = StaticCapacities<
-            FilterId<Q::EpochId, Q::Uri>,
-            PureDPBudget,
-        >,
+        FilterId = FilterIdQ<Q>,
+        Capacities = StaticCapacities<FilterIdQ<Q>, PureDPBudget>,
     >,
     FS::Filter: ReleaseFilter<FS::Budget, Error = FS::Error>,
     ES: EventStorage<Event = Q::Event>,
@@ -129,17 +125,17 @@ pub struct BatchedReport<Q: EpochReportRequest> {
     pub report: PdsReport<Q>,
 }
 
+#[allow(type_alias_bounds)]
+type FilterIdQ<Q: EpochReportRequest> = FilterId<Q::EpochId, Q::Uri>;
+
 impl<Q, FS, ES, ERR> BatchPrivateDataService<Q, FS, ES, ERR>
 where
     Q: EpochReportRequest,
     Q::Report: Clone,
     FS: FilterStorage<
         Budget = PureDPBudget,
-        FilterId = FilterId<Q::EpochId, Q::Uri>,
-        Capacities = StaticCapacities<
-            FilterId<Q::EpochId, Q::Uri>,
-            PureDPBudget,
-        >,
+        FilterId = FilterIdQ<Q>,
+        Capacities = StaticCapacities<FilterIdQ<Q>, PureDPBudget>,
     >,
     FS::Filter: ReleaseFilter<FS::Budget, Error = FS::Error>,
     ES: EventStorage<Event = Q::Event>,
@@ -169,7 +165,6 @@ where
             pds,
             eps_c_per_release,
             public_filters: FS::new(capacities)?,
-
             current_scheduling_interval: 0,
             new_pending_requests: vec![],
             batched_requests: vec![],
@@ -183,7 +178,7 @@ where
         &mut self,
         request: BatchedRequest<Q>,
     ) -> Result<(), ERR> {
-        // Update the sources for each epoch
+        // Update the sources that have been publicly requested for each epoch
         let sources = &request.request.report_uris().source_uris;
         for epoch in request.request.epoch_ids() {
             for source in sources {
@@ -244,34 +239,6 @@ where
         self.current_scheduling_interval += 1;
 
         Ok(reports)
-    }
-
-    fn set_imp_quota_capacity(
-        &mut self,
-        epoch: Q::EpochId,
-        capacity: PureDPBudget,
-    ) -> Result<(), ERR> {
-        if let Some(sources) = self.sources_per_epoch.get(&epoch) {
-            let filter_ids = sources
-                .iter()
-                .map(|source| FilterId::QSource(epoch, source.clone()))
-                .collect::<Vec<_>>();
-            self.initialize_filters(filter_ids.iter())?;
-
-            let pds_filter_storage = &mut self.pds.core.filter_storage;
-
-            for filter_id in filter_ids {
-                pds_filter_storage.edit_filter_or_new(&filter_id, |f| {
-                    f.set_capacity(capacity)
-                })?;
-
-                self.public_filters.edit_filter_or_new(&filter_id, |f| {
-                    f.set_capacity(capacity)
-                })?;
-            }
-        }
-
-        Ok(())
     }
 
     /// Unlock fresh eps_c, enable imp quota with fresh capacity, and try to
@@ -357,12 +324,11 @@ where
 
     /// Just mimics `deduct_budget` but with non-IDP filters.
     /// And also does it across all epochs.
-    #[allow(clippy::type_complexity)]
     fn deduct_budget(
         &mut self,
         request: &Q,
         dry_run: bool,
-    ) -> Result<PdsFilterStatus<FilterId<Q::EpochId, Q::Uri>>, ERR> {
+    ) -> Result<PdsFilterStatus<FilterIdQ<Q>>, ERR> {
         let uris = request.report_uris();
 
         // Case 3 from Cookie Monster only.
@@ -538,6 +504,37 @@ where
         Ok((unallocated_requests, None))
     }
 
+    /// Modify the capacity of the impression-site quota for the given epoch.
+    /// Useful to deactivate or reactivate the quota within the batch algorithm,
+    /// which can give higher utilization.
+    fn set_imp_quota_capacity(
+        &mut self,
+        epoch: Q::EpochId,
+        capacity: PureDPBudget,
+    ) -> Result<(), ERR> {
+        if let Some(sources) = self.sources_per_epoch.get(&epoch) {
+            let filter_ids = sources
+                .iter()
+                .map(|source| FilterId::QSource(epoch, source.clone()))
+                .collect::<Vec<_>>();
+            self.initialize_filters(filter_ids.iter())?;
+
+            let pds_filter_storage = &mut self.pds.core.filter_storage;
+
+            for filter_id in filter_ids {
+                pds_filter_storage.edit_filter_or_new(&filter_id, |f| {
+                    f.set_capacity(capacity)
+                })?;
+
+                self.public_filters.edit_filter_or_new(&filter_id, |f| {
+                    f.set_capacity(capacity)
+                })?;
+            }
+        }
+
+        Ok(())
+    }
+
     /// Release budget for the given epoch. This is a no-op when the epoch's
     /// unlocked budget has reached the capacity.
     fn release_budget(&mut self, epoch: Q::EpochId) -> Result<(), ERR> {
@@ -561,34 +558,10 @@ where
     /// beneficiary, break ties by request budget.
     ///
     /// NOTE: this is just one possible heuristic.
-    /// Other ideas: if we allocated that request, what would be the new value
-    /// for `budget_per_source` for each source?
-    /// Then, try to minimize the maximum value across all sources, and break
-    /// ties by request epsilon. This is not perfect since it could allocate to
-    /// sources that are already quite big, but not the biggest.
-    /// But maximizing the minimum allocation doesn't look too great either. A
-    /// large request can be allocated if it also boosts a small one? A request
-    /// that asks for zero budget is not prioritized?
-    /// Some problems with max min or min max: it sounds tighter to look at the
-    /// actual individual budget, instead of the requested budget. Because
-    /// IDP optimizations tell us that sometimes a request actually consumes
-    /// zero budget, so it should probably be ordered first. It's just a bit
-    /// weird because we would need to cache `source_losses` or call
-    /// `compute_epoch_source_losses`. Cheap optimization: use the
-    /// list of source IDs to approximate.
     fn sort_batch(
         &mut self,
         requests: Vec<BatchedRequest<Q>>,
     ) -> Result<Vec<BatchedRequest<Q>>, ERR> {
-        // Problem: A request spans multiple epochs. So the total budget an
-        // impression site received so far is not a scalar, it's a vector over
-        // epochs. Simple heuristic: just add up all epochs so we reduce
-        // to a scalar and can sort sources. Could also take the average. But
-        // over which set of epochs? Maybe all the epochs covered by requests in
-        // the batch. Could go beyond, like all epochs ever, to optimize for
-        // fairness over time.
-        // Actually max sounds better, a bit more like DPF.
-
         let mut all_sources = HashSet::new();
         for request in &requests {
             let source_uris = &request.request.report_uris().source_uris;
@@ -695,7 +668,6 @@ where
 
         // We (mis-)use PDS's filters_to_consume() method to get a list of
         // filters that will be deducted for this request.
-
         for epoch_id in request.epoch_ids() {
             let mut source_losses = HashMap::new();
             for source in &uris.source_uris {
@@ -721,7 +693,7 @@ where
     ) -> Result<(), ERR>
     where
         // accept both owned and borrowed FilterIDs
-        FID: Borrow<&'f FilterId<Q::EpochId, Q::Uri>> + 'f,
+        FID: Borrow<&'f FilterIdQ<Q>> + 'f,
         Q::EpochId: 'f, // required by borrow checker
         Q::Uri: 'f,
     {
@@ -752,16 +724,6 @@ where
 
         Ok(())
     }
-
-    #[allow(dead_code)] // used in tests
-    fn collect_request_ids(&self, requests: &[BatchedRequest<Q>]) -> Vec<u64> {
-        requests.iter().map(|r| r.request_id).collect::<Vec<_>>()
-    }
-
-    #[allow(dead_code)] // used in tests
-    fn collect_report_ids(&self, reports: &[BatchedReport<Q>]) -> Vec<u64> {
-        reports.iter().map(|r| r.request_id).collect::<Vec<_>>()
-    }
 }
 
 #[cfg(test)]
@@ -788,6 +750,18 @@ mod tests {
         },
         util::tests::init_default_logging,
     };
+
+    fn collect_request_ids(
+        requests: &[BatchedRequest<PpaHistogramRequest>],
+    ) -> Vec<u64> {
+        requests.iter().map(|r| r.request_id).collect::<Vec<_>>()
+    }
+
+    fn collect_report_ids(
+        reports: &[BatchedReport<PpaHistogramRequest>],
+    ) -> Vec<u64> {
+        reports.iter().map(|r| r.request_id).collect::<Vec<_>>()
+    }
 
     fn event_storage_with_events<E: Event>(
         events: Vec<E>,
@@ -1026,7 +1000,7 @@ mod tests {
         // Because of qimp, news.ex can't accept all the queries. Also tried to
         // allocate in order.
         assert_eq!(
-            batch_pds.collect_request_ids(&unallocated_new_requests),
+            collect_request_ids(&unallocated_new_requests),
             vec![6, 7, 8, 9]
         );
 
@@ -1207,7 +1181,7 @@ mod tests {
 
         info!(
             "Batched requests after first scheduling: {:?}",
-            batch_pds.collect_request_ids(&batch_pds.batched_requests)
+            collect_request_ids(&batch_pds.batched_requests)
         );
 
         // Only 5 reports should have been allocated from the released global
@@ -1222,7 +1196,7 @@ mod tests {
 
         // Requests should be balanced across both sources. For the 5th request,
         // break ties by smallest request.
-        let mut report_ids = batch_pds.collect_report_ids(&allocated_reports);
+        let mut report_ids = collect_report_ids(&allocated_reports);
         report_ids.sort();
         assert_eq!(report_ids, vec![1, 2, 3, 11, 12]);
 

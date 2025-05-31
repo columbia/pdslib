@@ -161,15 +161,14 @@ mod simplified_feature_tests {
     // Simple feature detection (unchanged)
     #[test] 
     fn feature_flags_detected_correctly() {
-        let mut enabled_features: Vec<&str> = Vec::new();
-        
-        #[cfg(feature = "debug-reports")]
-        enabled_features.push("debug-reports");
-        
-        #[cfg(feature = "experimental-baselines")]  
-        enabled_features.push("experimental-baselines");
+        let enabled_features: Vec<&str> = vec![
+            #[cfg(feature = "debug-reports")]
+            "debug-reports",
+            
+            #[cfg(feature = "experimental-baselines")]
+            "experimental-baselines",
+        ].into_iter().filter(|_| true).collect();
         
         println!("Enabled features: {:?}", enabled_features);
-        assert!(true); // Always passes
     }
 }

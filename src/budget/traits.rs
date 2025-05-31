@@ -6,28 +6,39 @@ pub trait Budget: Clone + Debug {
 }
 
 /// Trait for a privacy filter.
-pub trait Filter<T: Budget> {
+pub trait Filter<B: Budget> {
     type Error;
 
     /// Initializes a new filter with a given capacity.
-    fn new(capacity: T) -> Result<Self, Self::Error>
+    fn new(capacity: B) -> Result<Self, Self::Error>
     where
         Self: Sized;
 
     /// Checks if the filter has enough budget without consuming
-    fn can_consume(&self, budget: &T) -> Result<FilterStatus, Self::Error>;
+    fn can_consume(&self, budget: &B) -> Result<FilterStatus, Self::Error>;
 
-    /// Attempts to consume the budget if sufficient.
-    /// TODO(https://github.com/columbia/pdslib/issues/39): Simplify the logic, as OOB event should not happen within this function now.
     /// Tries to consume a given budget from the filter.
     /// In the formalism from https://arxiv.org/abs/1605.08294,
     /// Continue corresponds to CONTINUE, and OutOfBudget corresponds to HALT.
-    fn try_consume(&mut self, budget: &T) -> Result<FilterStatus, Self::Error>;
+    fn try_consume(&mut self, budget: &B) -> Result<FilterStatus, Self::Error>;
 
     /// [Experimental] Gets the remaining budget for this filter.
     /// WARNING: this method is for local visualization only.
     /// Its output should not be shared outside the device.
-    fn remaining_budget(&self) -> Result<T, Self::Error>;
+    fn remaining_budget(&self) -> Result<B, Self::Error>;
+}
+
+/// Trait for a filter that can release budget over time.
+pub trait ReleaseFilter<B: Budget>: Filter<B> {
+    /// Gets the current capacity of the filter.
+    fn get_capacity(&self) -> Result<B, Self::Error>;
+
+    /// Updates the capacity of the filter.
+    fn set_capacity(&mut self, capacity: B) -> Result<(), Self::Error>;
+
+    /// Only release up to the capacity. `release` becomes a no-op once the
+    /// unlocked budget reaches capacity.
+    fn release(&mut self, budget_to_unlock: &B) -> Result<(), Self::Error>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -97,6 +108,19 @@ pub trait FilterStorage {
             }
         };
         Ok(filter)
+    }
+
+    /// Edit the filter with the given ID, creating a new one if it does not
+    /// exist.
+    fn edit_filter_or_new<R>(
+        &mut self,
+        filter_id: &Self::FilterId,
+        f: impl FnOnce(&mut Self::Filter) -> Result<R, Self::Error>,
+    ) -> Result<R, Self::Error> {
+        let mut filter = self.get_filter_or_new(filter_id)?;
+        let r = f(&mut filter)?;
+        self.set_filter(filter_id, filter)?;
+        Ok(r)
     }
 
     /// Check if budget can be consumed from the given filter,

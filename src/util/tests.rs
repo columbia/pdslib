@@ -3,6 +3,15 @@ use crate::{
     pds::quotas::StaticCapacities, queries::traits::ReportRequestUris,
 };
 
+#[cfg(test)]
+pub fn init_default_logging() {
+    use std::sync::Once;
+    static INIT: Once = Once::new();
+    INIT.call_once(|| {
+        log4rs::init_file("logging_config.yaml", Default::default()).unwrap();
+    });
+}
+
 // Sample mock values to reduce boilerplate in tests.
 
 impl<FID> StaticCapacities<FID, PureDPBudget> {

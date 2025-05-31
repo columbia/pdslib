@@ -193,9 +193,9 @@ where
         self.histogram_single_epoch_individual_sensitivity(report, norm_type)
     }
 
-    /// Computes the global sensitivity, useful for the multi-epoch case.
+    /// Computes the global sensitivity.
     /// See https://arxiv.org/pdf/2405.16719, Thm. 18
-    fn histogram_report_global_sensitivity(&self) -> f64 {
+    fn histogram_multi_epoch_report_global_sensitivity(&self) -> f64 {
         // NOTE: if we have only one possible bin (histogram in R instead or
         // R^m), then we can remove the factor 2. But this constraint is
         // not enforceable with HashMap<BucketKey, f64>, so for
@@ -203,5 +203,11 @@ where
         // similar to `SimpleLastTouchHistogramReport` with Option<BucketKey,
         // f64>.
         2.0 * self.attributable_value()
+    }
+
+    /// Computes the global sensitivity.
+    /// See https://arxiv.org/pdf/2405.16719, Thm. 18
+    fn histogram_single_epoch_report_global_sensitivity(&self) -> f64 {
+        self.attributable_value()
     }
 }

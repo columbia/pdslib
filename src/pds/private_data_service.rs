@@ -14,10 +14,6 @@ use crate::{
 
 /// Epoch-based private data service, using generic filter
 /// storage and event storage interfaces.
-///
-/// TODO(https://github.com/columbia/pdslib/issues/18): handle multiple queriers
-/// instead of assuming that there is a single querier and using filter_id =
-/// epoch_id
 pub struct PrivateDataService<
     Q: EpochReportRequest,
     FS: FilterStorage<
@@ -45,9 +41,6 @@ pub struct PdsReport<Q: EpochReportRequest> {
 }
 
 /// API for the epoch-based PDS.
-///
-/// TODO(https://github.com/columbia/pdslib/issues/21): support more than PureDP
-/// TODO(https://github.com/columbia/pdslib/issues/22): simplify trait bounds?
 impl<Q, FS, ES, ERR> PrivateDataService<Q, FS, ES, ERR>
 where
     Q: EpochReportRequest<Report: Clone>,
@@ -56,7 +49,7 @@ where
         FilterId = FilterId<Q::EpochId, Q::Uri>,
     >,
     ES: EventStorage<Event = Q::Event>,
-    ERR: From<FS::Error> + From<ES::Error> + From<anyhow::Error>,
+    ERR: From<FS::Error> + From<ES::Error>,
 {
     pub fn new(filter_storage: FS, event_storage: ES) -> Self {
         Self {
@@ -124,14 +117,12 @@ where
                 false, // actually consume
             )?;
 
-            if consume_status != PdsFilterStatus::Continue {
-                return Err(anyhow::anyhow!(
-                    "ERR: Phase 2 failed unexpectedly wtih status {:?} after Phase 1 succeeded", 
-                    consume_status,
-                ).into());
-            }
+            assert_eq!(
+                consume_status, PdsFilterStatus::Continue,
+                "ERR: Phase 2 failed unexpectedly with status {consume_status:?} after Phase 1 succeeded",
+            );
 
-            // TODO(https://github.com/columbia/pdslib/issues/16): semantics are still unclear, for now we ignore the request if
+            // Semantics are still unclear, for now we ignore the request if
             // it would exhaust the filter.
         }
         Ok(PdsFilterStatus::Continue)

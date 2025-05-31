@@ -8,14 +8,29 @@ edition = "2021"
 name = "pdslib"
 crate-type = ["cdylib", "lib"]
 
+[features]
+default = []
+# Experimental features
+big-bird-eval = [
+    "debug-reports", 
+    "passive-privacy-loss-api", 
+    "experimental-baselines"
+]
+# Individual feature flags
+debug-reports = []
+passive-privacy-loss-api = []
+experimental-baselines = []
+
 [dependencies]
 thiserror = "2.0"
 anyhow = "1.0"
 log = "0.4"
 serde = { version = "1.0", features = ["derive"] }
+log4rs = "1.2"
 
 [dev-dependencies]
-log4rs = "1"
+log4rs = "1.2"
+approx = "0.5"
 
 [profile.release]
 debug = true

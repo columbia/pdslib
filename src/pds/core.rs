@@ -158,11 +158,22 @@ where
         let unfiltered_report =
             unfiltered_result.uri_report_map.get(querier_uri).unwrap();
 
+        let _oob_filters_len = oob_filters.len();
         let main_report = PdsReport {
             filtered_report: filtered_report.clone(),
             unfiltered_report: unfiltered_report.clone(),
             oob_filters,
         };
+        
+        // Conditional logging of the unfiltered report on experimental mode.
+        #[cfg(feature = "debug-reports")]
+        {
+            log::warn!(
+                "[DEBUG-REPORTS] Privacy filters removed {} epochs. Unfiltered report available for bias analysis.",
+                _oob_filters_len,
+            );
+            crate::experimental::debug_reports::log_unfiltered_report(&main_report, "default");
+        }
 
         // Handle optimization queries when at least two intermediary URIs are
         // in the request.

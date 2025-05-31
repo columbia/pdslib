@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use serde::Serialize;
+
 use crate::{
     budget::pure_dp_filter::PureDPBudget,
     events::{
@@ -43,7 +45,7 @@ impl std::fmt::Debug for SimpleRelevantEventSelector {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct SimpleLastTouchHistogramReport {
     // Value attributed to one bin or None if no attribution
     pub bin_value: Option<(

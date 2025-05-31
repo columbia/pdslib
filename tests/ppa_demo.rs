@@ -177,8 +177,5 @@ fn main() -> Result<(), anyhow::Error> {
             .len(),
         0
     );
-
-    // TODO(https://github.com/columbia/pdslib/issues/8): add more tests when we have multiple events
-
     Ok(())
 }

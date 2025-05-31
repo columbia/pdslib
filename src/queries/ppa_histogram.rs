@@ -84,9 +84,9 @@ impl<U: Uri> RelevantEventSelector for PpaRelevantEventSelector<U> {
             .contains(&event.uris.source_uri);
 
         // Condition 2: Every querier URI from the report must be in the event’s
-        // querier URIs. TODO: We might change Condition 2 eventually
-        // when we support split reports, where one querier is
-        // authorized but not others.
+        // querier URIs.
+        // TODO(https://github.com/columbia/pdslib/issues/71): modify this for cross-report
+        // loss optimization, where one querier is authorized but not others?
         let querier_match = self
             .report_request_uris
             .querier_uris

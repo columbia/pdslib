@@ -7,8 +7,7 @@ use super::{
 };
 
 /// [Experimental] A pure DP filter that has additional functionality to release
-/// budget over time. TODO: Could frame as another trait if we want to have
-/// release for other types of filters. TODO: refactor a bit too.
+/// budget over time.
 #[derive(Debug, Clone, Serialize)]
 pub struct PureDPBudgetReleaseFilter {
     pub consumed: PureDPBudget,

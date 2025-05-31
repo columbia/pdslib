@@ -23,7 +23,6 @@ where
     Q: EpochReportRequest,
     FS: FilterStorage<
         FilterId = FilterId<Q::EpochId, Q::Uri>,
-        // TODO(https://github.com/columbia/pdslib/issues/21): generic budget
         Budget = PureDPBudget,
     >,
     ERR: From<FS::Error>,
@@ -45,7 +44,6 @@ where
     Q: EpochReportRequest<Report = R>,
     FS: FilterStorage<
         FilterId = FilterId<Q::EpochId, Q::Uri>,
-        // TODO(https://github.com/columbia/pdslib/issues/21): generic budget
         Budget = PureDPBudget,
     >,
     ERR: From<FS::Error>,
@@ -168,13 +166,15 @@ where
 
         // Handle optimization queries when at least two intermediary URIs are
         // in the request.
-        if self.is_optimization_query(&filtered_result.uri_report_map) {
-            let intermediate_reports = self.calculate_optimization_query(
-                request,
-                unfiltered_result,
-                filtered_result,
-                main_report.oob_filters.clone(),
-            )?;
+        if self.uses_cross_report_optimization(&filtered_result.uri_report_map)
+        {
+            let intermediate_reports = self
+                .intermediary_reports_with_cross_report_optimization(
+                    request,
+                    unfiltered_result,
+                    filtered_result,
+                    main_report.oob_filters.clone(),
+                )?;
             return Ok(intermediate_reports);
         }
 
@@ -248,27 +248,21 @@ where
         Ok(PdsFilterStatus::Continue)
     }
 
-    fn is_optimization_query(
+    fn uses_cross_report_optimization(
         &self,
         site_to_report_mapping: &HashMap<Q::Uri, Q::Report>,
     ) -> bool {
         debug!(
-            "Checking if this mapping is an optimization query: {site_to_report_mapping:?}",
+            "Checking if this mapping needs cross-report privacy loss optimization: {site_to_report_mapping:?}",
         );
 
-        // TODO: May need to change this based on assumption changes.
-        // If the mapping has more then 3 keys, that means it has at least 2
-        // intermediary sites (since we map the main report only to the first
-        // querier URI), so this would be the case where the query optimization
-        // can take place.
-        if site_to_report_mapping.keys().len() >= 3 {
-            return true;
-        }
-
-        false
+        // Simple sufficient condition to enable cross-report optimization: have
+        // one querier and at least 2 intermediary sites that ask for a
+        // subset of the buckets.
+        site_to_report_mapping.keys().len() >= 3
     }
 
-    fn calculate_optimization_query(
+    fn intermediary_reports_with_cross_report_optimization(
         &self,
         request: &Q,
         unfiltered_result: QueryComputeResult<Q::Uri, Q::Report>,
@@ -281,19 +275,12 @@ where
         if filtered_result.bucket_uri_map.keys().len() > 0 {
             // Process each intermediary
             for intermediary_uri in intermediary_uris {
-                // TODO(https://github.com/columbia/pdslib/issues/55):
-                // The events should not be readable by any intermediary. In
-                // Fig 2 it seems that the first event is readable by r1.ex
-                // and r3.ex only, and the second event
-                // is readable by r2.ex and r3.ex. r3 is a special
-                // intermediary that can read all the events (maybe r3.ex =
-                // shoes.example). But feel free to keep
-                // this remark in a issue for later, because that would
-                // involve modifying the is_relevant_event logic too, to
-                // check that the intermediary_uris
-                // match. Your get_bucket_intermediary_mapping seems to
-                // serve the same purpose.
-                // Get the relevant events for this intermediary
+                // TODO(https://github.com/columbia/pdslib/issues/71): add a check to enforce that events are only readable by authorized intermediaries.
+                // For example, in Fig 2 it seems that the first event is
+                // readable by r1.ex and r3.ex only, and the
+                // second event is readable by r2.ex and r3.ex.
+                // r3 is a special intermediary that can read
+                // all the events (maybe r3.ex = shoes.example).
 
                 // Filter report for this intermediary
                 if let Some(intermediary_filtered_report) =
@@ -311,7 +298,6 @@ where
                         oob_filters: oob_filters.clone(),
                     };
 
-                    // Add this code to deduct budget for the intermediary
                     // Create a modified request URIs with the intermediary
                     // as the querier
                     let mut intermediary_report_uris =
@@ -325,7 +311,7 @@ where
             }
         }
 
-        // Return optimization result with all intermediary reports
+        // Return result with all intermediary reports
         Ok(intermediary_reports)
     }
 }

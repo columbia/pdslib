@@ -29,7 +29,6 @@ pub struct EventUris<U> {
 }
 
 /// Event with an associated epoch.
-/// TODO(https://github.com/columbia/pdslib/issues/61): investigate clone.
 pub trait Event: Debug + Clone {
     type EpochId: EpochId;
     type Uri: Uri;

@@ -11,8 +11,6 @@ use crate::{
 
 /// Pure DP individual privacy loss, following
 /// `compute_individual_privacy_loss` from Code Listing 1 in Cookie Monster (https://arxiv.org/pdf/2405.16719).
-///
-/// TODO(https://github.com/columbia/pdslib/issues/21): generic budget.
 pub fn compute_epoch_loss<Q: EpochReportRequest>(
     request: &Q,
     epoch_relevant_events: &[Q::Event],

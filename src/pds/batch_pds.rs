@@ -50,7 +50,7 @@ impl<Q: EpochReportRequest> BatchedRequest<Q> {
         request: Q,
     ) -> Self {
         if n_scheduling_attempts == 0 {
-            // TODO(later): allow requests with 0 batch scheduling attempt for
+            // TODO(https://github.com/columbia/pdslib/issues/90): allow requests with 0 batch scheduling attempt for
             // real-time queries. But for now we only consider batched, where a
             // query goes through at least one batch phase.
             panic!("The request should have at least one scheduling attempt.");
@@ -99,10 +99,8 @@ where
     /// released.
     pub delayed_reports: HashMap<u64, Vec<BatchedReport<Q>>>,
 
-    /// Epochs present in the system
+    /// Epochs present in the system, based on public information.
     /// Range of epochs from start to end (included).
-    /// TODO: formalize a bit more the invariants, use  HashSet<u64>, or
-    /// connect to time?
     pub epochs: Option<(Q::EpochId, Q::EpochId)>,
 
     /// List of all the different sources that appear in each epoch.
@@ -119,7 +117,6 @@ where
     /// Filters need to have functionality to unlock budget.
     pub pds: PrivateDataService<Q, FS, ES, ERR>,
 }
-// TODO: time release. Maybe lives outside of pdslib.
 
 /// Report for a batched request. Guaranteed to be returned after the number of
 /// scheduling attempts the request specified.
@@ -360,9 +357,6 @@ where
 
     /// Just mimics `deduct_budget` but with non-IDP filters.
     /// And also does it across all epochs.
-    /// TODO(P2): Could do it on a single epoch if that helps (checking on all
-    /// epochs might simply return OOB every time but old epochs don't actually
-    /// matter too much).
     #[allow(clippy::type_complexity)]
     fn deduct_budget(
         &mut self,
@@ -508,7 +502,6 @@ where
                 // Keep the result for when the time is right.
                 self.send_report_for_release(&request, report);
             } else {
-                // TODO(P1): compute the report at the end if None?
                 unallocated_requests.push(request);
             }
         }

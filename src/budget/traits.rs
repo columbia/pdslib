@@ -17,8 +17,6 @@ pub trait Filter<B: Budget> {
     /// Checks if the filter has enough budget without consuming
     fn can_consume(&self, budget: &B) -> Result<FilterStatus, Self::Error>;
 
-    /// Attempts to consume the budget if sufficient.
-    /// TODO(https://github.com/columbia/pdslib/issues/39): Simplify the logic, as OOB event should not happen within this function now.
     /// Tries to consume a given budget from the filter.
     /// In the formalism from https://arxiv.org/abs/1605.08294,
     /// Continue corresponds to CONTINUE, and OutOfBudget corresponds to HALT.

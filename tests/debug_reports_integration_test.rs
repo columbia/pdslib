@@ -60,7 +60,7 @@ mod simplified_feature_tests {
     }
 
     // Debug mode functionality
-    #[cfg(feature = "debug-reports")]
+    #[cfg(feature = "experimental")]
     #[test]
     fn debug_mode_provides_unfiltered_access() -> Result<(), anyhow::Error> {
         log_util::init();
@@ -101,7 +101,7 @@ mod simplified_feature_tests {
     }
 
     // Production mode safety. To activate the test, run `cargo test --no-default-features`.
-    #[cfg(not(feature = "debug-reports"))]
+    #[cfg(not(feature = "experimental"))]
     #[test]
     fn production_mode_is_privacy_safe() -> Result<(), anyhow::Error> {
         log_util::init();
@@ -162,11 +162,8 @@ mod simplified_feature_tests {
     #[test] 
     fn feature_flags_detected_correctly() {
         let enabled_features: Vec<&str> = vec![
-            #[cfg(feature = "debug-reports")]
-            "debug-reports",
-            
-            #[cfg(feature = "experimental-baselines")]
-            "experimental-baselines",
+            #[cfg(feature = "experimental")]
+            "experimental",
         ].into_iter().filter(|_| true).collect();
         
         println!("Enabled features: {:?}", enabled_features);

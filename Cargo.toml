@@ -11,15 +11,7 @@ crate-type = ["cdylib", "lib"]
 [features]
 default = []
 # Experimental features
-big-bird-eval = [
-    "debug-reports", 
-    "passive-privacy-loss-api", 
-    "experimental-baselines"
-]
-# Individual feature flags
-debug-reports = []
-passive-privacy-loss-api = []
-experimental-baselines = []
+experimental = []
 
 [dependencies]
 thiserror = "2.0"

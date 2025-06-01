@@ -1,4 +1,4 @@
-#[cfg(feature = "debug-reports")]
+#[cfg(feature = "experimental")]
 pub mod debug_reports {
     use crate::pds::private_data_service::PdsReport;
     use crate::queries::traits::EpochReportRequest;
@@ -12,7 +12,7 @@ pub mod debug_reports {
         Q::Report: std::fmt::Debug,
     {
         log::warn!(
-            "[DEBUG-REPORTS] Unfiltered report for query '{}': {:?}", 
+            "[EXPERIMENTAL] Unfiltered report for query '{}': {:?}", 
             query_id, 
             report.unfiltered_report
         );
@@ -26,7 +26,7 @@ pub mod debug_reports {
     }
 }
 
-#[cfg(feature = "experimental-baselines")]
+#[cfg(feature = "experimental")]
 pub mod baselines {
     pub fn run_special_baseline_algorithm(input_data: &str, config_param: i32) -> String {
         format!("Baseline processed: {} with param {}", input_data, config_param)

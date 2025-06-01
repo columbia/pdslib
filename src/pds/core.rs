@@ -166,10 +166,10 @@ where
         };
         
         // Conditional logging of the unfiltered report on experimental mode.
-        #[cfg(feature = "debug-reports")]
+        #[cfg(feature = "experimental")]
         {
             log::warn!(
-                "[DEBUG-REPORTS] Privacy filters removed {} epochs. Unfiltered report available for bias analysis.",
+                "[EXPERIMENTAL] Privacy filters removed {} epochs. Unfiltered report available for bias analysis.",
                 _oob_filters_len,
             );
             crate::experimental::debug_reports::log_unfiltered_report(&main_report, "default");

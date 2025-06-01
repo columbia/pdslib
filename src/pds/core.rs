@@ -153,15 +153,16 @@ where
         let filtered_result = request.compute_report(&relevant_events);
         debug!("Filtered result: {filtered_result:?}");
 
-        let filtered_report =
-            filtered_result.uri_report_map.get(querier_uri).unwrap();
-        let unfiltered_report =
-            unfiltered_result.uri_report_map.get(querier_uri).unwrap();
-
         let _oob_filters_len = oob_filters.len();
+
         let main_report = PdsReport {
-            filtered_report: filtered_report.clone(),
-            unfiltered_report: unfiltered_report.clone(),
+            filtered_report: filtered_result.uri_report_map.get(querier_uri).unwrap().clone(),
+            unfiltered_report: {
+                #[cfg(feature = "experimental")]
+                { unfiltered_result.uri_report_map.get(querier_uri).unwrap().clone() }
+                #[cfg(not(feature = "experimental"))]
+                { Q::Report::default() }
+            },
             oob_filters,
         };
         

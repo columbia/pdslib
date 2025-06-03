@@ -192,25 +192,27 @@ where
         source_losses: &'a HashMap<Q::Uri, FS::Budget>,
         uris: &ReportRequestUris<Q::Uri>,
     ) -> HashMap<FilterId<Q::EpochId, Q::Uri>, &'a PureDPBudget> {
-        // Build the filter IDs for NC, C and QTrigger
+        // Build the filter IDs for PerQuerier, Global and TriggerQuota
         let mut device_epoch_filter_ids = Vec::new();
         for query_uri in &uris.querier_uris {
             device_epoch_filter_ids
-                .push(FilterId::Nc(epoch_id, query_uri.clone()));
+                .push(FilterId::PerQuerier(epoch_id, query_uri.clone()));
         }
         device_epoch_filter_ids
-            .push(FilterId::QTrigger(epoch_id, uris.trigger_uri.clone()));
-        device_epoch_filter_ids.push(FilterId::C(epoch_id));
+            .push(FilterId::TriggerQuota(epoch_id, uris.trigger_uri.clone()));
+        device_epoch_filter_ids.push(FilterId::Global(epoch_id));
 
-        // NC, C and QTrigger all have the same device-epoch level loss
+        // PerQuerier, Global and TriggerQuota all have the same device-epoch
+        // level loss
         let mut filters_to_consume = HashMap::new();
         for filter_id in device_epoch_filter_ids {
             filters_to_consume.insert(filter_id, loss);
         }
 
-        // Add the QSource filters with their own device-epoch-source level loss
+        // Add the SourceQuota filters with their own device-epoch-source level
+        // loss
         for (source, loss) in source_losses {
-            let fid = FilterId::QSource(epoch_id, source.clone());
+            let fid = FilterId::SourceQuota(epoch_id, source.clone());
             filters_to_consume.insert(fid, loss);
         }
 

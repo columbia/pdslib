@@ -1,7 +1,5 @@
 use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
-use serde::Serialize;
-
 use crate::{
     events::{
         relevant_events::RelevantEvents,
@@ -11,25 +9,20 @@ use crate::{
     queries::traits::{QueryComputeResult, Report, ReportRequestUris},
 };
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone)]
 pub struct HistogramReport<BucketKey>
-where
-    BucketKey: Serialize,
 {
     pub bin_values: HashMap<BucketKey, f64>,
 }
 
 /// Trait for bucket keys.
-pub trait BucketKey: Debug + Hash + Eq + Clone + Serialize {}
+pub trait BucketKey: Debug + Hash + Eq + Clone {}
 
 /// Default type for bucket keys.
 impl BucketKey for u64 {}
 
 /// Default histogram has no bins (null report).
-impl<BK> Default for HistogramReport<BK>
-where
-    BK: Serialize,
-{
+impl<BK> Default for HistogramReport<BK> {
     fn default() -> Self {
         Self {
             bin_values: HashMap::new(),

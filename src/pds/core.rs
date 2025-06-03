@@ -163,18 +163,13 @@ where
                 #[cfg(not(feature = "experimental"))]
                 { Q::Report::default() }
             },
-            oob_filters,
+            oob_filters: {
+                #[cfg(feature = "experimental")]
+                { oob_filters }
+                #[cfg(not(feature = "experimental"))]
+                { Vec::default() }
+            },
         };
-        
-        // Conditional logging of the unfiltered report on experimental mode.
-        #[cfg(feature = "experimental")]
-        {
-            log::warn!(
-                "[EXPERIMENTAL] Privacy filters removed {} epochs. Unfiltered report available for bias analysis.",
-                _oob_filters_len,
-            );
-            crate::experimental::debug_reports::log_unfiltered_report(&main_report, "default");
-        }
 
         // Handle optimization queries when at least two intermediary URIs are
         // in the request.

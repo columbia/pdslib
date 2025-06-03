@@ -83,14 +83,10 @@ mod experimental_feature_tests {
         assert!(!reports.is_empty());
         let report = reports.values().next().unwrap();
         
-        // Test that experimental API is available
-        use pdslib::experimental::debug_reports::get_unfiltered_report;
-        let unfiltered = get_unfiltered_report(report);
-        
         // In experimental mode, unfiltered_report should NOT be the default empty report
         let default_report = SimpleLastTouchHistogramReport::default();
         assert_ne!(
-            format!("{:?}", unfiltered), 
+            format!("{:?}", report.unfiltered_report), 
             format!("{:?}", default_report),
             "Experimental mode: unfiltered_report should contain actual data, not default empty report"
         );

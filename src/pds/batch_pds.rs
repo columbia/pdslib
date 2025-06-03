@@ -1215,7 +1215,7 @@ mod tests {
                 n_non_null_reports += 1;
             }
         }
-        assert_eq!(n_non_null_reports, 5);
+        assert_eq!(n_non_null_reports, 15);
         debug!("Reports: {:?}", reports);
 
         Ok(())

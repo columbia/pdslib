@@ -7,15 +7,15 @@ use super::{
     private_data_service::PdsReport,
     quotas::{FilterId, PdsFilterStatus},
 };
+#[cfg(feature = "experimental")]
+use crate::queries::traits::QueryComputeResult;
 use crate::{
     budget::{
         pure_dp_filter::PureDPBudget,
         traits::{FilterStatus, FilterStorage},
     },
     events::relevant_events::RelevantEvents,
-    queries::traits::{
-        EpochReportRequest, QueryComputeResult, Report, ReportRequestUris,
-    },
+    queries::traits::{EpochReportRequest, Report, ReportRequestUris},
 };
 
 pub struct PrivateDataServiceCore<Q, FS, ERR>
@@ -153,19 +153,43 @@ where
         let filtered_result = request.compute_report(&relevant_events);
         debug!("Filtered result: {filtered_result:?}");
 
-        let filtered_report =
-            filtered_result.uri_report_map.get(querier_uri).unwrap();
-        let unfiltered_report =
-            unfiltered_result.uri_report_map.get(querier_uri).unwrap();
+        let _oob_filters_len = oob_filters.len();
 
         let main_report = PdsReport {
-            filtered_report: filtered_report.clone(),
-            unfiltered_report: unfiltered_report.clone(),
-            oob_filters,
+            filtered_report: filtered_result
+                .uri_report_map
+                .get(querier_uri)
+                .unwrap()
+                .clone(),
+            unfiltered_report: {
+                #[cfg(feature = "experimental")]
+                {
+                    unfiltered_result
+                        .uri_report_map
+                        .get(querier_uri)
+                        .unwrap()
+                        .clone()
+                }
+                #[cfg(not(feature = "experimental"))]
+                {
+                    Q::Report::default()
+                }
+            },
+            oob_filters: {
+                #[cfg(feature = "experimental")]
+                {
+                    oob_filters
+                }
+                #[cfg(not(feature = "experimental"))]
+                {
+                    Vec::default()
+                }
+            },
         };
 
         // Handle optimization queries when at least two intermediary URIs are
         // in the request.
+        #[cfg(feature = "experimental")]
         if self.uses_cross_report_optimization(&filtered_result.uri_report_map)
         {
             let intermediate_reports = self
@@ -250,6 +274,7 @@ where
         Ok(PdsFilterStatus::Continue)
     }
 
+    #[cfg(feature = "experimental")]
     fn uses_cross_report_optimization(
         &self,
         site_to_report_mapping: &HashMap<Q::Uri, Q::Report>,
@@ -264,6 +289,7 @@ where
         site_to_report_mapping.keys().len() >= 3
     }
 
+    #[cfg(feature = "experimental")]
     fn intermediary_reports_with_cross_report_optimization(
         &self,
         request: &Q,

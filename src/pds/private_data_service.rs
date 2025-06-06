@@ -2,14 +2,15 @@ use std::{collections::HashMap, fmt::Debug};
 
 use log::debug;
 
-use super::{
-    core::PrivateDataServiceCore,
-    quotas::{FilterId, PdsFilterStatus},
-};
+use super::{core::PrivateDataServiceCore, quotas::FilterId};
 use crate::{
     budget::{pure_dp_filter::PureDPBudget, traits::FilterStorage},
     events::{relevant_events::RelevantEvents, traits::EventStorage},
-    queries::traits::{EpochReportRequest, PassivePrivacyLossRequest},
+    queries::traits::EpochReportRequest,
+};
+#[cfg(feature = "experimental")]
+use crate::{
+    pds::quotas::PdsFilterStatus, queries::traits::PassivePrivacyLossRequest,
 };
 
 /// Epoch-based private data service, using generic filter
@@ -87,6 +88,7 @@ where
     /// TODO(https://github.com/columbia/pdslib/issues/16): what are the semantics of passive loss queries that go over the filter
     /// capacity?
     #[allow(clippy::type_complexity)]
+    #[cfg(feature = "experimental")]
     pub fn account_for_passive_privacy_loss(
         &mut self,
         request: PassivePrivacyLossRequest<Q::EpochId, Q::Uri, PureDPBudget>,

@@ -12,7 +12,8 @@ use crate::budget::traits::{Budget, Filter, FilterStatus};
 /// filters by setting their capacity to `PureDPBudget::Infinite`. We use a
 /// simple f64 for epsilon and ignore floating point arithmetic issues.
 ///
-/// TODO(https://github.com/columbia/pdslib/issues/14): use OpenDP accountant or move to a positive rational type or fixed point.
+/// TODO(https://github.com/columbia/pdslib/issues/14): use OpenDP accountant or
+///     move to a positive rational type or fixed point.
 ///     We could also generalize to RDP/zCDP.
 pub type PureDPBudget = f64;
 
@@ -75,6 +76,7 @@ impl Filter<PureDPBudget> for PureDPBudgetFilter {
         Ok(status)
     }
 
+    #[cfg(feature = "experimental")]
     fn remaining_budget(&self) -> Result<PureDPBudget, anyhow::Error> {
         match self.capacity {
             None => Ok(f64::INFINITY),

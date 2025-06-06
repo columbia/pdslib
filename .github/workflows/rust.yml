@@ -20,9 +20,11 @@ jobs:
       run: cargo build --verbose
     - name: Run tests
       run: cargo test --verbose
+    - name: Run tests with experimental features
+      run: cargo test --features experimental --verbose
     - name: Run integration tests
       run: |
-        cargo test --package pdslib --test ppa_demo -- --nocapture
-        cargo test --package pdslib --test simple_events_demo -- --nocapture
+        cargo test --package pdslib --features experimental --test ppa_demo -- --nocapture
+        cargo test --package pdslib --features experimental --test simple_events_demo -- --nocapture
     - name: Run clippy
       run: cargo clippy --tests -- -D warnings

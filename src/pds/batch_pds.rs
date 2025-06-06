@@ -1,3 +1,5 @@
+//! [Experimental] Batch API for fair scheduling of report requests.
+
 use core::panic;
 use std::{
     borrow::Borrow,

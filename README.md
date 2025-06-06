@@ -4,7 +4,8 @@
 
 ## State and versions
 
-The library is currently under active development and is highly experimental. It contains the following releases:
+The library is currently under active development and is highly experimental. The most experimental APIs and algorithms, as well as some debugging APIs, are behind an `experimental` feature flag.
+This repository contains the following releases:
 
 - The upcoming [v0.3 - Big Bird](https://github.com/columbia/pdslib/releases) release implements the [Big Bird algorithm](https://arxiv.org/abs/2506.05290).
     - Big Bird is an extension to PPA and Cookie Monster that supports and manages privacy budgets for different sites while maintaining global privacy guarantees against colluding sites. Big Bird preserves both user privacy and isolation among queriers competing for privacy budget on user devices. 

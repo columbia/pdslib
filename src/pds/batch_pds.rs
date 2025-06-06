@@ -441,8 +441,6 @@ where
         // Go through requests one by one and try to allocate them.
         let mut unallocated_requests = vec![];
         for request in requests {
-            let querier_uri = &request.request.report_uris().querier_uris[0];
-
             if (allocate_final_attempts
                 && request.n_remaining_scheduling_attempts == 0)
                 || self.can_probably_allocate(&request.request)?
@@ -456,8 +454,7 @@ where
                 self.initialize_filters_for_request(&request.request)?;
 
                 // Compute the actual report. It might be null though.
-                let mut report = self.pds.compute_report(&request.request)?;
-                let report = report.remove(querier_uri).unwrap();
+                let report = self.pds.compute_report(&request.request)?;
 
                 if !report.oob_filters.is_empty() {
                     for filter_id in report.oob_filters.iter() {
@@ -814,17 +811,12 @@ mod tests {
             histogram_size: 5,
         };
 
-        let mut report_uris = ReportRequestUris::mock();
-        let querier_uri = &report_uris.querier_uris[0];
-        report_uris.intermediary_uris.push(querier_uri.clone());
+        let report_uris = ReportRequestUris::mock();
 
         let always_relevant_selector = || PpaRelevantEventSelector {
             report_request_uris: report_uris.clone(),
             is_matching_event: Box::new(|_: u64| true),
-            bucket_intermediary_mapping: HashMap::from([(
-                0,
-                querier_uri.clone(),
-            )]),
+            requested_buckets: vec![0],
         };
 
         // Request that will be answered in the first scheduling attempt.
@@ -911,7 +903,6 @@ mod tests {
                 source_uri: "news.ex".to_string(),
                 trigger_uris: trigger_uris.clone(),
                 querier_uris: trigger_uris.clone(),
-                intermediary_uris: vec![],
             },
             filter_data: 1,
         };
@@ -924,7 +915,6 @@ mod tests {
                 source_uri: "blog.ex".to_string(),
                 trigger_uris: vec!["hats-1.ex".to_string()],
                 querier_uris: vec!["hats-1.ex".to_string()],
-                intermediary_uris: vec![],
             },
             filter_data: 1,
         };
@@ -951,7 +941,7 @@ mod tests {
             |uris: ReportRequestUris<String>| PpaRelevantEventSelector {
                 report_request_uris: uris,
                 is_matching_event: Box::new(|_: u64| true),
-                bucket_intermediary_mapping: HashMap::new(),
+                requested_buckets: vec![0],
             };
 
         // Every single conversion sites gets a conversion.
@@ -966,7 +956,6 @@ mod tests {
                         trigger_uri: format!("shoes-{i}.ex"),
                         source_uris: vec!["news.ex".to_string()],
                         querier_uris: vec![format!("shoes-{i}.ex")],
-                        intermediary_uris: vec![],
                     }),
                 )?,
             ))?;
@@ -982,7 +971,6 @@ mod tests {
                     trigger_uri: "hats-1.ex".to_string(),
                     source_uris: vec!["blog.ex".to_string()],
                     querier_uris: vec!["hats-1.ex".to_string()],
-                    intermediary_uris: vec![],
                 }),
             )?,
         ))?;
@@ -1081,7 +1069,6 @@ mod tests {
                 source_uri: "news.ex".to_string(),
                 trigger_uris: trigger_uris.clone(),
                 querier_uris: trigger_uris.clone(),
-                intermediary_uris: vec![],
             },
             filter_data: 1,
         };
@@ -1100,7 +1087,6 @@ mod tests {
                 source_uri: "blog.ex".to_string(),
                 trigger_uris: trigger_uris.clone(),
                 querier_uris: trigger_uris.clone(),
-                intermediary_uris: vec![],
             },
             filter_data: 1,
         };
@@ -1146,10 +1132,9 @@ mod tests {
                             trigger_uri: shoes_conv.clone(),
                             source_uris: vec!["news.ex".to_string()],
                             querier_uris: vec![shoes_conv.clone()],
-                            intermediary_uris: vec![],
                         },
                         is_matching_event: Box::new(|_: u64| true),
-                        bucket_intermediary_mapping: HashMap::new(),
+                        requested_buckets: vec![0],
                     },
                 )?,
             ))?;
@@ -1170,10 +1155,9 @@ mod tests {
                             trigger_uri: hats_conv.clone(),
                             source_uris: vec!["blog.ex".to_string()],
                             querier_uris: vec![hats_conv.clone()],
-                            intermediary_uris: vec![],
                         },
                         is_matching_event: Box::new(|_: u64| true),
-                        bucket_intermediary_mapping: HashMap::new(),
+                        requested_buckets: vec![0],
                     },
                 )?,
             ))?;

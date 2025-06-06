@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use pdslib::{
     budget::{
         hashmap_filter_storage::HashMapFilterStorage,
@@ -45,13 +43,11 @@ fn main() -> Result<(), anyhow::Error> {
     let event_uris = EventUris {
         source_uri: CustomUri {},
         trigger_uris: vec![CustomUri {}],
-        intermediary_uris: vec![CustomUri {}],
         querier_uris: vec![CustomUri {}],
     };
     let report_uris = ReportRequestUris {
         trigger_uri: CustomUri {},
         source_uris: vec![CustomUri {}],
-        intermediary_uris: vec![CustomUri {}],
         querier_uris: vec![CustomUri {}],
     };
 
@@ -67,7 +63,7 @@ fn main() -> Result<(), anyhow::Error> {
     let always_relevant_event_selector = TestRelevantEventSelector {
         report_request_uris: report_uris.clone(),
         is_matching_event: Box::new(|_| true),
-        bucket_intermediary_mapping: HashMap::new(),
+        requested_buckets: vec![1],
     };
 
     pds.register_event(event.clone())?;

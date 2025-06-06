@@ -1,12 +1,9 @@
 use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
 use crate::{
-    events::{
-        relevant_events::RelevantEvents,
-        traits::{EpochId, Event, Uri},
-    },
+    events::relevant_events::RelevantEvents,
     mechanisms::NormType,
-    queries::traits::{QueryComputeResult, Report, ReportRequestUris},
+    queries::traits::{EpochReportRequest, Report, ReportRequestUris},
 };
 
 #[derive(Debug, Clone)]
@@ -35,21 +32,18 @@ impl<BK: BucketKey> Report for HistogramReport<BK> {}
 /// this interface will be callable as a valid ReportRequest with the right
 /// accounting. Following the formalism from https://arxiv.org/pdf/2405.16719, Thm 18.
 /// Can be instantiated by PPA-style queries in particular.
-pub trait HistogramRequest: Debug
+pub trait HistogramRequest: EpochReportRequest
 where
     Self::BucketKey: Clone,
 {
     type BucketKey: BucketKey;
-    type HistogramEvent: Event;
-    type HistogramEpochId: EpochId;
-    type HistogramUri: Uri;
 
     /// Maximum value (sum) attributable to all the events in a single epoch,
     /// for this particular conversion. a.k.a. A^max.
     fn attributable_value(&self) -> f64;
 
     /// Returns the histogram bucket key (bin) for a given event.
-    fn bucket_key(&self, event: &Self::HistogramEvent) -> Self::BucketKey;
+    fn bucket_key(&self, event: &Self::Event) -> Self::BucketKey;
 
     /// Attributes a value to each event in `relevant_events_per_epoch`, which
     /// will be obtained by retrieving *relevant* events from the event
@@ -66,31 +60,17 @@ where
     /// events for one epoch) in the implementation.
     fn event_values<'a>(
         &self,
-        relevant_events: &'a RelevantEvents<Self::HistogramEvent>,
-    ) -> Vec<(&'a Self::HistogramEvent, f64)>;
+        relevant_events: &'a RelevantEvents<Self::Event>,
+    ) -> Vec<(&'a Self::Event, f64)>;
 
-    fn histogram_report_uris(&self) -> ReportRequestUris<Self::HistogramUri>;
-
-    /// Gets the querier bucket mapping for filtering histograms
-    fn get_bucket_intermediary_mapping(
-        &self,
-    ) -> Option<&HashMap<u64, Self::HistogramUri>>;
-
-    /// Filter a histogram for a specific querier
-    fn filter_report_for_intermediary(
-        &self,
-        report: &HistogramReport<Self::BucketKey>,
-        intermediary_uri: &Self::HistogramUri,
-        _: &RelevantEvents<Self::HistogramEvent>,
-    ) -> Option<HistogramReport<Self::BucketKey>>;
+    fn histogram_report_uris(&self) -> ReportRequestUris<Self::Uri>;
 
     /// Computes the report by attributing values to events, and then summing
     /// events by bucket.
     fn compute_histogram_report(
         &self,
-        relevant_events: &RelevantEvents<Self::HistogramEvent>,
-    ) -> QueryComputeResult<Self::HistogramUri, HistogramReport<Self::BucketKey>>
-    {
+        relevant_events: &RelevantEvents<Self::Event>,
+    ) -> HistogramReport<Self::BucketKey> {
         let mut bin_values: HashMap<Self::BucketKey, f64> = HashMap::new();
 
         let mut total_value: f64 = 0.0;
@@ -128,44 +108,7 @@ where
             report = HistogramReport { bin_values };
         }
 
-        let mut site_to_report_mapping = HashMap::new();
-        site_to_report_mapping.insert(
-            self.histogram_report_uris().querier_uris[0].clone(),
-            report.clone(),
-        );
-
-        for intermediary_uri in
-            self.histogram_report_uris().intermediary_uris.iter()
-        {
-            match self.filter_report_for_intermediary(
-                &report,
-                intermediary_uri,
-                relevant_events,
-            ) {
-                Some(filtered_report) => {
-                    site_to_report_mapping
-                        .insert(intermediary_uri.clone(), filtered_report);
-                }
-                None => {
-                    site_to_report_mapping.insert(
-                        intermediary_uri.clone(),
-                        HistogramReport {
-                            bin_values: HashMap::new(),
-                        },
-                    );
-                }
-            }
-        }
-
-        match self.get_bucket_intermediary_mapping() {
-            Some(intermediary_mapping) => QueryComputeResult::new(
-                intermediary_mapping.clone(),
-                site_to_report_mapping,
-            ),
-            None => {
-                QueryComputeResult::new(HashMap::new(), site_to_report_mapping)
-            }
-        }
+        report
     }
 
     /// Computes individual sensitivity in the single epoch case.

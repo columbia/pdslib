@@ -5,6 +5,7 @@ pub enum NormType {
 }
 
 /// Noise scale for the mechanism. Currently only Laplace noise is supported.
+#[derive(Debug, Clone, PartialEq)]
 pub enum NoiseScale {
     Laplace(f64), // b parameter for Lap(b)
 }

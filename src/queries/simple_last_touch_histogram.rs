@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use serde::Serialize;
 
 use crate::{
@@ -9,9 +7,7 @@ use crate::{
         traits::RelevantEventSelector,
     },
     mechanisms::{NoiseScale, NormType},
-    queries::traits::{
-        EpochReportRequest, QueryComputeResult, Report, ReportRequestUris,
-    },
+    queries::traits::{EpochReportRequest, Report, ReportRequestUris},
 };
 
 #[derive(Debug)]
@@ -80,7 +76,7 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
     fn compute_report(
         &self,
         relevant_events: &RelevantEvents<Self::Event>,
-    ) -> QueryComputeResult<Self::Uri, Self::Report> {
+    ) -> Self::Report {
         // Browse epochs in the order given by `epoch_ids, most recent
         // epoch first. Within each epoch, we assume that events are
         // stored in the order that they occured
@@ -99,26 +95,14 @@ impl EpochReportRequest for SimpleLastTouchHistogramRequest {
                 // Just use event_key as the bucket key.
                 // See `ppa_histogram` for a more general impression_key ->
                 // bucket_key mapping.
-                return QueryComputeResult::new(
-                    HashMap::new(),
-                    HashMap::from([(
-                        self.report_uris.querier_uris[0].clone(),
-                        SimpleLastTouchHistogramReport {
-                            bin_value: Some((event_key, attributed_value)),
-                        },
-                    )]),
-                );
+                return SimpleLastTouchHistogramReport {
+                    bin_value: Some((event_key, attributed_value)),
+                };
             }
         }
 
         // No impressions were found so we return a report with a None bucket.
-        QueryComputeResult::new(
-            HashMap::new(),
-            HashMap::from([(
-                self.report_uris.querier_uris.first().unwrap().clone(),
-                SimpleLastTouchHistogramReport { bin_value: None },
-            )]),
-        )
+        SimpleLastTouchHistogramReport { bin_value: None }
     }
 
     fn single_epoch_individual_sensitivity(

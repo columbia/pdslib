@@ -85,9 +85,7 @@ mod experimental_feature_tests {
             report_uris: ReportRequestUris::mock(),
         };
 
-        let reports = pds.compute_report(&simple_request)?;
-        assert!(!reports.is_empty());
-        let report = reports.values().next().unwrap();
+        let report = pds.compute_report(&simple_request)?;
 
         // In experimental mode, unfiltered_report should NOT be the default
         // empty report
@@ -112,13 +110,9 @@ mod experimental_feature_tests {
         let mut pds = setup_constrained_pds()?;
         let request = create_high_budget_request();
 
-        let reports = pds.compute_report(&request)?;
-        assert!(!reports.is_empty());
-
-        let report = reports.values().next().unwrap();
+        let report = pds.compute_report(&request)?;
 
         // In production mode, unfiltered_report should be the default report
-
         assert_eq!(
             format!("{:?}", report.unfiltered_report),
             format!("{:?}", SimpleLastTouchHistogramReport::default()),
@@ -135,10 +129,7 @@ mod experimental_feature_tests {
         let mut pds = setup_constrained_pds()?;
         let request = create_high_budget_request();
 
-        let reports = pds.compute_report(&request)?;
-        assert!(!reports.is_empty());
-
-        let report = reports.values().next().unwrap();
+        let report = pds.compute_report(&request)?;
 
         // Core PDS behavior should work the same
         // filtered_report should always be populated correctly

@@ -1,7 +1,5 @@
 mod common;
 
-use std::collections::HashMap;
-
 use common::logging;
 use log::info;
 use pdslib::{
@@ -15,7 +13,7 @@ use pdslib::{
         ppa_histogram::{
             PpaHistogramConfig, PpaHistogramRequest, PpaRelevantEventSelector,
         },
-        traits::{EpochReportRequest, ReportRequestUris},
+        traits::ReportRequestUris,
     },
 };
 
@@ -45,7 +43,6 @@ fn main() -> Result<(), anyhow::Error> {
     let sample_report_request_uris = ReportRequestUris {
         trigger_uri: "shoes.com".to_string(),
         source_uris: vec!["blog.com".to_string()],
-        intermediary_uris: vec!["search.engine.com".to_string()],
         querier_uris: vec!["adtech.com".to_string()],
     };
 
@@ -105,18 +102,14 @@ fn main() -> Result<(), anyhow::Error> {
             is_matching_event: Box::new(|event_filter_data: u64| {
                 event_filter_data == 1
             }),
-            bucket_intermediary_mapping: HashMap::new(),
+            requested_buckets: vec![0x559],
         }, // Not filtering yet.
     )
     .unwrap();
 
     let report1 = pds.compute_report(&request1).unwrap();
-    info!("Report1: {:?}", report1);
-    let bin_values1 = &report1
-        .get(&request1.report_uris().querier_uris[0])
-        .unwrap()
-        .filtered_report
-        .bin_values;
+    info!("Report1: {report1:?}");
+    let bin_values1 = &report1.filtered_report.bin_values;
 
     // One event attributed to the binary OR of the source keypiece and trigger
     // keypiece = 0x159 | 0x400
@@ -139,7 +132,7 @@ fn main() -> Result<(), anyhow::Error> {
             is_matching_event: Box::new(|event_filter_data: u64| {
                 event_filter_data == 1
             }),
-            bucket_intermediary_mapping: HashMap::new(),
+            requested_buckets: vec![0x559],
         }, // Not filtering yet.
     );
     assert!(request2.is_err());
@@ -158,24 +151,16 @@ fn main() -> Result<(), anyhow::Error> {
             is_matching_event: Box::new(|event_filter_data: u64| {
                 event_filter_data != 1
             }),
-            bucket_intermediary_mapping: HashMap::new(),
+            requested_buckets: vec![0x559],
         }, // Not filtering yet.
     )
     .unwrap();
 
     let report3 = pds.compute_report(&request3).unwrap();
-    info!("Report3: {:?}", report3);
+    info!("Report3: {report3:?}");
 
     // No event attributed because the lambda logic filters out the only
     // qualified event.
-    assert_eq!(
-        report3
-            .get(&request3.report_uris().querier_uris[0])
-            .unwrap()
-            .filtered_report
-            .bin_values
-            .len(),
-        0
-    );
+    assert!(report3.filtered_report.bin_values.is_empty());
     Ok(())
 }

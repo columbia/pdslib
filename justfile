@@ -4,7 +4,7 @@ build:
     cargo build
 
 test:
-    cargo test
+    cargo test --features experimental
 
 demo:
     cargo test --package pdslib --test simple_events_demo -- --nocapture 

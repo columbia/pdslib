@@ -10,8 +10,7 @@ crate-type = ["cdylib", "lib"]
 
 [features]
 default = []
-# Experimental features
-experimental = []
+experimental = [] # Experimental algorithms and APIs
 
 [dependencies]
 thiserror = "2.0"

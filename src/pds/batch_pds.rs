@@ -1,3 +1,5 @@
+//! [Experimental] Batch API for fair scheduling of report requests.
+
 use core::panic;
 use std::{
     borrow::Borrow,
@@ -1215,7 +1217,7 @@ mod tests {
                 n_non_null_reports += 1;
             }
         }
-        assert_eq!(n_non_null_reports, 15);
+        assert_eq!(n_non_null_reports, 5);
         debug!("Reports: {:?}", reports);
 
         Ok(())

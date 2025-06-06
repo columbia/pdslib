@@ -156,18 +156,34 @@ where
         let _oob_filters_len = oob_filters.len();
 
         let main_report = PdsReport {
-            filtered_report: filtered_result.uri_report_map.get(querier_uri).unwrap().clone(),
+            filtered_report: filtered_result
+                .uri_report_map
+                .get(querier_uri)
+                .unwrap()
+                .clone(),
             unfiltered_report: {
                 #[cfg(feature = "experimental")]
-                { unfiltered_result.uri_report_map.get(querier_uri).unwrap().clone() }
+                {
+                    unfiltered_result
+                        .uri_report_map
+                        .get(querier_uri)
+                        .unwrap()
+                        .clone()
+                }
                 #[cfg(not(feature = "experimental"))]
-                { Q::Report::default() }
+                {
+                    Q::Report::default()
+                }
             },
             oob_filters: {
                 #[cfg(feature = "experimental")]
-                { oob_filters }
+                {
+                    oob_filters
+                }
                 #[cfg(not(feature = "experimental"))]
-                { Vec::default() }
+                {
+                    Vec::default()
+                }
             },
         };
 

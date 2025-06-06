@@ -10,8 +10,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone)]
-pub struct HistogramReport<BucketKey>
-{
+pub struct HistogramReport<BucketKey> {
     pub bin_values: HashMap<BucketKey, f64>,
 }
 
@@ -32,7 +31,7 @@ impl<BK> Default for HistogramReport<BK> {
 
 impl<BK: BucketKey> Report for HistogramReport<BK> {}
 
-/// [Experimental] Trait for generic histogram requests. Any type satisfying
+/// Trait for generic histogram requests. Any type satisfying
 /// this interface will be callable as a valid ReportRequest with the right
 /// accounting. Following the formalism from https://arxiv.org/pdf/2405.16719, Thm 18.
 /// Can be instantiated by PPA-style queries in particular.

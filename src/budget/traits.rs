@@ -25,6 +25,7 @@ pub trait Filter<B: Budget> {
     /// [Experimental] Gets the remaining budget for this filter.
     /// WARNING: this method is for local visualization only.
     /// Its output should not be shared outside the device.
+    #[cfg(feature = "experimental")]
     fn remaining_budget(&self) -> Result<B, Self::Error>;
 }
 
@@ -150,6 +151,7 @@ pub trait FilterStorage {
 
     /// Gets the remaining budget for a filter.
     /// WARNING: this method is for testing and local visualization only.
+    #[cfg(feature = "experimental")]
     fn remaining_budget(
         &mut self,
         filter_id: &Self::FilterId,

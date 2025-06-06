@@ -1,27 +1,35 @@
 use std::collections::HashMap;
 
-use super::quotas::{FilterId::*, *};
+use super::quotas::*;
+#[cfg(feature = "experimental")]
 use crate::{
-    budget::{pure_dp_filter::PureDPBudget, traits::FilterStorage},
+    budget::pure_dp_filter::PureDPBudget,
+    pds::{
+        aliases::{
+            PpaEventStorage, PpaPds, SimpleEventStorage, SimpleFilterStorage,
+            SimplePds,
+        },
+        quotas::FilterId::*,
+    },
+    queries::traits::PassivePrivacyLossRequest,
+};
+use crate::{
+    budget::traits::FilterStorage,
     events::{
         ppa_event::PpaEvent, relevant_events::RelevantEvents, traits::EventUris,
     },
-    pds::aliases::{
-        PpaEventStorage, PpaFilterStorage, PpaPds, PpaPdsCore,
-        SimpleEventStorage, SimpleFilterStorage, SimplePds,
-    },
+    pds::aliases::{PpaFilterStorage, PpaPdsCore},
     queries::{
         ppa_histogram::{
             PpaHistogramConfig, PpaHistogramRequest, PpaRelevantEventSelector,
         },
-        traits::{
-            EpochReportRequest, PassivePrivacyLossRequest, ReportRequestUris,
-        },
+        traits::{EpochReportRequest, ReportRequestUris},
     },
     util::tests::init_default_logging,
 };
 
 #[test]
+#[cfg(feature = "experimental")]
 fn test_account_for_passive_privacy_loss() -> Result<(), anyhow::Error> {
     let capacities: StaticCapacities<FilterId, PureDPBudget> =
         StaticCapacities::mock();
@@ -111,6 +119,7 @@ fn test_account_for_passive_privacy_loss() -> Result<(), anyhow::Error> {
 }
 
 #[track_caller]
+#[cfg(feature = "experimental")]
 fn assert_remaining_budgets<FS: FilterStorage<Budget = PureDPBudget>>(
     filter_storage: &mut FS,
     expected_budgets: &[(FS::FilterId, f64)],
@@ -130,6 +139,7 @@ fn assert_remaining_budgets<FS: FilterStorage<Budget = PureDPBudget>>(
 /// TODO: test this on the real `compute_report`, not just passive privacy
 /// loss.
 #[test]
+#[cfg(feature = "experimental")]
 fn test_budget_rollback_on_depletion() -> Result<(), anyhow::Error> {
     // PDS with several filters
     let capacities: StaticCapacities<FilterId, PureDPBudget> =
@@ -226,6 +236,7 @@ fn test_budget_rollback_on_depletion() -> Result<(), anyhow::Error> {
 }
 
 #[test]
+#[cfg(feature = "experimental")]
 fn test_cross_report_optimization() -> Result<(), anyhow::Error> {
     // Create PDS with mock capacities
     let capacities = StaticCapacities::mock();

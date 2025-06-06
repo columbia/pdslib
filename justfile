@@ -4,6 +4,7 @@ build:
     cargo build
 
 test:
+    cargo test
     cargo test --features experimental
 
 demo:

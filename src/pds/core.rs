@@ -7,15 +7,15 @@ use super::{
     private_data_service::PdsReport,
     quotas::{FilterId, PdsFilterStatus},
 };
+#[cfg(feature = "experimental")]
+use crate::queries::traits::QueryComputeResult;
 use crate::{
     budget::{
         pure_dp_filter::PureDPBudget,
         traits::{FilterStatus, FilterStorage},
     },
     events::relevant_events::RelevantEvents,
-    queries::traits::{
-        EpochReportRequest, QueryComputeResult, Report, ReportRequestUris,
-    },
+    queries::traits::{EpochReportRequest, Report, ReportRequestUris},
 };
 
 pub struct PrivateDataServiceCore<Q, FS, ERR>
@@ -189,6 +189,7 @@ where
 
         // Handle optimization queries when at least two intermediary URIs are
         // in the request.
+        #[cfg(feature = "experimental")]
         if self.uses_cross_report_optimization(&filtered_result.uri_report_map)
         {
             let intermediate_reports = self
@@ -273,6 +274,7 @@ where
         Ok(PdsFilterStatus::Continue)
     }
 
+    #[cfg(feature = "experimental")]
     fn uses_cross_report_optimization(
         &self,
         site_to_report_mapping: &HashMap<Q::Uri, Q::Report>,
@@ -287,6 +289,7 @@ where
         site_to_report_mapping.keys().len() >= 3
     }
 
+    #[cfg(feature = "experimental")]
     fn intermediary_reports_with_cross_report_optimization(
         &self,
         request: &Q,

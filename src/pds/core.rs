@@ -147,28 +147,16 @@ where
         let filtered_report = request.compute_report(&relevant_events);
         debug!("Filtered report: {filtered_report:?}");
 
+        #[cfg(feature = "experimental")]
         let main_report = PdsReport {
             filtered_report,
-            unfiltered_report: {
-                #[cfg(feature = "experimental")]
-                {
-                    unfiltered_report
-                }
-                #[cfg(not(feature = "experimental"))]
-                {
-                    Q::Report::default()
-                }
-            },
-            oob_filters: {
-                #[cfg(feature = "experimental")]
-                {
-                    oob_filters
-                }
-                #[cfg(not(feature = "experimental"))]
-                {
-                    Vec::default()
-                }
-            },
+            unfiltered_report,
+            oob_filters,
+        };
+        #[cfg(not(feature = "experimental"))]
+        let main_report = PdsReport {
+            filtered_report,
+            ..Default::default()
         };
 
         Ok(main_report)

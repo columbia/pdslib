@@ -25,6 +25,99 @@ use crate::{
     },
 };
 
+impl<U, FS, ERR> PrivateDataServiceCore<PpaHistogramRequest<U>, FS, ERR>
+where
+    U: Uri,
+    FS: FilterStorage<
+        FilterId = FilterId<PpaEpochId, U>,
+        Budget = PureDPBudget,
+    >,
+    ERR: From<FS::Error>,
+{
+    pub fn measure_conversion(
+        &mut self,
+        request: PpaHistogramRequest<U>,
+        mut relevant_events: RelevantEvents<PpaEvent<U>>,
+    ) -> Result<AttributionObject<PpaHistogramRequest<U>>, ERR> {
+        let uris = request.report_uris();
+
+        let epochs = request.epoch_ids();
+        let num_epochs = epochs.len();
+
+        // Compute the raw report, useful for debugging and accounting.
+        let unfiltered_result = request.compute_report(&relevant_events);
+
+        let mut oob_filters = vec![];
+        for epoch_id in epochs {
+            let individual_privacy_loss =
+                request.histogram_multi_epoch_report_global_sensitivity();
+
+            let source_losses = compute_epoch_source_losses(
+                &request,
+                relevant_events.sources_for_epoch(&epoch_id),
+                &unfiltered_result,
+                num_epochs,
+            );
+
+            // Try to consume budget from current epoch, drop events if OOB.
+            // Two phase commit.
+            let mut filters_to_consume = self.filters_to_consume(
+                epoch_id,
+                &individual_privacy_loss,
+                &source_losses,
+                request.report_uris(),
+            );
+
+            // Do not consume per-querier, that is done in get_report().
+            // Change the per-querier budgets to 0 to still initialize the
+            // filter.
+            for querier_uri in &uris.querier_uris {
+                filters_to_consume.insert(
+                    FilterId::PerQuerier(epoch_id, querier_uri.clone()),
+                    &0.0, // no budget consumption for per-querier filter
+                );
+            }
+
+            // Phase 1: dry run.
+            let check_status = self.deduct_budget(
+                &filters_to_consume,
+                true, // dry run
+            )?;
+
+            match check_status {
+                PdsFilterStatus::Continue => {
+                    // Phase 2: Consume the budget
+                    let consume_status = self.deduct_budget(
+                        &filters_to_consume,
+                        false, // actually consume
+                    )?;
+
+                    if consume_status != PdsFilterStatus::Continue {
+                        panic!("ERR: Phase 2 failed unexpectedly wtih status {consume_status:?} after Phase 1 succeeded");
+                    }
+                }
+
+                PdsFilterStatus::OutOfBudget(mut filters) => {
+                    // Not enough budget, drop events without any filter
+                    // consumption
+                    relevant_events.drop_epoch(&epoch_id);
+
+                    // Keep track of why we dropped this epoch
+                    oob_filters.append(&mut filters);
+                }
+            }
+        }
+
+        let attribution_object = AttributionObject {
+            request,
+            events: relevant_events,
+            already_requested_buckets: HashSet::new(),
+        };
+
+        Ok(attribution_object)
+    }
+}
+
 /// The attribution object that can be used to compute distinct
 /// reports for distinct queriers/benificiaries.
 pub struct AttributionObject<Q: HistogramRequest> {
@@ -120,99 +213,6 @@ impl<U: Uri> AttributionObject<PpaHistogramRequest<U>> {
             oob_filters,
         };
         Ok(report)
-    }
-}
-
-impl<U, FS, ERR> PrivateDataServiceCore<PpaHistogramRequest<U>, FS, ERR>
-where
-    U: Uri,
-    FS: FilterStorage<
-        FilterId = FilterId<PpaEpochId, U>,
-        Budget = PureDPBudget,
-    >,
-    ERR: From<FS::Error>,
-{
-    pub fn measure_conversion(
-        &mut self,
-        request: PpaHistogramRequest<U>,
-        mut relevant_events: RelevantEvents<PpaEvent<U>>,
-    ) -> Result<AttributionObject<PpaHistogramRequest<U>>, ERR> {
-        let uris = request.report_uris();
-
-        let epochs = request.epoch_ids();
-        let num_epochs = epochs.len();
-
-        // Compute the raw report, useful for debugging and accounting.
-        let unfiltered_result = request.compute_report(&relevant_events);
-
-        let mut oob_filters = vec![];
-        for epoch_id in epochs {
-            let individual_privacy_loss =
-                request.histogram_multi_epoch_report_global_sensitivity();
-
-            let source_losses = compute_epoch_source_losses(
-                &request,
-                relevant_events.sources_for_epoch(&epoch_id),
-                &unfiltered_result,
-                num_epochs,
-            );
-
-            // Try to consume budget from current epoch, drop events if OOB.
-            // Two phase commit.
-            let mut filters_to_consume = self.filters_to_consume(
-                epoch_id,
-                &individual_privacy_loss,
-                &source_losses,
-                request.report_uris(),
-            );
-
-            // Do not consume per-querier, that is done in get_report().
-            // Change the per-querier budgets to 0 to still initialize the
-            // filter.
-            for querier_uri in &uris.querier_uris {
-                filters_to_consume.insert(
-                    FilterId::PerQuerier(epoch_id, querier_uri.clone()),
-                    &0.0, // no budget consumption for per-querier filter
-                );
-            }
-
-            // Phase 1: dry run.
-            let check_status = self.deduct_budget(
-                &filters_to_consume,
-                true, // dry run
-            )?;
-
-            match check_status {
-                PdsFilterStatus::Continue => {
-                    // Phase 2: Consume the budget
-                    let consume_status = self.deduct_budget(
-                        &filters_to_consume,
-                        false, // actually consume
-                    )?;
-
-                    if consume_status != PdsFilterStatus::Continue {
-                        panic!("ERR: Phase 2 failed unexpectedly wtih status {consume_status:?} after Phase 1 succeeded");
-                    }
-                }
-
-                PdsFilterStatus::OutOfBudget(mut filters) => {
-                    // Not enough budget, drop events without any filter
-                    // consumption
-                    relevant_events.drop_epoch(&epoch_id);
-
-                    // Keep track of why we dropped this epoch
-                    oob_filters.append(&mut filters);
-                }
-            }
-        }
-
-        let attribution_object = AttributionObject {
-            request,
-            events: relevant_events,
-            already_requested_buckets: HashSet::new(),
-        };
-
-        Ok(attribution_object)
     }
 }
 

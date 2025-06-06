@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use super::traits::Uri;
-use crate::events::traits::{Event, EventUris};
+use crate::{events::traits::{Event, EventUris}, queries::ppa_histogram::{PpaBucketKey, PpaEpochId, PpaFilterData}};
 
 /// Impression event
 #[derive(Debug, Clone)]
@@ -12,10 +12,11 @@ pub struct PpaEvent<U: Uri = String> {
 
     /// Timestamp, also for debugging purposes.
     pub timestamp: u64,
+    // TODO(later): Use the timestamp to determine last-touch attribution
 
-    pub epoch_number: u64,
+    pub epoch_number: PpaEpochId,
 
-    pub histogram_index: u64,
+    pub histogram_index: PpaBucketKey,
 
     pub uris: EventUris<U>,
 
@@ -24,11 +25,11 @@ pub struct PpaEvent<U: Uri = String> {
     /// determine relevance. Note: Unlike Firefox's implementation which
     /// has explicit campaign_id or ad_id fields, the PPA spec uses
     /// filter_data as a more generic mechanism for filtering events.
-    pub filter_data: u64,
+    pub filter_data: PpaFilterData,
 }
 
 impl<U: Uri> Event for PpaEvent<U> {
-    type EpochId = u64;
+    type EpochId = PpaEpochId;
     type Uri = U;
 
     fn epoch_id(&self) -> Self::EpochId {

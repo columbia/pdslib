@@ -21,10 +21,11 @@ use crate::{
 
 pub type PpaBucketKey = u64;
 pub type PpaEpochId = u64;
+pub type PpaFilterData = u64;
 
 pub struct PpaRelevantEventSelector<U: Uri = String> {
     pub report_request_uris: ReportRequestUris<U>,
-    pub is_matching_event: Box<dyn Fn(u64 /* filter_data */) -> bool>,
+    pub is_matching_event: Box<dyn Fn(PpaFilterData) -> bool>,
     pub requested_buckets: Vec<PpaBucketKey>,
 }
 
@@ -40,8 +41,8 @@ impl<U: Uri> std::fmt::Debug for PpaRelevantEventSelector<U> {
 /// global sensitivity) instead of directly Laplace noise scale.
 #[derive(Debug, Clone)]
 pub struct PpaHistogramConfig {
-    pub start_epoch: u64,
-    pub end_epoch: u64,
+    pub start_epoch: PpaEpochId,
+    pub end_epoch: PpaEpochId,
 
     /// Conversion value that is spread across events for this conversion.
     pub attributable_value: f64,
@@ -59,8 +60,8 @@ pub struct PpaHistogramConfig {
 /// configuration.
 #[derive(Debug, Clone)]
 pub struct DirectPpaHistogramConfig {
-    pub start_epoch: u64,
-    pub end_epoch: u64,
+    pub start_epoch: PpaEpochId,
+    pub end_epoch: PpaEpochId,
     /// Conversion value that is spread across events
     pub attributable_value: f64,
     pub laplace_noise_scale: f64,
@@ -109,8 +110,8 @@ impl<U: Uri> RelevantEventSelector for PpaRelevantEventSelector<U> {
 
 #[derive(Debug)]
 pub struct PpaHistogramRequest<U: Uri = String> {
-    start_epoch: u64,
-    end_epoch: u64,
+    start_epoch: PpaEpochId,
+    end_epoch: PpaEpochId,
     /// Conversion value that is spread across events
     attributable_value: f64,
     laplace_noise_scale: f64,

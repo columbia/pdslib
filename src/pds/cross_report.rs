@@ -1,9 +1,12 @@
-use std::{collections::HashSet, vec};
+use std::{
+    collections::{HashMap, HashSet},
+    vec,
+};
 
 use log::debug;
 
 use super::{
-    accounting::{compute_epoch_loss, compute_epoch_source_losses},
+    accounting::compute_epoch_loss,
     private_data_service::PdsReport,
     quotas::{FilterId, PdsFilterStatus},
 };
@@ -42,22 +45,20 @@ where
         let uris = request.report_uris();
 
         let epochs = request.epoch_ids();
-        let num_epochs = epochs.len();
-
-        // Compute the raw report, useful for debugging and accounting.
-        let unfiltered_result = request.compute_report(&relevant_events);
 
         let mut oob_filters = vec![];
         for epoch_id in epochs {
             let individual_privacy_loss =
                 request.histogram_multi_epoch_report_global_sensitivity();
 
-            let source_losses = compute_epoch_source_losses(
-                &request,
-                relevant_events.sources_for_epoch(&epoch_id),
-                &unfiltered_result,
-                num_epochs,
-            );
+            // 2 * a^max for every source URI
+            let source_losses = uris
+                .source_uris
+                .iter()
+                .map(|source_uri| {
+                    (source_uri.clone(), 2.0 * request.attributable_value())
+                })
+                .collect::<HashMap<_, _>>();
 
             // Try to consume budget from current epoch, drop events if OOB.
             // Two phase commit.
@@ -65,16 +66,16 @@ where
                 epoch_id,
                 &individual_privacy_loss,
                 &source_losses,
-                request.report_uris(),
+                uris,
             );
 
             // Do not consume per-querier, that is done in get_report().
             // Change the per-querier budgets to 0 to still initialize the
             // filter.
             for querier_uri in &uris.querier_uris {
-                filters_to_consume.insert(
-                    FilterId::PerQuerier(epoch_id, querier_uri.clone()),
-                    &0.0, // no budget consumption for per-querier filter
+                filters_to_consume.remove(
+                    &FilterId::PerQuerier(epoch_id, querier_uri.clone()),
+                    // &0.0, // no budget consumption for per-querier filter
                 );
             }
 

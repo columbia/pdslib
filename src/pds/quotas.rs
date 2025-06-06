@@ -15,32 +15,32 @@ pub enum FilterId<
     U = String, // URI
 > {
     /// Non-collusion per-querier filter
-    Nc(E, U /* querier URI */),
+    PerQuerier(E, U /* querier URI */),
 
     /// Collusion filter (tracks overall privacy loss)
-    C(E),
+    Global(E),
 
-    /// Quota filter regulating c-filter consumption per trigger_uri
-    QTrigger(E, U /* trigger URI */),
+    /// Quota filter regulating Global filter consumption per trigger_uri
+    TriggerQuota(E, U /* trigger URI */),
 
-    /// Quota filter regulating c-filter consumption per source_uri
-    QSource(E, U /* source URI */),
+    /// Quota filter regulating Global filter consumption per source_uri
+    SourceQuota(E, U /* source URI */),
 }
 
 impl<E: Display, U: Display> fmt::Display for FilterId<E, U> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            FilterId::Nc(epoch_id, querier_uri) => {
-                write!(f, "Nc({epoch_id}, {querier_uri})")
+            FilterId::PerQuerier(epoch_id, querier_uri) => {
+                write!(f, "PerQuerier({epoch_id}, {querier_uri})")
             }
-            FilterId::C(epoch_id) => {
-                write!(f, "C({epoch_id})")
+            FilterId::Global(epoch_id) => {
+                write!(f, "Global({epoch_id})")
             }
-            FilterId::QTrigger(epoch_id, trigger_uri) => {
-                write!(f, "QTrigger({epoch_id}, {trigger_uri})")
+            FilterId::TriggerQuota(epoch_id, trigger_uri) => {
+                write!(f, "TriggerQuota({epoch_id}, {trigger_uri})")
             }
-            FilterId::QSource(epoch_id, source_uri) => {
-                write!(f, "QSource({epoch_id}, {source_uri})")
+            FilterId::SourceQuota(epoch_id, source_uri) => {
+                write!(f, "SourceQuota({epoch_id}, {source_uri})")
             }
         }
     }
@@ -49,22 +49,27 @@ impl<E: Display, U: Display> fmt::Display for FilterId<E, U> {
 /// Struct containing the default capacity for each type of filter.
 #[derive(Debug, Clone, Serialize)]
 pub struct StaticCapacities<FID, B> {
-    pub nc: B,
-    pub c: B,
-    pub qtrigger: B,
-    pub qsource: B,
+    pub per_querier: B,
+    pub global: B,
+    pub trigger_quota: B,
+    pub source_quota: B,
 
     #[serde(skip_serializing)]
     _phantom: std::marker::PhantomData<FID>,
 }
 
 impl<FID, B> StaticCapacities<FID, B> {
-    pub fn new(nc: B, c: B, qtrigger: B, qsource: B) -> Self {
+    pub fn new(
+        per_querier: B,
+        global: B,
+        trigger_quota: B,
+        source_quota: B,
+    ) -> Self {
         Self {
-            nc,
-            c,
-            qtrigger,
-            qsource,
+            per_querier,
+            global,
+            trigger_quota,
+            source_quota,
             _phantom: std::marker::PhantomData,
         }
     }
@@ -80,10 +85,10 @@ impl<B: Budget, E, U> FilterCapacities for StaticCapacities<FilterId<E, U>, B> {
         filter_id: &Self::FilterId,
     ) -> Result<Self::Budget, Self::Error> {
         match filter_id {
-            FilterId::Nc(..) => Ok(self.nc.clone()),
-            FilterId::C(..) => Ok(self.c.clone()),
-            FilterId::QTrigger(..) => Ok(self.qtrigger.clone()),
-            FilterId::QSource(..) => Ok(self.qsource.clone()),
+            FilterId::PerQuerier(..) => Ok(self.per_querier.clone()),
+            FilterId::Global(..) => Ok(self.global.clone()),
+            FilterId::TriggerQuota(..) => Ok(self.trigger_quota.clone()),
+            FilterId::SourceQuota(..) => Ok(self.source_quota.clone()),
         }
     }
 }

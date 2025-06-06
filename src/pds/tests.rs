@@ -61,9 +61,15 @@ fn test_account_for_passive_privacy_loss() -> Result<(), anyhow::Error> {
     for epoch_id in 1..=3 {
         // we consumed 0.5 so far
         let expected_budgets = vec![
-            (FilterId::Nc(epoch_id, uris.querier_uris[0].clone()), 0.5),
-            (FilterId::C(epoch_id), 19.5),
-            (FilterId::QTrigger(epoch_id, uris.trigger_uri.clone()), 1.0),
+            (
+                FilterId::PerQuerier(epoch_id, uris.querier_uris[0].clone()),
+                0.5,
+            ),
+            (FilterId::Global(epoch_id), 19.5),
+            (
+                FilterId::TriggerQuota(epoch_id, uris.trigger_uri.clone()),
+                1.0,
+            ),
         ];
 
         assert_remaining_budgets(
@@ -82,7 +88,7 @@ fn test_account_for_passive_privacy_loss() -> Result<(), anyhow::Error> {
     assert!(matches!(result, PdsFilterStatus::OutOfBudget(_)));
     if let PdsFilterStatus::OutOfBudget(oob_filters) = result {
         assert!(oob_filters
-            .contains(&FilterId::Nc(2, uris.querier_uris[0].clone())));
+            .contains(&FilterId::PerQuerier(2, uris.querier_uris[0].clone())));
     }
 
     // Consume from just one epoch.
@@ -97,9 +103,9 @@ fn test_account_for_passive_privacy_loss() -> Result<(), anyhow::Error> {
     // Verify remaining budgets
     for epoch_id in 1..=2 {
         let expected_budgets = vec![
-            (Nc(epoch_id, uris.querier_uris[0].clone()), 0.5),
-            (C(epoch_id), 19.5),
-            (QTrigger(epoch_id, uris.trigger_uri.clone()), 1.0),
+            (PerQuerier(epoch_id, uris.querier_uris[0].clone()), 0.5),
+            (Global(epoch_id), 19.5),
+            (TriggerQuota(epoch_id, uris.trigger_uri.clone()), 1.0),
         ];
 
         assert_remaining_budgets(
@@ -108,11 +114,11 @@ fn test_account_for_passive_privacy_loss() -> Result<(), anyhow::Error> {
         )?;
     }
 
-    // epoch 3's nc-filter and q-conv should be out of budget
+    // epoch 3's PerQuerier and TriggerQuota should be out of budget
     let remaining = pds
         .core
         .filter_storage
-        .remaining_budget(&Nc(3, uris.querier_uris[0].clone()))?;
+        .remaining_budget(&PerQuerier(3, uris.querier_uris[0].clone()))?;
     assert_eq!(remaining, PureDPBudget::from(0.0));
 
     Ok(())
@@ -144,10 +150,10 @@ fn test_budget_rollback_on_depletion() -> Result<(), anyhow::Error> {
     // PDS with several filters
     let capacities: StaticCapacities<FilterId, PureDPBudget> =
         StaticCapacities::new(
-            PureDPBudget::from(1.0),  // nc
-            PureDPBudget::from(20.0), // c
-            PureDPBudget::from(2.0),  // q-trigger
-            PureDPBudget::from(5.0),  // q-source
+            PureDPBudget::from(1.0),  // PerQuerier
+            PureDPBudget::from(20.0), // Global
+            PureDPBudget::from(2.0),  // TriggerQuota
+            PureDPBudget::from(5.0),  // SourceQuota
         );
 
     let filters = SimpleFilterStorage::new(capacities)?;
@@ -164,11 +170,11 @@ fn test_budget_rollback_on_depletion() -> Result<(), anyhow::Error> {
     // Initialize all filters for epoch 1
     let epoch_id = 1;
     let filter_ids = vec![
-        FilterId::C(epoch_id),
-        FilterId::Nc(epoch_id, uris.querier_uris[0].clone()),
-        FilterId::Nc(epoch_id, uris.querier_uris[1].clone()),
-        FilterId::QTrigger(epoch_id, uris.trigger_uri.clone()),
-        FilterId::QSource(epoch_id, uris.source_uris[0].clone()),
+        FilterId::Global(epoch_id),
+        FilterId::PerQuerier(epoch_id, uris.querier_uris[0].clone()),
+        FilterId::PerQuerier(epoch_id, uris.querier_uris[1].clone()),
+        FilterId::TriggerQuota(epoch_id, uris.trigger_uri.clone()),
+        FilterId::SourceQuota(epoch_id, uris.source_uris[0].clone()),
     ];
 
     // Record initial budgets
@@ -181,14 +187,14 @@ fn test_budget_rollback_on_depletion() -> Result<(), anyhow::Error> {
     }
 
     // Set up a request that will succeed for most filters but fail for one
-    // Make the NC filter for querier1 have only 0.5 epsilon left
+    // Make the PerQuerier filter for querier1 have only 0.5 epsilon left
     pds.core.filter_storage.try_consume(
-        &FilterId::Nc(epoch_id, uris.querier_uris[0].clone()),
+        &FilterId::PerQuerier(epoch_id, uris.querier_uris[0].clone()),
         &PureDPBudget::from(0.5),
     )?;
 
     // Now attempt a deduction that requires 0.7 epsilon
-    // This should fail because querier1's NC filter only has 0.5 left
+    // This should fail because querier1's PerQuerier filter only has 0.5 left
     let request = PassivePrivacyLossRequest {
         epoch_ids: vec![epoch_id],
         privacy_budget: PureDPBudget::from(0.7),
@@ -198,25 +204,29 @@ fn test_budget_rollback_on_depletion() -> Result<(), anyhow::Error> {
     let result = pds.account_for_passive_privacy_loss(request)?;
     assert!(matches!(result, PdsFilterStatus::OutOfBudget(_)));
     if let PdsFilterStatus::OutOfBudget(oob_filters) = result {
-        assert!(oob_filters
-            .contains(&FilterId::Nc(1, "querier1.example.com".to_string())));
+        assert!(oob_filters.contains(&FilterId::PerQuerier(
+            1,
+            "querier1.example.com".to_string()
+        )));
     }
 
     // Check that all other filters were not modified
-    // First verify that querier1's NC filter still has 0.5 epsilon
+    // First verify that querier1's PerQuerier filter still has 0.5 epsilon
     assert_eq!(
-        pds.core.filter_storage.remaining_budget(&FilterId::Nc(
-            epoch_id,
-            uris.querier_uris[0].clone()
-        ))?,
+        pds.core
+            .filter_storage
+            .remaining_budget(&FilterId::PerQuerier(
+                epoch_id,
+                uris.querier_uris[0].clone()
+            ))?,
         PureDPBudget::from(0.5),
         "Filter that was insufficient should still have its partial budget"
     );
 
     // Then verify the other filters still have their original budgets
     for filter_id in &filter_ids {
-        // Skip the querier1 NC filter we already checked
-        if matches!(filter_id, FilterId::Nc(_, uri) if uri == &uris.querier_uris[0])
+        // Skip the querier1 PerQuerier filter we already checked
+        if matches!(filter_id, FilterId::PerQuerier(_, uri) if uri == &uris.querier_uris[0])
         {
             continue;
         }
@@ -329,8 +339,9 @@ fn test_cross_report_optimization() -> Result<(), anyhow::Error> {
         },
     )
     .map_err(|e| anyhow::anyhow!("Failed to create request: {}", e))?;
-    // Initialize and check the initial beneficiary's NC filter
-    let beneficiary_filter_id = FilterId::Nc(1, beneficiary_uri.clone());
+    // Initialize and check the initial beneficiary's PerQuerier filter
+    let beneficiary_filter_id =
+        FilterId::PerQuerier(1, beneficiary_uri.clone());
     let initial_budget = pds
         .core
         .filter_storage

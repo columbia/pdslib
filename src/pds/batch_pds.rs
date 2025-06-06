@@ -82,7 +82,7 @@ where
     ERR: From<FS::Error> + From<ES::Error>,
 {
     /// Current scheduling interval.
-    /// Used to release budget for the c-filter.
+    /// Used to release budget for the Global filter.
     pub current_scheduling_interval: u64,
 
     /// Queries that arrived during the current interval.
@@ -104,7 +104,7 @@ where
     /// List of all the different sources that appear in each epoch.
     pub sources_per_epoch: HashMap<Q::EpochId, HashSet<Q::Uri>>,
 
-    /// Amount of c-filter budget to be released per scheduling interval.
+    /// Amount of Global filter budget to be released per scheduling interval.
     pub eps_c_per_release: FS::Budget,
 
     /// NOTE: these filters are not actually directly visible to a querier,
@@ -150,10 +150,12 @@ where
     ) -> Result<Self, ERR> {
         let capacities = pds.core.filter_storage.capacities().clone();
 
-        // Release the c-filter over T scheduling intervals.
-        let eps_c_per_release = match capacities.c {
+        // Release the Global filter over T scheduling intervals.
+        let eps_c_per_release = match capacities.global {
             f64::INFINITY => {
-                debug!("C-filter has infinite capacity. Release is a no-op");
+                debug!(
+                    "Global filter has infinite capacity. Release is a no-op"
+                );
                 0.0
             }
             eps_c => eps_c / (n_releases as f64),
@@ -249,7 +251,8 @@ where
         &mut self,
         batched_requests: Vec<BatchedRequest<Q>>,
     ) -> Result<Vec<BatchedRequest<Q>>, ERR> {
-        let imp_capacity = self.pds.core.filter_storage.capacities().qsource;
+        let imp_capacity =
+            self.pds.core.filter_storage.capacities().source_quota;
 
         // Just try all the past epochs since our experiments just have a
         // few. Could eventually discard epochs that have reached their
@@ -339,17 +342,21 @@ where
 
         let mut filter_ids = vec![];
         for epoch_id in request.epoch_ids() {
-            // Build the filter IDs for NC, C and QTrigger. Qsource has the same
-            // loss here.
+            // Build the filter IDs for PerQuerier, Global and TriggerQuota.
+            // SourceQuota has the same loss here.
             for query_uri in &uris.querier_uris {
-                filter_ids.push(FilterId::Nc(epoch_id, query_uri.clone()));
+                filter_ids
+                    .push(FilterId::PerQuerier(epoch_id, query_uri.clone()));
             }
-            filter_ids
-                .push(FilterId::QTrigger(epoch_id, uris.trigger_uri.clone()));
-            filter_ids.push(FilterId::C(epoch_id));
+            filter_ids.push(FilterId::TriggerQuota(
+                epoch_id,
+                uris.trigger_uri.clone(),
+            ));
+            filter_ids.push(FilterId::Global(epoch_id));
 
             for source in &uris.source_uris {
-                filter_ids.push(FilterId::QSource(epoch_id, source.clone()));
+                filter_ids
+                    .push(FilterId::SourceQuota(epoch_id, source.clone()));
             }
         }
 
@@ -454,9 +461,10 @@ where
 
                 if !report.oob_filters.is_empty() {
                     for filter_id in report.oob_filters.iter() {
-                        if let FilterId::QSource(_, _) = filter_id {
-                            // Qimp should never block a request if we have
-                            // perfect upper bounds for the public filters.
+                        if let FilterId::SourceQuota(_, _) = filter_id {
+                            // SourceQuota should never block a request if we
+                            // have perfect upper
+                            // bounds for the public filters.
                             panic!(
                                 "Request {} was not allocated: {:?}. Final attempt? {}",
                                 request.request_id, report.oob_filters, allocate_final_attempts
@@ -517,7 +525,7 @@ where
         if let Some(sources) = self.sources_per_epoch.get(&epoch) {
             let filter_ids = sources
                 .iter()
-                .map(|source| FilterId::QSource(epoch, source.clone()))
+                .map(|source| FilterId::SourceQuota(epoch, source.clone()))
                 .collect::<Vec<_>>();
             self.initialize_filters(filter_ids.iter())?;
 
@@ -540,7 +548,7 @@ where
     /// Release budget for the given epoch. This is a no-op when the epoch's
     /// unlocked budget has reached the capacity.
     fn release_budget(&mut self, epoch: Q::EpochId) -> Result<(), ERR> {
-        let filter_id = FilterId::C(epoch);
+        let filter_id = FilterId::Global(epoch);
 
         self.pds
             .core
@@ -583,7 +591,7 @@ where
             let source = (*source).clone();
             let mut source_total_budget: f64 = 0.0;
             for epoch in &all_epochs {
-                let filter_id = FilterId::QSource(*epoch, source.clone());
+                let filter_id = FilterId::SourceQuota(*epoch, source.clone());
 
                 let filter =
                     self.public_filters.get_filter_or_new(&filter_id)?;
@@ -660,8 +668,8 @@ where
     }
 
     /// Given a request, calculate the list of filters that will be deducted
-    /// from by PDS core, and pre-initialize them, so that all non-C filters
-    /// are unlocked and act as regular filters.
+    /// from by PDS core, and pre-initialize them, so that all non-global
+    /// filters are unlocked and act as regular filters.
     fn initialize_filters_for_request(
         &mut self,
         request: &Q,
@@ -688,7 +696,7 @@ where
     }
 
     /// Given a list of filter IDs, initialize them in the filter storage,
-    /// such that non-C filters are unlocked and act as regular filters.
+    /// such that non-global filters are unlocked and act as regular filters.
     fn initialize_filters<'f, FID>(
         &mut self,
         filters: impl Iterator<Item = FID>,
@@ -702,12 +710,12 @@ where
         for filter_id in filters {
             let filter_id = filter_id.borrow();
 
-            // Only C-filters should act as release filters. Nc, q-conv and
-            // q-imp act as regular PureDPBudget filters.
+            // Only Global filters should act as release filters. PerQuerier,
+            // Trigger and Source act as regular PureDPBudget filters.
             // As FilterStorage only supports storing one type of filter,
             // we fully unlock all other filter types before consuming.
             // As such, they act as regular non-release filters.
-            let should_unlock = !matches!(filter_id, FilterId::C(_));
+            let should_unlock = !matches!(filter_id, FilterId::Global(_));
 
             // if we don't need to unlock, we don't need to do anything
             if !should_unlock {
@@ -830,8 +838,8 @@ mod tests {
         ))?;
 
         // Another request with one scheduling attempt. But it doesn't go
-        // through the online phase because of qimp, instead it has to wait
-        // until the batch phase for the quotas to be disabled.
+        // through the online phase because of SourceQuota, instead it has to
+        // wait until the batch phase for the quotas to be disabled.
         request_config.requested_epsilon = 1.2;
         batch_pds.register_report_request(BatchedRequest::new(
             2,
@@ -999,8 +1007,8 @@ mod tests {
 
         let unallocated_new_requests = batch_pds.online_phase(new_requests)?;
 
-        // Because of qimp, news.ex can't accept all the queries. Also tried to
-        // allocate in order.
+        // Because of SourceQuota, news.ex can't accept all the queries. Also
+        // tried to allocate in order.
         assert_eq!(
             collect_request_ids(&unallocated_new_requests),
             vec![6, 7, 8, 9]

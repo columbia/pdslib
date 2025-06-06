@@ -1,7 +1,10 @@
 use std::fmt::Debug;
 
 use super::traits::Uri;
-use crate::{events::traits::{Event, EventUris}, queries::ppa_histogram::{PpaBucketKey, PpaEpochId, PpaFilterData}};
+use crate::{
+    events::traits::{Event, EventUris},
+    queries::ppa_histogram::{PpaBucketKey, PpaEpochId, PpaFilterData},
+};
 
 /// Impression event
 #[derive(Debug, Clone)]
@@ -13,7 +16,6 @@ pub struct PpaEvent<U: Uri = String> {
     /// Timestamp, also for debugging purposes.
     pub timestamp: u64,
     // TODO(later): Use the timestamp to determine last-touch attribution
-
     pub epoch_number: PpaEpochId,
 
     pub histogram_index: PpaBucketKey,

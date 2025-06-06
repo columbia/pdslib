@@ -148,18 +148,18 @@ where
         debug!("Filtered report: {filtered_report:?}");
 
         #[cfg(feature = "experimental")]
-        let main_report = PdsReport {
+        let report_with_metadata = PdsReport {
             filtered_report,
             unfiltered_report,
             oob_filters,
         };
         #[cfg(not(feature = "experimental"))]
-        let main_report = PdsReport {
+        let report_with_metadata = PdsReport {
             filtered_report,
             ..Default::default()
         };
 
-        Ok(main_report)
+        Ok(report_with_metadata)
     }
 
     /// Calculate how much privacy to deduct from which filters,

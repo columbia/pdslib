@@ -8,7 +8,7 @@ pub fn init_default_logging() {
     use std::sync::Once;
     static INIT: Once = Once::new();
     INIT.call_once(|| {
-        log4rs::init_file("logging_config.yaml", Default::default()).unwrap();
+        log4rs::init_file("log4rs.yaml", Default::default()).unwrap();
     });
 }
 

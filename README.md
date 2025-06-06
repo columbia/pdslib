@@ -17,7 +17,7 @@ The library is currently under active development and is highly experimental. It
 
 ## Integrations
 
-We provide an example integration of pdslib into Firefox at [columbia/pdslib-firefox](https://github.com/columbia/pdslib-firefox). This integration comes with a companion Firefox extension, at [columbia/pdslib-firefox-extension](https://github.com/columbia/pdslib-firefox-extension), that displays a privacy dashboard (see screenshot below). Section 5 and Appendix E of the [Big Bird paper] give more details about our Firefox integration.
+We provide an example integration of pdslib into Firefox at [columbia/pdslib-firefox](https://github.com/columbia/pdslib-firefox). This integration comes with a companion Firefox extension, at [columbia/pdslib-firefox-extension](https://github.com/columbia/pdslib-firefox-extension), that displays a privacy dashboard (see screenshot below). Section 5 and Appendix E of the [Big Bird paper](https://arxiv.org/abs/2506.05290) give more details about our Firefox integration.
 
 ![firefox-extension-screenshot](docs/firefox-prototype.png)
 
@@ -25,7 +25,7 @@ We are also experimenting with a prototype integration of pdslib into Android.
 
 ## Repository structure
 - `src` contains the following main components: `budget`, `events`, `mechanisms` (no dependencies), `queries` (depends on `budget`, `events`, `mechanisms`) and `pds` (depends on the rest).
-- `src/*/traits.rs` define interfaces. Other files in `src/*` implement these interfaces, with simple in-memory datastructures for now, such as [HashMapFilterStorage](https://github.com/columbia/pdslib/blob/e54c363fcdf3761df63dfb4cb025c5fe92cc571f/src/budget/hashmap_filter_storage.rs#L10). Other crates using pdslib in particular environments (e.g., Firefox or Android) can have implementations for the same traits using browser storage or SQLite databases.
-- `src/pds` is structured to work with `budget`, `events`, `queries` only through interfaces. This should allow customers to swap the implementation for event storage or replace the type of query, and still obtain a working implementation of the `PrivateDataService` interface.
-- `src/events/ppa_event.rs` and `src/queries/ppa_histogram.rs` provide concrete implementations of the pdslib interfaces for PPA-like events and queries, which are used to evaluate Big Bird.
+    - `src/*/traits.rs` define interfaces. Other files in `src/*` implement these interfaces, with simple in-memory datastructures for now, such as [HashMapFilterStorage](https://github.com/columbia/pdslib/blob/e54c363fcdf3761df63dfb4cb025c5fe92cc571f/src/budget/hashmap_filter_storage.rs#L10). Other crates using pdslib in particular environments (e.g., Firefox or Android) can have implementations for the same traits using browser storage or SQLite databases.
+    - `src/pds` is structured to work with `budget`, `events`, `queries` only through interfaces. This should allow customers to swap the implementation for event storage or replace the type of query, and still obtain a working implementation of the `PrivateDataService` interface.
+    - `src/events/ppa_event.rs` and `src/queries/ppa_histogram.rs` provide concrete implementations of the pdslib interfaces for PPA-like events and queries, which are used to evaluate Big Bird.
 - `tests` contains integration tests. In particular, `tests/*_demo.rs` show how an external application can use pdslib to register events and request different types of reports on a device. 

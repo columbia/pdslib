@@ -12,7 +12,7 @@ pub trait Uri: Hash + Eq + Clone + Debug {}
 /// Implement URI for all eligible types
 impl<T: Hash + Eq + Clone + Debug> Uri for T {}
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct EventUris<U> {
     /// URI of the entity that registered this event.
     pub source_uri: U,

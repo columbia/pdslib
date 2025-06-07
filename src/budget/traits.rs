@@ -77,6 +77,7 @@ pub trait FilterStorage {
         Self: Sized;
 
     /// Get the capacities object that was passed to the constructor.
+    /// Note: for the privacy proof to be valid, the capacities must not change.
     fn capacities(&self) -> &Self::Capacities;
 
     /// Get the filter with the given ID from the storage.

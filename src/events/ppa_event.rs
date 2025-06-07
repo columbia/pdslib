@@ -7,15 +7,15 @@ use crate::{
 };
 
 /// Impression event
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PpaEvent<U: Uri = String> {
     /// Event ID, e.g., counter or random ID. Unused in Firefox but kept for
     /// debugging purposes.
     pub id: u64,
 
-    /// Timestamp, also for debugging purposes.
+    /// Timestamp, used to order events for last-touch attribution.
     pub timestamp: u64,
-    // TODO(later): Use the timestamp to determine last-touch attribution
+
     pub epoch_number: PpaEpochId,
 
     pub histogram_index: PpaBucketKey,

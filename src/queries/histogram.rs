@@ -67,14 +67,12 @@ where
 
     /// Computes the report by attributing values to events, and then summing
     /// events by bucket.
-    fn compute_histogram_report(
+    fn map_events_to_buckets(
         &self,
-        relevant_events: &RelevantEvents<Self::Event>,
+        event_values: &HashMap<Self::Event, f64>,
     ) -> HistogramReport<Self::BucketKey> {
         let mut bin_values: HashMap<Self::BucketKey, f64> = HashMap::new();
-
         let mut total_value: f64 = 0.0;
-        let event_values = self.event_values(relevant_events);
 
         // The event_values function selects the relevant events and assigns
         // values according to the requested attribution logic, so we

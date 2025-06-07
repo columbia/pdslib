@@ -225,23 +225,26 @@ impl<U: Uri> HistogramRequest for PpaHistogramRequest<U> {
                     let relevant_events_in_epoch =
                         relevant_events.for_epoch(&epoch_id);
 
-                    if !relevant_events_in_epoch.is_empty() {
-                        // Start from the most recent event in the epoch and go
-                        // backwards.
-                        for event in relevant_events_in_epoch.iter().rev() {
-                            if event.histogram_index < self.histogram_size {
-                                // Found a relevant event with a valid bucket
-                                // key, we're done.
-                                return vec![(event, self.attributable_value)];
-                            } else {
-                                // Log error for dropped events, and keep
-                                // searching.
-                                log::error!(
+                    // TODO(later): pre-sort the events by timestamp in storage
+                    let mut relevant_events_in_epoch: Vec<&_> =
+                        relevant_events_in_epoch.iter().collect();
+                    relevant_events_in_epoch.sort_by_key(|e| e.timestamp);
+
+                    // Start from the most recent event in the epoch and go
+                    // backwards.
+                    for event in relevant_events_in_epoch.iter().rev() {
+                        if event.histogram_index < self.histogram_size {
+                            // Found a relevant event with a valid bucket
+                            // key, we're done.
+                            return vec![(event, self.attributable_value)];
+                        } else {
+                            // Log error for dropped events, and keep
+                            // searching.
+                            log::error!(
                                 "Dropping event with id {} due to invalid bucket key {}",
                                 event.id,
                                 event.histogram_index
                             );
-                            }
                         }
                     }
                 }
@@ -293,7 +296,12 @@ impl<U: Uri> EpochReportRequest for PpaHistogramRequest<U> {
         &self,
         relevant_events: &RelevantEvents<Self::Event>,
     ) -> Self::Report {
-        self.compute_histogram_report(relevant_events)
+        let event_values = self.event_values(relevant_events);
+        let event_values: HashMap<_, _> = event_values
+            .into_iter()
+            .map(|(e, v)| (e.clone(), v))
+            .collect();
+        self.map_events_to_buckets(&event_values)
     }
 
     fn single_epoch_individual_sensitivity(

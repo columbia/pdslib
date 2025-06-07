@@ -3,7 +3,7 @@ use std::{
     vec,
 };
 
-use log::debug;
+use log::{debug, warn};
 
 use super::{
     accounting::compute_epoch_loss,
@@ -47,15 +47,18 @@ where
 
         let epochs = request.epoch_ids();
 
+        if epochs.len() <= 1 {
+            warn!("Cross-report optimization only saves budget when requesting more than 1 epoch. We recommend using the regular API otherwise.")
+        }
+
         let mut oob_filters = vec![];
         for epoch_id in epochs {
-            // 2 * a^max / lambda for every source URI
+            // 2 * a^max / lambda
             let NoiseScale::Laplace(noise_scale) = request.noise_scale();
             let individual_privacy_loss = request
                 .histogram_multi_epoch_report_global_sensitivity()
                 / noise_scale;
 
-            // 2 * a^max / lambda for every source URI
             let source_losses = uris
                 .source_uris
                 .iter()
@@ -72,13 +75,11 @@ where
             );
 
             // Do not consume per-querier, that is done in get_report().
-            // Change the per-querier budgets to 0 to still initialize the
-            // filter.
             for querier_uri in &uris.querier_uris {
-                filters_to_consume.remove(
-                    &FilterId::PerQuerier(epoch_id, querier_uri.clone()),
-                    // &0.0, // no budget consumption for per-querier filter
-                );
+                filters_to_consume.remove(&FilterId::PerQuerier(
+                    epoch_id,
+                    querier_uri.clone(),
+                ));
             }
 
             // Phase 1: dry run.
@@ -111,8 +112,15 @@ where
             }
         }
 
+        let event_values = request
+            .event_values(&relevant_events)
+            .into_iter()
+            .map(|(event, value)| (event.clone(), value))
+            .collect::<HashMap<_, _>>();
+
         let attribution_object = AttributionObject {
             request,
+            event_values,
             events: relevant_events,
             already_requested_buckets: HashSet::new(),
         };
@@ -129,6 +137,9 @@ pub struct AttributionObject<Q: HistogramRequest> {
 
     /// The relevant events for this request
     pub events: RelevantEvents<Q::Event>,
+
+    /// The attributed value for each event
+    pub event_values: HashMap<Q::Event, f64>,
 
     /// The set of histogram buckets that have already been requested.
     /// A histogram bucket can only be requested once. If it is requested
@@ -166,9 +177,23 @@ impl<U: Uri> AttributionObject<PpaHistogramRequest<U>> {
         self.already_requested_buckets
             .extend(&relevant_event_selector.requested_buckets);
 
-        let mut relevant_events = self.events.clone();
+        // get the attributed values for the requested events
+        let mut event_values = HashMap::new();
+        for epoch in &epochs {
+            for event in self.events.for_epoch(epoch) {
+                if relevant_event_selector
+                    .requested_buckets
+                    .contains(&event.histogram_index)
+                {
+                    if let Some(value) = self.event_values.get(event) {
+                        event_values.insert(event.clone(), *value);
+                    }
+                }
+            }
+        }
+
         let mut unfiltered_report =
-            self.request.compute_report(&relevant_events);
+            self.request.map_events_to_buckets(&event_values);
 
         // only keep the buckets that are requested
         unfiltered_report.bin_values.retain(|bucket, _| {
@@ -195,7 +220,9 @@ impl<U: Uri> AttributionObject<PpaHistogramRequest<U>> {
             if filter_status == FilterStatus::OutOfBudget {
                 // Not enough budget, drop events without any filter
                 // consumption
-                relevant_events.drop_epoch(&epoch_id);
+                for event in epoch_relevant_events {
+                    event_values.remove(event);
+                }
 
                 // Keep track of why we dropped this epoch
                 oob_filters.push(filter_id);
@@ -203,12 +230,7 @@ impl<U: Uri> AttributionObject<PpaHistogramRequest<U>> {
         }
 
         // Now that we've dropped OOB epochs, we can compute the final report.
-        let mut filtered_report = self.request.compute_report(&relevant_events);
-
-        // only keep the buckets that are requested
-        filtered_report.bin_values.retain(|bucket, _| {
-            relevant_event_selector.requested_buckets.contains(bucket)
-        });
+        let filtered_report = self.request.map_events_to_buckets(&event_values);
 
         let report = PdsReport {
             filtered_report,

@@ -447,4 +447,75 @@ mod tests {
 
         Ok(())
     }
+
+    fn test_cross_epoch_last_touch() -> Result<(), anyhow::Error> {
+        let capacities = StaticCapacities::mock();
+        let filters = PpaFilterStorage::new(capacities.clone())?;
+        let mut pds = PpaPdsCore::<_>::new(filters);
+
+        let event1 = PpaEvent {
+            id: 1,
+            timestamp: 100,
+            epoch_number: 1,
+            histogram_index: 1,
+            uris: EventUris::mock(),
+            filter_data: 1,
+        };
+        let event2 = PpaEvent {
+            id: 2,
+            timestamp: 200, // Later timestamp
+            epoch_number: 2,
+            histogram_index: 1, // Same bucket as event1
+            uris: EventUris::mock(),
+            filter_data: 1,
+        };
+
+        // set epoch 2 PerQuerier filter to be OOB
+        let querier_uri = ReportRequestUris::mock().querier_uris[0].clone();
+        let filter_id = FilterId::PerQuerier(2, querier_uri.clone());
+        let filter_capacity = capacities.per_querier;
+        pds.filter_storage
+            .try_consume(&filter_id, &filter_capacity)?;
+
+        // get attribution object
+        let request = PpaHistogramRequest::new(
+            &PpaHistogramConfig {
+                start_epoch: 1,
+                end_epoch: 2,
+                attributable_value: 100.0,
+                max_attributable_value: 200.0,
+                requested_epsilon: 1.0,
+                histogram_size: 3,
+            },
+            PpaRelevantEventSelector {
+                report_request_uris: ReportRequestUris::mock(),
+                is_matching_event: Box::new(|_| true),
+                requested_buckets: vec![1].into(),
+            },
+        )
+        .unwrap();
+        let relevant_events = RelevantEvents::from_vec(vec![event1, event2]);
+        let mut attr_object =
+            pds.measure_conversion(request, relevant_events)?;
+
+        let report = attr_object.get_report(
+            &querier_uri,
+            &PpaRelevantEventSelector {
+                report_request_uris: ReportRequestUris::mock(),
+                is_matching_event: Box::new(|_| true),
+                requested_buckets: RequestedBuckets::AllBuckets,
+            },
+            &mut pds.filter_storage,
+        )?;
+
+        // the attribution should be empty, as the last-touch event's
+        // epoch was OOB
+        assert!(
+            report.filtered_report.bin_values.is_empty(),
+            "Expected empty report for querier {querier_uri}, but got: {:?}",
+            report.filtered_report.bin_values
+        );
+
+        Ok(())
+    }
 }

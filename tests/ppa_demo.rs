@@ -102,7 +102,7 @@ fn main() -> Result<(), anyhow::Error> {
             is_matching_event: Box::new(|event_filter_data: u64| {
                 event_filter_data == 1
             }),
-            requested_buckets: vec![0x559],
+            requested_buckets: vec![0x559].into(),
         }, // Not filtering yet.
     )
     .unwrap();
@@ -132,7 +132,7 @@ fn main() -> Result<(), anyhow::Error> {
             is_matching_event: Box::new(|event_filter_data: u64| {
                 event_filter_data == 1
             }),
-            requested_buckets: vec![0x559],
+            requested_buckets: vec![0x559].into(),
         }, // Not filtering yet.
     );
     assert!(request2.is_err());
@@ -151,7 +151,7 @@ fn main() -> Result<(), anyhow::Error> {
             is_matching_event: Box::new(|event_filter_data: u64| {
                 event_filter_data != 1
             }),
-            requested_buckets: vec![0x559],
+            requested_buckets: vec![0x559].into(),
         }, // Not filtering yet.
     )
     .unwrap();

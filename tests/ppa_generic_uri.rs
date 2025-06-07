@@ -11,6 +11,7 @@ use pdslib::{
     queries::{
         ppa_histogram::{
             PpaHistogramConfig, PpaHistogramRequest, PpaRelevantEventSelector,
+            RequestedBuckets,
         },
         traits::ReportRequestUris,
     },
@@ -63,7 +64,7 @@ fn main() -> Result<(), anyhow::Error> {
     let always_relevant_event_selector = TestRelevantEventSelector {
         report_request_uris: report_uris.clone(),
         is_matching_event: Box::new(|_| true),
-        requested_buckets: vec![1],
+        requested_buckets: RequestedBuckets::AllBuckets,
     };
 
     pds.register_event(event.clone())?;

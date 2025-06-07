@@ -24,9 +24,15 @@ pub type PpaEpochId = u64;
 pub type PpaFilterData = u64;
 
 pub struct PpaRelevantEventSelector<U: Uri = String> {
+    /// source/trigger/querier URIs for this request
     pub report_request_uris: ReportRequestUris<U>,
+
+    /// Function to determine if an event is relevant based on its filter_data
     pub is_matching_event: Box<dyn Fn(PpaFilterData) -> bool>,
-    pub requested_buckets: Vec<PpaBucketKey>,
+
+    /// List of requested histogram buckets. All other buckets are ignored.
+    /// If None, all buckets are requested.
+    pub requested_buckets: RequestedBuckets<PpaBucketKey>,
 }
 
 impl<U: Uri> std::fmt::Debug for PpaRelevantEventSelector<U> {
@@ -34,6 +40,29 @@ impl<U: Uri> std::fmt::Debug for PpaRelevantEventSelector<U> {
         f.debug_struct("PpaRelevantEventSelector")
             .field("report_request_uris", &self.report_request_uris)
             .finish_non_exhaustive()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum RequestedBuckets<BK: BucketKey> {
+    AllBuckets,
+    SpecificBuckets(Vec<BK>),
+}
+
+impl<BK: BucketKey> RequestedBuckets<BK> {
+    pub fn contains(&self, bucket: &BK) -> bool {
+        match self {
+            RequestedBuckets::AllBuckets => true,
+            RequestedBuckets::SpecificBuckets(buckets) => {
+                buckets.contains(bucket)
+            }
+        }
+    }
+}
+
+impl<BK: BucketKey> From<Vec<BK>> for RequestedBuckets<BK> {
+    fn from(buckets: Vec<BK>) -> Self {
+        RequestedBuckets::SpecificBuckets(buckets)
     }
 }
 

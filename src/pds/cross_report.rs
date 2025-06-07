@@ -24,6 +24,7 @@ use crate::{
         histogram::HistogramRequest,
         ppa_histogram::{
             PpaEpochId, PpaHistogramRequest, PpaRelevantEventSelector,
+            RequestedBuckets,
         },
         traits::EpochReportRequest,
     },
@@ -122,7 +123,7 @@ where
             request,
             event_values,
             events: relevant_events,
-            already_requested_buckets: HashSet::new(),
+            already_requested_buckets: Some(HashSet::new()),
         };
 
         Ok(attribution_object)
@@ -144,7 +145,8 @@ pub struct AttributionObject<Q: HistogramRequest> {
     /// The set of histogram buckets that have already been requested.
     /// A histogram bucket can only be requested once. If it is requested
     /// again, a null report will be generated instead.
-    pub already_requested_buckets: HashSet<Q::BucketKey>,
+    /// If None, all buckets have already been requested.
+    pub already_requested_buckets: Option<HashSet<Q::BucketKey>>,
 }
 
 impl<U: Uri> AttributionObject<PpaHistogramRequest<U>> {
@@ -164,18 +166,35 @@ impl<U: Uri> AttributionObject<PpaHistogramRequest<U>> {
         let epochs = self.request.epoch_ids();
         let num_epochs = epochs.len();
 
-        // if any of the requested buckets have already been previously
-        // requested, abort and return null report
-        for bucket in &relevant_event_selector.requested_buckets {
-            if self.already_requested_buckets.contains(bucket) {
-                debug!("Bucket {bucket:?} already requested, returning null report");
-                return Ok(PdsReport::default());
+        // if already_requested_buckets is None, all buckets have already
+        // been requested
+        let Some(already_requested_buckets) =
+            &mut self.already_requested_buckets
+        else {
+            debug!("All buckets have already been requested, returning null report");
+            return Ok(PdsReport::default());
+        };
+
+        match &relevant_event_selector.requested_buckets {
+            RequestedBuckets::SpecificBuckets(requested_buckets) => {
+                // if any of the requested buckets have already been previously
+                // requested, abort and return null report
+                for bucket in requested_buckets {
+                    if already_requested_buckets.contains(bucket) {
+                        debug!("Bucket {bucket:?} already requested, returning null report");
+                        return Ok(PdsReport::default());
+                    }
+                }
+
+                // Add the requested buckets to the already requested set
+                already_requested_buckets.extend(requested_buckets);
+            }
+            RequestedBuckets::AllBuckets => {
+                // None means this request is for all buckets.
+                // Also set our already_requested_buckets to None
+                self.already_requested_buckets = None;
             }
         }
-
-        // Add the requested buckets to the already requested set
-        self.already_requested_buckets
-            .extend(&relevant_event_selector.requested_buckets);
 
         // get the attributed values for the requested events
         let mut event_values = HashMap::new();
@@ -331,7 +350,7 @@ mod tests {
         let relevant_event_selector = |bucket: u64| PpaRelevantEventSelector {
             report_request_uris: report_request_uris.clone(),
             is_matching_event: Box::new(|_: u64| true),
-            requested_buckets: vec![bucket],
+            requested_buckets: vec![bucket].into(),
         };
 
         let request = PpaHistogramRequest::new(
@@ -339,7 +358,7 @@ mod tests {
             PpaRelevantEventSelector {
                 report_request_uris: report_request_uris.clone(),
                 is_matching_event: Box::new(|_| true),
-                requested_buckets: vec![1],
+                requested_buckets: vec![1].into(),
             },
         )
         .expect("Failed to create request");

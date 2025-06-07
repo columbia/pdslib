@@ -751,7 +751,7 @@ mod tests {
         queries::{
             ppa_histogram::{
                 PpaHistogramConfig, PpaHistogramRequest,
-                PpaRelevantEventSelector,
+                PpaRelevantEventSelector, RequestedBuckets,
             },
             traits::ReportRequestUris,
         },
@@ -816,7 +816,7 @@ mod tests {
         let always_relevant_selector = || PpaRelevantEventSelector {
             report_request_uris: report_uris.clone(),
             is_matching_event: Box::new(|_: u64| true),
-            requested_buckets: vec![0],
+            requested_buckets: RequestedBuckets::AllBuckets,
         };
 
         // Request that will be answered in the first scheduling attempt.
@@ -941,7 +941,7 @@ mod tests {
             |uris: ReportRequestUris<String>| PpaRelevantEventSelector {
                 report_request_uris: uris,
                 is_matching_event: Box::new(|_: u64| true),
-                requested_buckets: vec![0],
+                requested_buckets: RequestedBuckets::AllBuckets,
             };
 
         // Every single conversion sites gets a conversion.
@@ -1134,7 +1134,7 @@ mod tests {
                             querier_uris: vec![shoes_conv.clone()],
                         },
                         is_matching_event: Box::new(|_: u64| true),
-                        requested_buckets: vec![0],
+                        requested_buckets: RequestedBuckets::AllBuckets,
                     },
                 )?,
             ))?;
@@ -1157,7 +1157,7 @@ mod tests {
                             querier_uris: vec![hats_conv.clone()],
                         },
                         is_matching_event: Box::new(|_: u64| true),
-                        requested_buckets: vec![0],
+                        requested_buckets: RequestedBuckets::AllBuckets,
                     },
                 )?,
             ))?;

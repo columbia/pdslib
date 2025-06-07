@@ -18,6 +18,7 @@ use crate::{
     events::{
         ppa_event::PpaEvent, relevant_events::RelevantEvents, traits::Uri,
     },
+    mechanisms::NoiseScale,
     pds::core::PrivateDataServiceCore,
     queries::{
         histogram::HistogramRequest,
@@ -48,16 +49,17 @@ where
 
         let mut oob_filters = vec![];
         for epoch_id in epochs {
-            let individual_privacy_loss =
-                request.histogram_multi_epoch_report_global_sensitivity();
+            // 2 * a^max / lambda for every source URI
+            let NoiseScale::Laplace(noise_scale) = request.noise_scale();
+            let individual_privacy_loss = request
+                .histogram_multi_epoch_report_global_sensitivity()
+                / noise_scale;
 
-            // 2 * a^max for every source URI
+            // 2 * a^max / lambda for every source URI
             let source_losses = uris
                 .source_uris
                 .iter()
-                .map(|source_uri| {
-                    (source_uri.clone(), 2.0 * request.attributable_value())
-                })
+                .map(|source_uri| (source_uri.clone(), individual_privacy_loss))
                 .collect::<HashMap<_, _>>();
 
             // Try to consume budget from current epoch, drop events if OOB.
@@ -298,8 +300,8 @@ mod tests {
         let config = PpaHistogramConfig {
             start_epoch: 1,
             end_epoch: 2,
-            attributable_value: 0.5,
-            max_attributable_value: 1.0,
+            attributable_value: 100.0,
+            max_attributable_value: 200.0,
             requested_epsilon: 1.0,
             histogram_size: 3,
         };
@@ -319,6 +321,8 @@ mod tests {
             },
         )
         .expect("Failed to create request");
+
+        let NoiseScale::Laplace(noise_scale) = request.noise_scale();
 
         // Process the request
         let mut attr_object =
@@ -354,7 +358,7 @@ mod tests {
         // Intermediary r2 receives the value from the main event
         assert_eq!(
             r2_bins.get(&2),
-            Some(&0.5),
+            Some(&config.attributable_value),
             "Incorrect value for r2.ex bucket 3"
         );
 
@@ -391,7 +395,7 @@ mod tests {
 
         // Calculate what would be deducted with vs. without
         // optimization
-        let expected_deduction = 2.0 * config.attributable_value;
+        let expected_deduction = 2.0 * config.attributable_value / noise_scale;
 
         // Verify deduction is close to single event (cross-report
         // optimization working)

@@ -12,20 +12,27 @@ use crate::{
         relevant_events::RelevantEvents,
         traits::{RelevantEventSelector, Uri},
     },
-    mechanisms::NoiseScale,
+    mechanisms::{NoiseScale, NormType},
     queries::{
         histogram::{BucketKey, HistogramReport, HistogramRequest},
         traits::{EpochReportRequest, ReportRequestUris},
     },
 };
 
-type PpaBucketKey = u64;
-type PpaEpochId = u64;
+pub type PpaBucketKey = u64;
+pub type PpaEpochId = u64;
+pub type PpaFilterData = u64;
 
 pub struct PpaRelevantEventSelector<U: Uri = String> {
+    /// source/trigger/querier URIs for this request
     pub report_request_uris: ReportRequestUris<U>,
-    pub is_matching_event: Box<dyn Fn(u64) -> bool>,
-    pub bucket_intermediary_mapping: HashMap<u64, U>,
+
+    /// Function to determine if an event is relevant based on its filter_data
+    pub is_matching_event: Box<dyn Fn(PpaFilterData) -> bool>,
+
+    /// List of requested histogram buckets. All other buckets are ignored.
+    /// If None, all buckets are requested.
+    pub requested_buckets: RequestedBuckets<PpaBucketKey>,
 }
 
 impl<U: Uri> std::fmt::Debug for PpaRelevantEventSelector<U> {
@@ -36,12 +43,35 @@ impl<U: Uri> std::fmt::Debug for PpaRelevantEventSelector<U> {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum RequestedBuckets<BK: BucketKey> {
+    AllBuckets,
+    SpecificBuckets(HashSet<BK>),
+}
+
+impl<BK: BucketKey> RequestedBuckets<BK> {
+    pub fn contains(&self, bucket: &BK) -> bool {
+        match self {
+            RequestedBuckets::AllBuckets => true,
+            RequestedBuckets::SpecificBuckets(buckets) => {
+                buckets.contains(bucket)
+            }
+        }
+    }
+}
+
+impl<BK: BucketKey> From<Vec<BK>> for RequestedBuckets<BK> {
+    fn from(buckets: Vec<BK>) -> Self {
+        RequestedBuckets::SpecificBuckets(HashSet::from_iter(buckets))
+    }
+}
+
 /// For compatibility with PPA spec that uses two parameters (epsilon, query
 /// global sensitivity) instead of directly Laplace noise scale.
 #[derive(Debug, Clone)]
 pub struct PpaHistogramConfig {
-    pub start_epoch: u64,
-    pub end_epoch: u64,
+    pub start_epoch: PpaEpochId,
+    pub end_epoch: PpaEpochId,
 
     /// Conversion value that is spread across events for this conversion.
     pub attributable_value: f64,
@@ -59,8 +89,8 @@ pub struct PpaHistogramConfig {
 /// configuration.
 #[derive(Debug, Clone)]
 pub struct DirectPpaHistogramConfig {
-    pub start_epoch: u64,
-    pub end_epoch: u64,
+    pub start_epoch: PpaEpochId,
+    pub end_epoch: PpaEpochId,
     /// Conversion value that is spread across events
     pub attributable_value: f64,
     pub laplace_noise_scale: f64,
@@ -109,8 +139,8 @@ impl<U: Uri> RelevantEventSelector for PpaRelevantEventSelector<U> {
 
 #[derive(Debug)]
 pub struct PpaHistogramRequest<U: Uri = String> {
-    start_epoch: u64,
-    end_epoch: u64,
+    start_epoch: PpaEpochId,
+    end_epoch: PpaEpochId,
     /// Conversion value that is spread across events
     attributable_value: f64,
     laplace_noise_scale: f64,
@@ -189,35 +219,12 @@ impl<U: Uri> PpaHistogramRequest<U> {
             logic: AttributionLogic::LastTouch,
         })
     }
-
-    pub fn get_bucket_intermediary_mapping(&self) -> &HashMap<u64, U> {
-        &self.relevant_event_selector.bucket_intermediary_mapping
-    }
-
-    // Helper to check if a bucket is for a specific intermediary
-    pub fn is_bucket_for_intermediary(
-        &self,
-        bucket_key: u64,
-        intermediary_uri: &U,
-    ) -> bool {
-        match self
-            .relevant_event_selector
-            .bucket_intermediary_mapping
-            .get(&bucket_key)
-        {
-            Some(intermediary) => intermediary == intermediary_uri,
-            None => false,
-        }
-    }
 }
 
 impl<U: Uri> HistogramRequest for PpaHistogramRequest<U> {
     type BucketKey = PpaBucketKey;
-    type HistogramEvent = PpaEvent<U>;
-    type HistogramEpochId = PpaEpochId;
-    type HistogramUri = U;
 
-    fn bucket_key(&self, event: &Self::HistogramEvent) -> Self::BucketKey {
+    fn bucket_key(&self, event: &Self::Event) -> Self::BucketKey {
         // Bucket key validation.
         if event.histogram_index >= self.histogram_size {
             log::warn!(
@@ -247,23 +254,26 @@ impl<U: Uri> HistogramRequest for PpaHistogramRequest<U> {
                     let relevant_events_in_epoch =
                         relevant_events.for_epoch(&epoch_id);
 
-                    if !relevant_events_in_epoch.is_empty() {
-                        // Start from the most recent event in the epoch and go
-                        // backwards.
-                        for event in relevant_events_in_epoch.iter().rev() {
-                            if event.histogram_index < self.histogram_size {
-                                // Found a relevant event with a valid bucket
-                                // key, we're done.
-                                return vec![(event, self.attributable_value)];
-                            } else {
-                                // Log error for dropped events, and keep
-                                // searching.
-                                log::error!(
+                    // TODO(later): pre-sort the events by timestamp in storage
+                    let mut relevant_events_in_epoch: Vec<&_> =
+                        relevant_events_in_epoch.iter().collect();
+                    relevant_events_in_epoch.sort_by_key(|e| e.timestamp);
+
+                    // Start from the most recent event in the epoch and go
+                    // backwards.
+                    for event in relevant_events_in_epoch.iter().rev() {
+                        if event.histogram_index < self.histogram_size {
+                            // Found a relevant event with a valid bucket
+                            // key, we're done.
+                            return vec![(event, self.attributable_value)];
+                        } else {
+                            // Log error for dropped events, and keep
+                            // searching.
+                            log::error!(
                                 "Dropping event with id {} due to invalid bucket key {}",
                                 event.id,
                                 event.histogram_index
                             );
-                            }
                         }
                     }
                 }
@@ -274,49 +284,11 @@ impl<U: Uri> HistogramRequest for PpaHistogramRequest<U> {
         vec![]
     }
 
-    fn get_bucket_intermediary_mapping(&self) -> Option<&HashMap<u64, U>> {
-        Some(&self.relevant_event_selector.bucket_intermediary_mapping)
-    }
-
-    fn filter_report_for_intermediary(
-        &self,
-        report: &HistogramReport<Self::BucketKey>,
-        intermediary_uri: &U,
-        _relevant_events_per_epoch: &RelevantEvents<Self::HistogramEvent>,
-    ) -> Option<HistogramReport<Self::BucketKey>> {
-        // Collect all u64 keys whose value matches intermediary_uri
-        let intermediary_buckets: HashSet<u64> = self
-            .relevant_event_selector
-            .bucket_intermediary_mapping
-            .iter()
-            .filter_map(|(bucket_id, uri)| {
-                if uri == intermediary_uri {
-                    Some(*bucket_id)
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        // If none matched, return None; otherwise, filter and return Some(...)
-        if intermediary_buckets.is_empty() {
-            None
-        } else {
-            let filtered_bins = filter_histogram_for_intermediary(
-                &report.bin_values,
-                &intermediary_buckets,
-            );
-            Some(HistogramReport {
-                bin_values: filtered_bins,
-            })
-        }
-    }
-
     fn attributable_value(&self) -> f64 {
         self.attributable_value
     }
 
-    fn histogram_report_uris(&self) -> ReportRequestUris<Self::HistogramUri> {
+    fn histogram_report_uris(&self) -> ReportRequestUris<Self::Uri> {
         self.relevant_event_selector.report_request_uris.clone()
     }
 }
@@ -352,14 +324,19 @@ impl<U: Uri> EpochReportRequest for PpaHistogramRequest<U> {
     fn compute_report(
         &self,
         relevant_events: &RelevantEvents<Self::Event>,
-    ) -> super::traits::QueryComputeResult<Self::Uri, Self::Report> {
-        self.compute_histogram_report(relevant_events)
+    ) -> Self::Report {
+        let event_values = self.event_values(relevant_events);
+        let event_values: HashMap<_, _> = event_values
+            .into_iter()
+            .map(|(e, v)| (e.clone(), v))
+            .collect();
+        self.map_events_to_buckets(&event_values)
     }
 
     fn single_epoch_individual_sensitivity(
         &self,
         report: &Self::Report,
-        norm_type: crate::mechanisms::NormType,
+        norm_type: NormType,
     ) -> f64 {
         self.histogram_single_epoch_individual_sensitivity(report, norm_type)
     }
@@ -367,14 +344,14 @@ impl<U: Uri> EpochReportRequest for PpaHistogramRequest<U> {
     fn single_epoch_source_individual_sensitivity(
         &self,
         report: &Self::Report,
-        norm_type: crate::mechanisms::NormType,
+        norm_type: NormType,
     ) -> f64 {
         self.histogram_single_epoch_source_individual_sensitivity(
             report, norm_type,
         )
     }
 
-    fn noise_scale(&self) -> crate::mechanisms::NoiseScale {
+    fn noise_scale(&self) -> NoiseScale {
         NoiseScale::Laplace(self.laplace_noise_scale)
     }
 }

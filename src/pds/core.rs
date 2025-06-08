@@ -7,8 +7,6 @@ use super::{
     private_data_service::PdsReport,
     quotas::{FilterId, PdsFilterStatus},
 };
-#[cfg(feature = "experimental")]
-use crate::queries::traits::QueryComputeResult;
 use crate::{
     budget::{
         pure_dp_filter::PureDPBudget,
@@ -63,8 +61,8 @@ where
         request: &Q,
         // mutable, as we will drop out-of-budget epochs from it
         mut relevant_events: RelevantEvents<Q::Event>,
-    ) -> Result<HashMap<Q::Uri, PdsReport<Q>>, ERR> {
-        debug!("Computing report for request {:?}", request);
+    ) -> Result<PdsReport<Q>, ERR> {
+        debug!("Computing report for request {request:?}");
 
         let uris = request.report_uris();
 
@@ -73,16 +71,12 @@ where
         if uris.querier_uris.len() > 1 {
             unimplemented!("Multi-beneficiary queries");
         }
-        let querier_uri = uris
-            .querier_uris
-            .first()
-            .expect("Need at least one querier URI");
 
         let epochs = request.epoch_ids();
         let num_epochs = epochs.len();
 
         // Compute the raw report, useful for debugging and accounting.
-        let unfiltered_result = request.compute_report(&relevant_events);
+        let unfiltered_report = request.compute_report(&relevant_events);
 
         // Browse epochs in the attribution window
         let mut oob_filters = vec![];
@@ -94,7 +88,7 @@ where
             let individual_privacy_loss = compute_epoch_loss(
                 request,
                 epoch_relevant_events,
-                unfiltered_result.uri_report_map.get(querier_uri).unwrap(),
+                &unfiltered_report,
                 num_epochs,
             );
 
@@ -102,7 +96,7 @@ where
             let source_losses = compute_epoch_source_losses(
                 request,
                 relevant_events.sources_for_epoch(&epoch_id),
-                unfiltered_result.uri_report_map.get(querier_uri).unwrap(),
+                &unfiltered_report,
                 num_epochs,
             );
 
@@ -150,61 +144,22 @@ where
         );
 
         // Now that we've dropped OOB epochs, we can compute the final report.
-        let filtered_result = request.compute_report(&relevant_events);
-        debug!("Filtered result: {filtered_result:?}");
+        let filtered_report = request.compute_report(&relevant_events);
+        debug!("Filtered report: {filtered_report:?}");
 
-        let _oob_filters_len = oob_filters.len();
-
-        let main_report = PdsReport {
-            filtered_report: filtered_result
-                .uri_report_map
-                .get(querier_uri)
-                .unwrap()
-                .clone(),
-            unfiltered_report: {
-                #[cfg(feature = "experimental")]
-                {
-                    unfiltered_result
-                        .uri_report_map
-                        .get(querier_uri)
-                        .unwrap()
-                        .clone()
-                }
-                #[cfg(not(feature = "experimental"))]
-                {
-                    Q::Report::default()
-                }
-            },
-            oob_filters: {
-                #[cfg(feature = "experimental")]
-                {
-                    oob_filters
-                }
-                #[cfg(not(feature = "experimental"))]
-                {
-                    Vec::default()
-                }
-            },
+        #[cfg(feature = "experimental")]
+        let report_with_metadata = PdsReport {
+            filtered_report,
+            unfiltered_report,
+            oob_filters,
+        };
+        #[cfg(not(feature = "experimental"))]
+        let report_with_metadata = PdsReport {
+            filtered_report,
+            ..Default::default()
         };
 
-        // Handle optimization queries when at least two intermediary URIs are
-        // in the request.
-        #[cfg(feature = "experimental")]
-        if self.uses_cross_report_optimization(&filtered_result.uri_report_map)
-        {
-            let intermediate_reports = self
-                .intermediary_reports_with_cross_report_optimization(
-                    request,
-                    unfiltered_result,
-                    filtered_result,
-                    main_report.oob_filters.clone(),
-                )?;
-            return Ok(intermediate_reports);
-        }
-
-        // For regular requests or optimization queries without intermediary
-        // reports
-        Ok(HashMap::from([(querier_uri.clone(), main_report)]))
+        Ok(report_with_metadata)
     }
 
     /// Calculate how much privacy to deduct from which filters,
@@ -272,74 +227,5 @@ where
             return Ok(PdsFilterStatus::OutOfBudget(oob_filters));
         }
         Ok(PdsFilterStatus::Continue)
-    }
-
-    #[cfg(feature = "experimental")]
-    fn uses_cross_report_optimization(
-        &self,
-        site_to_report_mapping: &HashMap<Q::Uri, Q::Report>,
-    ) -> bool {
-        debug!(
-            "Checking if this mapping needs cross-report privacy loss optimization: {site_to_report_mapping:?}",
-        );
-
-        // Simple sufficient condition to enable cross-report optimization: have
-        // one querier and at least 2 intermediary sites that ask for a
-        // subset of the buckets.
-        site_to_report_mapping.keys().len() >= 3
-    }
-
-    #[cfg(feature = "experimental")]
-    fn intermediary_reports_with_cross_report_optimization(
-        &self,
-        request: &Q,
-        unfiltered_result: QueryComputeResult<Q::Uri, Q::Report>,
-        filtered_result: QueryComputeResult<Q::Uri, Q::Report>,
-        oob_filters: Vec<FilterId<Q::EpochId, Q::Uri>>,
-    ) -> Result<HashMap<Q::Uri, PdsReport<Q>>, ERR> {
-        let intermediary_uris = request.report_uris().intermediary_uris.clone();
-        let mut intermediary_reports = HashMap::new();
-
-        if filtered_result.bucket_uri_map.keys().len() > 0 {
-            // Process each intermediary
-            for intermediary_uri in intermediary_uris {
-                // TODO(https://github.com/columbia/pdslib/issues/71): add a check to enforce that events are only readable by authorized intermediaries.
-                // For example, in Fig 2 it seems that the first event is
-                // readable by r1.ex and r3.ex only, and the
-                // second event is readable by r2.ex and r3.ex.
-                // r3 is a special intermediary that can read
-                // all the events (maybe r3.ex = shoes.example).
-
-                // Filter report for this intermediary
-                if let Some(intermediary_filtered_report) =
-                    filtered_result.uri_report_map.get(&intermediary_uri)
-                {
-                    // Create PdsReport for this intermediary
-                    let unfiltered_report = unfiltered_result
-                        .uri_report_map
-                        .get(&intermediary_uri)
-                        .unwrap();
-
-                    let intermediary_pds_report = PdsReport {
-                        filtered_report: intermediary_filtered_report.clone(),
-                        unfiltered_report: unfiltered_report.clone(),
-                        oob_filters: oob_filters.clone(),
-                    };
-
-                    // Create a modified request URIs with the intermediary
-                    // as the querier
-                    let mut intermediary_report_uris =
-                        request.report_uris().clone();
-                    intermediary_report_uris.querier_uris =
-                        vec![intermediary_uri.clone()];
-
-                    intermediary_reports
-                        .insert(intermediary_uri, intermediary_pds_report);
-                }
-            }
-        }
-
-        // Return result with all intermediary reports
-        Ok(intermediary_reports)
     }
 }

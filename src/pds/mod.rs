@@ -6,6 +6,8 @@ pub mod quotas;
 
 #[cfg(feature = "experimental")]
 pub mod batch_pds;
+#[cfg(feature = "experimental")]
+pub mod cross_report;
 
 #[cfg(test)]
 mod tests;

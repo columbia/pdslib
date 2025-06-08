@@ -46,6 +46,19 @@ impl<E: Event> RelevantEvents<E> {
         Self { events_per_epoch }
     }
 
+    pub fn from_vec(events: Vec<E>) -> Self {
+        let mut events_per_epoch: HashMap<E::EpochId, Vec<E>> = HashMap::new();
+
+        for event in events {
+            events_per_epoch
+                .entry(event.epoch_id())
+                .or_default()
+                .push(event);
+        }
+
+        Self::from_mapping(events_per_epoch)
+    }
+
     /// Get the relevant events for a specific epoch.
     pub fn for_epoch(&self, epoch_id: &E::EpochId) -> &[E] {
         self.events_per_epoch

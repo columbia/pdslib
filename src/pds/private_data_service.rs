@@ -1,4 +1,6 @@
-use std::{collections::HashMap, fmt::Debug};
+#[cfg(feature = "experimental")]
+use std::collections::HashMap;
+use std::fmt::Debug;
 
 use log::debug;
 
@@ -31,7 +33,7 @@ pub struct PrivateDataService<
 }
 
 /// Report returned by Pds, potentially augmented with debugging information
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct PdsReport<Q: EpochReportRequest> {
     pub filtered_report: Q::Report,
     pub unfiltered_report: Q::Report,
@@ -39,6 +41,17 @@ pub struct PdsReport<Q: EpochReportRequest> {
     /// Store a list of the filter IDs that were out-of-budget in the atomic
     /// check for any epoch in the attribution window.
     pub oob_filters: Vec<FilterId<Q::EpochId, Q::Uri>>,
+}
+
+/// Default implementation for a null report
+impl<Q: EpochReportRequest> Default for PdsReport<Q> {
+    fn default() -> Self {
+        Self {
+            filtered_report: Q::Report::default(),
+            unfiltered_report: Q::Report::default(),
+            oob_filters: Vec::new(),
+        }
+    }
 }
 
 /// API for the epoch-based PDS.
@@ -61,16 +74,13 @@ where
 
     /// Registers a new event.
     pub fn register_event(&mut self, event: Q::Event) -> Result<(), ERR> {
-        debug!("Registering event {:?}", event);
+        debug!("Registering event {event:?}");
         self.event_storage.add_event(event)?;
         Ok(())
     }
 
     /// Computes a report for the given report request.
-    pub fn compute_report(
-        &mut self,
-        request: &Q,
-    ) -> Result<HashMap<Q::Uri, PdsReport<Q>>, ERR> {
+    pub fn compute_report(&mut self, request: &Q) -> Result<PdsReport<Q>, ERR> {
         let relevant_event_selector = request.relevant_event_selector();
         let relevant_events = RelevantEvents::from_event_storage(
             &mut self.event_storage,

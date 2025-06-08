@@ -46,7 +46,7 @@ impl<U: Uri> std::fmt::Debug for PpaRelevantEventSelector<U> {
 #[derive(Debug, Clone, PartialEq)]
 pub enum RequestedBuckets<BK: BucketKey> {
     AllBuckets,
-    SpecificBuckets(Vec<BK>),
+    SpecificBuckets(HashSet<BK>),
 }
 
 impl<BK: BucketKey> RequestedBuckets<BK> {
@@ -62,7 +62,7 @@ impl<BK: BucketKey> RequestedBuckets<BK> {
 
 impl<BK: BucketKey> From<Vec<BK>> for RequestedBuckets<BK> {
     fn from(buckets: Vec<BK>) -> Self {
-        RequestedBuckets::SpecificBuckets(buckets)
+        RequestedBuckets::SpecificBuckets(HashSet::from_iter(buckets))
     }
 }
 

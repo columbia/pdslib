@@ -46,8 +46,8 @@ pub struct AttributionObject<Q: HistogramRequest> {
     /// The set of histogram buckets that have already been requested.
     /// A histogram bucket can only be requested once. If it is requested
     /// again, a null report will be generated instead.
-    /// If None, all buckets have already been requested.
-    pub already_requested_buckets: Option<HashSet<Q::BucketKey>>,
+    /// If AllBuckets, all buckets have already been requested.
+    pub already_requested_buckets: RequestedBuckets<Q::BucketKey>,
 }
 
 impl<U, FS, ERR> PrivateDataServiceCore<PpaHistogramRequest<U>, FS, ERR>
@@ -59,11 +59,13 @@ where
     >,
     ERR: From<FS::Error>,
 {
-    /// Attributes conversion value to events and deduct privacy loss from global filter and quotas.
-    /// Creates an `AttributionObject` that can queriers can use to generate reports, that will deduct
-    /// per-querier privacy loss and map events to their respective histogram buckets.
+    /// Attributes conversion value to events and deduct privacy loss from
+    /// global filter and quotas. Creates an `AttributionObject` that can
+    /// queriers can use to generate reports, that will deduct per-querier
+    /// privacy loss and map events to their respective histogram buckets.
     ///
-    /// WARNING: This is an experimental API that only offers global DP guarantees.
+    /// WARNING: This is an experimental API that only offers global DP
+    /// guarantees.
     pub fn measure_conversion(
         &mut self,
         request: PpaHistogramRequest<U>,
@@ -148,7 +150,9 @@ where
             request,
             event_values,
             events: relevant_events,
-            already_requested_buckets: Some(HashSet::new()),
+            already_requested_buckets: RequestedBuckets::SpecificBuckets(
+                HashSet::new(),
+            ),
         };
 
         Ok(attribution_object)
@@ -174,7 +178,7 @@ impl<U: Uri> AttributionObject<PpaHistogramRequest<U>> {
 
         // if already_requested_buckets is None, all buckets have already
         // been requested
-        let Some(already_requested_buckets) =
+        let RequestedBuckets::SpecificBuckets(already_requested_buckets) =
             &mut self.already_requested_buckets
         else {
             debug!("All buckets have already been requested, returning null report");
@@ -185,20 +189,21 @@ impl<U: Uri> AttributionObject<PpaHistogramRequest<U>> {
             RequestedBuckets::SpecificBuckets(requested_buckets) => {
                 // if any of the requested buckets have already been previously
                 // requested, abort and return null report
-                for bucket in requested_buckets {
-                    if already_requested_buckets.contains(bucket) {
-                        debug!("Bucket {bucket:?} already requested, returning null report");
-                        return Ok(PdsReport::default());
-                    }
+                if already_requested_buckets
+                    .intersection(requested_buckets)
+                    .count()
+                    > 0
+                {
+                    debug!("Some requested buckets have already been requested, returning null report");
+                    return Ok(PdsReport::default());
                 }
 
                 // Add the requested buckets to the already requested set
                 already_requested_buckets.extend(requested_buckets);
             }
             RequestedBuckets::AllBuckets => {
-                // None means this request is for all buckets.
-                // Also set our already_requested_buckets to None
-                self.already_requested_buckets = None;
+                // Mark all buckets as requested
+                self.already_requested_buckets = RequestedBuckets::AllBuckets;
             }
         }
 
@@ -218,9 +223,10 @@ impl<U: Uri> AttributionObject<PpaHistogramRequest<U>> {
             }
         }
 
-        // Per-querier report before filtering out epochs that are OOB for the per-querier filter.
-        // `compute_attribution` already filtered epochs that were OOB for the other filters/quotas.
-        let mut unfiltered_report =
+        // Per-querier report before filtering out epochs that are OOB for the
+        // per-querier filter. `compute_attribution` already filtered
+        // epochs that were OOB for the other filters/quotas.
+        let unfiltered_report =
             self.request.map_events_to_buckets(&event_values);
 
         let mut oob_filters = vec![];
@@ -253,7 +259,8 @@ impl<U: Uri> AttributionObject<PpaHistogramRequest<U>> {
         }
 
         // Now that we've dropped OOB epochs, we can compute the final report,
-        // using the attributed event values precomputed by `measure_conversion`.
+        // using the attributed event values precomputed by
+        // `measure_conversion`.
         let filtered_report = self.request.map_events_to_buckets(&event_values);
 
         let report = PdsReport {
@@ -407,7 +414,8 @@ mod tests {
             "Incorrect value for r2.ex bucket 3"
         );
 
-        // Verify r3.ex's report is empty, as bucket 2 was already requested by r2.ex
+        // Verify r3.ex's report is empty, as bucket 2 was already requested by
+        // r2.ex
         let r3_report = attr_object
             .get_report(
                 &querier_uris[2],
@@ -418,8 +426,8 @@ mod tests {
         let r3_bins = &r3_report.filtered_report.bin_values;
         assert!(r3_bins.is_empty(), "Bucket 2 for r3.ex should be empty");
 
-        // Verify the privacy budget was deducted only once from the global filter,
-        // despite three reports being generated
+        // Verify the privacy budget was deducted only once from the global
+        // filter, despite three reports being generated
         let initial_budget = capacities.global;
         let post_budget =
             pds.filter_storage.remaining_budget(&FilterId::Global(1))?;
@@ -451,6 +459,7 @@ mod tests {
         Ok(())
     }
 
+    #[test]
     fn test_cross_epoch_last_touch() -> Result<(), anyhow::Error> {
         let capacities = StaticCapacities::mock();
         let filters = PpaFilterStorage::new(capacities.clone())?;

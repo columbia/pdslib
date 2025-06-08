@@ -30,6 +30,26 @@ use crate::{
     },
 };
 
+/// The attribution object that can be used to compute distinct
+/// reports for distinct queriers/beneficiaries, while sharing
+/// global privacy loss.
+pub struct AttributionObject<Q: HistogramRequest> {
+    /// The report request object
+    pub request: Q,
+
+    /// The relevant events for this request
+    pub events: RelevantEvents<Q::Event>,
+
+    /// The attributed value for each event
+    pub event_values: HashMap<Q::Event, f64>,
+
+    /// The set of histogram buckets that have already been requested.
+    /// A histogram bucket can only be requested once. If it is requested
+    /// again, a null report will be generated instead.
+    /// If None, all buckets have already been requested.
+    pub already_requested_buckets: Option<HashSet<Q::BucketKey>>,
+}
+
 impl<U, FS, ERR> PrivateDataServiceCore<PpaHistogramRequest<U>, FS, ERR>
 where
     U: Uri,
@@ -39,15 +59,20 @@ where
     >,
     ERR: From<FS::Error>,
 {
+    /// Attributes conversion value to events and deduct privacy loss from global filter and quotas.
+    /// Creates an `AttributionObject` that can queriers can use to generate reports, that will deduct
+    /// per-querier privacy loss and map events to their respective histogram buckets.
+    ///
+    /// WARNING: This is an experimental API that only offers global DP guarantees.
     pub fn measure_conversion(
         &mut self,
         request: PpaHistogramRequest<U>,
         mut relevant_events: RelevantEvents<PpaEvent<U>>,
     ) -> Result<AttributionObject<PpaHistogramRequest<U>>, ERR> {
         let uris = request.report_uris();
-
         let epochs = request.epoch_ids();
 
+        // TODO(later): optimize privacy loss accounting
         if epochs.len() <= 1 {
             warn!("Cross-report optimization only saves budget when requesting more than 1 epoch. We recommend using the regular API otherwise.")
         }
@@ -130,27 +155,8 @@ where
     }
 }
 
-/// The attribution object that can be used to compute distinct
-/// reports for distinct queriers/benificiaries.
-pub struct AttributionObject<Q: HistogramRequest> {
-    /// The report request object
-    pub request: Q,
-
-    /// The relevant events for this request
-    pub events: RelevantEvents<Q::Event>,
-
-    /// The attributed value for each event
-    pub event_values: HashMap<Q::Event, f64>,
-
-    /// The set of histogram buckets that have already been requested.
-    /// A histogram bucket can only be requested once. If it is requested
-    /// again, a null report will be generated instead.
-    /// If None, all buckets have already been requested.
-    pub already_requested_buckets: Option<HashSet<Q::BucketKey>>,
-}
-
 impl<U: Uri> AttributionObject<PpaHistogramRequest<U>> {
-    /// Get the report for a specific querier/benificiary URI.
+    /// Get the report for a specific querier/beneficiary URI.
     pub fn get_report<FS>(
         &mut self,
         beneficiary_uri: &U,
@@ -197,6 +203,7 @@ impl<U: Uri> AttributionObject<PpaHistogramRequest<U>> {
         }
 
         // get the attributed values for the requested events
+        // only keep the buckets that are requested
         let mut event_values = HashMap::new();
         for epoch in &epochs {
             for event in self.events.for_epoch(epoch) {
@@ -211,19 +218,16 @@ impl<U: Uri> AttributionObject<PpaHistogramRequest<U>> {
             }
         }
 
+        // Per-querier report before filtering out epochs that are OOB for the per-querier filter.
+        // `compute_attribution` already filtered epochs that were OOB for the other filters/quotas.
         let mut unfiltered_report =
             self.request.map_events_to_buckets(&event_values);
-
-        // only keep the buckets that are requested
-        unfiltered_report.bin_values.retain(|bucket, _| {
-            relevant_event_selector.requested_buckets.contains(bucket)
-        });
 
         let mut oob_filters = vec![];
         for epoch_id in epochs {
             let epoch_relevant_events = self.events.for_epoch(&epoch_id);
 
-            // Step 2. Compute individual loss for current epoch.
+            // Compute per-querier individual loss for current epoch.
             let individual_privacy_loss = compute_epoch_loss(
                 &self.request,
                 epoch_relevant_events,
@@ -248,7 +252,8 @@ impl<U: Uri> AttributionObject<PpaHistogramRequest<U>> {
             }
         }
 
-        // Now that we've dropped OOB epochs, we can compute the final report.
+        // Now that we've dropped OOB epochs, we can compute the final report,
+        // using the attributed event values precomputed by `measure_conversion`.
         let filtered_report = self.request.map_events_to_buckets(&event_values);
 
         let report = PdsReport {
@@ -337,7 +342,6 @@ mod tests {
         let events = HashMap::from([(1, vec![early_event, main_event])]);
         let relevant_events = RelevantEvents::from_mapping(events);
 
-        // Create histogram request with optimization query flag set to true
         let config = PpaHistogramConfig {
             start_epoch: 1,
             end_epoch: 2,
@@ -369,7 +373,7 @@ mod tests {
         let mut attr_object =
             pds.measure_conversion(request, relevant_events.clone())?;
 
-        // Verify r1.ex's report has bucket 1
+        // Verify r1.ex's report has bucket 1, which has zero attribution.
         let r1_report = attr_object
             .get_report(
                 &querier_uris[0],
@@ -403,8 +407,7 @@ mod tests {
             "Incorrect value for r2.ex bucket 3"
         );
 
-        // Verify r3.ex's report has bucket 2, but should not receive any value
-        // as bucket 2 was already requested by r2.ex
+        // Verify r3.ex's report is empty, as bucket 2 was already requested by r2.ex
         let r3_report = attr_object
             .get_report(
                 &querier_uris[2],
@@ -415,8 +418,8 @@ mod tests {
         let r3_bins = &r3_report.filtered_report.bin_values;
         assert!(r3_bins.is_empty(), "Bucket 2 for r3.ex should be empty");
 
-        // Verify the privacy budget was deducted only once
-        // Despite three reports being generated
+        // Verify the privacy budget was deducted only once from the global filter,
+        // despite three reports being generated
         let initial_budget = capacities.global;
         let post_budget =
             pds.filter_storage.remaining_budget(&FilterId::Global(1))?;
@@ -509,7 +512,7 @@ mod tests {
         )?;
 
         // the attribution should be empty, as the last-touch event's
-        // epoch was OOB
+        // epoch was OOB for that querier
         assert!(
             report.filtered_report.bin_values.is_empty(),
             "Expected empty report for querier {querier_uri}, but got: {:?}",

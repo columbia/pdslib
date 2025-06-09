@@ -1,6 +1,6 @@
 [package]
 name = "pdslib"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -20,7 +20,6 @@ serde = { version = "1.0", features = ["derive"] }
 
 [dev-dependencies]
 log4rs = "1.2"
-approx = "0.5"
 
 [profile.release]
 debug = true

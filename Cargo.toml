@@ -10,13 +10,15 @@ crate-type = ["cdylib", "lib"]
 
 [features]
 default = []
-experimental = [] # Experimental algorithms and APIs
+experimental = []     # Experimental algorithms and APIs
+ahash = ["dep:ahash"] # Use ahash for HashMap and HashSet
 
 [dependencies]
 thiserror = "2.0"
 anyhow = "1.0"
 log = "0.4"
 serde = { version = "1.0", features = ["derive"] }
+ahash = { version = "0.8.12", features = ["serde"], optional = true }
 
 [dev-dependencies]
 log4rs = "1.2"

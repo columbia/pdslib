@@ -1,8 +1,11 @@
-use std::{collections::HashMap, fmt::Debug, hash::Hash};
+use std::{fmt::Debug, hash::Hash};
 
 use serde::{ser::SerializeStruct, Serialize};
 
-use crate::budget::traits::{Filter, FilterCapacities, FilterStorage};
+use crate::{
+    budget::traits::{Filter, FilterCapacities, FilterStorage},
+    util::hashmap::HashMap,
+};
 
 /// Simple implementation of FilterStorage using a HashMap.
 /// Works for any Filter that implements the Filter trait.
@@ -20,7 +23,7 @@ impl<F, C, FID> Serialize for HashMapFilterStorage<F, C>
 where
     C: FilterCapacities<FilterId = FID> + Serialize,
     F: Filter<C::Budget> + Serialize,
-    FID: Serialize,
+    FID: Serialize + Eq + Hash + Debug,
 {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

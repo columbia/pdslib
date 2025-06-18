@@ -1,6 +1,7 @@
-use std::collections::HashMap;
-
-use crate::events::traits::{Event, EventStorage};
+use crate::{
+    events::traits::{Event, EventStorage},
+    util::hashmap::HashMap,
+};
 
 /// A simple in-memory event storage. Stores a mapping of epoch id to epoch
 /// events, where each epoch events is just a vec of events.

@@ -1,6 +1,5 @@
-use std::collections::{HashMap, HashSet};
-
 use super::traits::{Event, EventStorage, RelevantEventSelector};
+use crate::util::hashmap::{HashMap, HashSet};
 
 /// A struct that holds relevant events for a set of epochs.
 ///

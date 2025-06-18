@@ -1,9 +1,10 @@
-use std::{collections::HashMap, fmt::Debug, hash::Hash};
+use std::{fmt::Debug, hash::Hash};
 
 use crate::{
     events::relevant_events::RelevantEvents,
     mechanisms::NormType,
     queries::traits::{EpochReportRequest, Report, ReportRequestUris},
+    util::hashmap::HashMap,
 };
 
 #[derive(Debug, Clone)]

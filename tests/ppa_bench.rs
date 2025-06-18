@@ -21,7 +21,7 @@ use pdslib::{
 };
 
 #[test]
-// #[ignore]
+#[ignore]
 fn bench_compute_report() -> anyhow::Result<()> {
     logging::init_default_logging();
 

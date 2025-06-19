@@ -35,7 +35,7 @@ fn bench_compute_report() -> anyhow::Result<()> {
 
     for i in 5..10000 {
         // add 3 events
-        for j in 0..3 {
+        for j in 0..1000 {
             let event = PpaEvent {
                 id: j,
                 timestamp: 1000 + i * 100 + j,

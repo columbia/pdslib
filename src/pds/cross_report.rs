@@ -1,7 +1,4 @@
-use std::{
-    collections::{HashMap, HashSet},
-    vec,
-};
+use std::vec;
 
 use log::{debug, warn};
 
@@ -28,6 +25,7 @@ use crate::{
         },
         traits::EpochReportRequest,
     },
+    util::hashmap::{HashMap, HashSet},
 };
 
 /// The attribution object that can be used to compute distinct
@@ -274,8 +272,6 @@ impl<U: Uri> AttributionObject<PpaHistogramRequest<U>> {
 
 #[cfg(test)]
 mod tests {
-
-    use std::collections::HashMap;
 
     use super::*;
     use crate::{

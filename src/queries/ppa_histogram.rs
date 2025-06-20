@@ -1,7 +1,4 @@
-use std::{
-    collections::{HashMap, HashSet},
-    vec,
-};
+use std::vec;
 
 use anyhow::{bail, Result};
 
@@ -17,6 +14,7 @@ use crate::{
         histogram::{BucketKey, HistogramReport, HistogramRequest},
         traits::{EpochReportRequest, ReportRequestUris},
     },
+    util::hashmap::{HashMap, HashSet},
 };
 
 pub type PpaBucketKey = u64;

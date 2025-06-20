@@ -7,13 +7,13 @@ use std::{
 
 use serde::Serialize;
 
-use crate::budget::traits::{Budget, FilterCapacities};
+use crate::{
+    budget::traits::{Budget, FilterCapacities},
+    events::traits::{EpochId, Uri},
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
-pub enum FilterId<
-    E = u64,    // Epoch ID
-    U = String, // URI
-> {
+pub enum FilterId<E: EpochId = u64, U: Uri = String> {
     /// Non-collusion per-querier filter
     PerQuerier(E, U /* querier URI */),
 
@@ -27,7 +27,7 @@ pub enum FilterId<
     SourceQuota(E, U /* source URI */),
 }
 
-impl<E: Display, U: Display> fmt::Display for FilterId<E, U> {
+impl<E: EpochId + Display, U: Uri + Display> fmt::Display for FilterId<E, U> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             FilterId::PerQuerier(epoch_id, querier_uri) => {
@@ -75,7 +75,9 @@ impl<FID, B> StaticCapacities<FID, B> {
     }
 }
 
-impl<B: Budget, E, U> FilterCapacities for StaticCapacities<FilterId<E, U>, B> {
+impl<B: Budget, E: EpochId, U: Uri> FilterCapacities
+    for StaticCapacities<FilterId<E, U>, B>
+{
     type FilterId = FilterId<E, U>;
     type Budget = B;
     type Error = anyhow::Error;

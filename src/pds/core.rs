@@ -1,4 +1,4 @@
-use std::{cell::Cell, collections::HashMap, marker::PhantomData, vec};
+use std::{cell::Cell, marker::PhantomData, vec};
 
 use log::debug;
 
@@ -14,6 +14,7 @@ use crate::{
     },
     events::relevant_events::RelevantEvents,
     queries::traits::{EpochReportRequest, Report, ReportRequestUris},
+    util::hashmap::HashMap,
 };
 
 pub struct PrivateDataServiceCore<Q, FS, ERR>

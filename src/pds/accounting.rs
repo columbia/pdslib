@@ -1,5 +1,4 @@
 use core::f64;
-use std::collections::{HashMap, HashSet};
 
 use log::debug;
 
@@ -7,6 +6,7 @@ use crate::{
     budget::pure_dp_filter::PureDPBudget,
     mechanisms::{NoiseScale, NormType},
     queries::traits::EpochReportRequest,
+    util::hashmap::{HashMap, HashSet},
 };
 
 /// Pure DP individual privacy loss, following

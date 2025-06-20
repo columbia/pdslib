@@ -32,9 +32,9 @@ pub type SimplePds<FS = SimpleFilterStorage, ES = SimpleEventStorage> =
 
 // === PPA aliases ===
 
-pub type PpaFilterStorage = HashMapFilterStorage<
+pub type PpaFilterStorage<U = String> = HashMapFilterStorage<
     PureDPBudgetFilter,
-    StaticCapacities<FilterId<u64, String>, PureDPBudget>,
+    StaticCapacities<FilterId<u64, U>, PureDPBudget>,
 >;
 pub type PpaEventStorage<U = String> = HashMapEventStorage<PpaEvent<U>>;
 pub type PpaPdsCore<FS = PpaFilterStorage, U = String, ERR = anyhow::Error> =

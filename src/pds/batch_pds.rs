@@ -4,7 +4,6 @@ use core::panic;
 use std::{
     borrow::Borrow,
     cmp::Ordering::{Greater, Less},
-    collections::{HashMap, HashSet},
     fmt::Debug,
     mem::take,
     vec,
@@ -26,6 +25,7 @@ use crate::{
     mechanisms::NoiseScale,
     pds::quotas::FilterId,
     queries::traits::EpochReportRequest,
+    util::hashmap::{HashMap, HashSet},
 };
 
 #[derive(Debug)]

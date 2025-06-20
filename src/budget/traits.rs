@@ -49,7 +49,7 @@ pub enum FilterStatus {
 }
 
 pub trait FilterCapacities {
-    type FilterId;
+    type FilterId: Eq;
     type Budget: Budget;
     type Error;
 

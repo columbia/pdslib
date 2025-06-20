@@ -1,7 +1,4 @@
 #[cfg(feature = "experimental")]
-use std::collections::HashMap;
-
-#[cfg(feature = "experimental")]
 use crate::{
     budget::{pure_dp_filter::PureDPBudget, traits::FilterStorage},
     pds::quotas::{FilterId, PdsFilterStatus, StaticCapacities},
@@ -11,6 +8,7 @@ use crate::{
     },
     queries::traits::PassivePrivacyLossRequest,
     queries::traits::ReportRequestUris,
+    util::hashmap::HashMap,
 };
 
 #[test]

@@ -1,6 +1,5 @@
 mod common;
 
-use common::logging;
 use pdslib::{
     budget::traits::FilterStorage as _,
     events::{

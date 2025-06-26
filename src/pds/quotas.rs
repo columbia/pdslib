@@ -27,6 +27,26 @@ pub enum FilterId<E: EpochId = u64, U: Uri = String> {
     SourceQuota(E, U /* source URI */),
 }
 
+impl<E: EpochId, U: Uri> FilterId<E, U> {
+    pub fn epoch_id(&self) -> &E {
+        match self {
+            FilterId::PerQuerier(epoch_id, _) => epoch_id,
+            FilterId::Global(epoch_id) => epoch_id,
+            FilterId::TriggerQuota(epoch_id, _) => epoch_id,
+            FilterId::SourceQuota(epoch_id, _) => epoch_id,
+        }
+    }
+
+    pub fn uri(&self) -> Option<&U> {
+        match self {
+            FilterId::PerQuerier(_, querier_uri) => Some(querier_uri),
+            FilterId::Global(_) => None,
+            FilterId::TriggerQuota(_, trigger_uri) => Some(trigger_uri),
+            FilterId::SourceQuota(_, source_uri) => Some(source_uri),
+        }
+    }
+}
+
 impl<E: EpochId + Display, U: Uri + Display> fmt::Display for FilterId<E, U> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

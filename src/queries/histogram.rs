@@ -15,8 +15,8 @@ pub struct HistogramReport<BucketKey> {
 /// Trait for bucket keys.
 pub trait BucketKey: Debug + Hash + Eq + Clone {}
 
-/// Default type for bucket keys.
-impl BucketKey for u64 {}
+/// Implement BucketKey for all eligible types
+impl<T: Debug + Hash + Eq + Clone> BucketKey for T {}
 
 /// Default histogram has no bins (null report).
 impl<BK> Default for HistogramReport<BK> {

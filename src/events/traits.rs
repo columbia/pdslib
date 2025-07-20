@@ -58,4 +58,20 @@ pub trait EventStorage {
         &mut self,
         epoch_id: &<Self::Event as Event>::EpochId,
     ) -> Result<impl Iterator<Item = Self::Event>, Self::Error>;
+
+    /// Retrieves relevant events for a specific epoch, filtered by the
+    /// provided selector.
+    /// 
+    /// A default implementation exists, however a more efficient one
+    /// can be provided if allowed by the storage implementation.
+    fn relevant_events_for_epoch(
+        &mut self,
+        epoch_id: &<Self::Event as Event>::EpochId,
+        relevant_event_selector: &impl RelevantEventSelector<Event = Self::Event>,
+    ) -> Result<impl Iterator<Item = Self::Event>, Self::Error> {
+        let iter = self
+            .events_for_epoch(epoch_id)?
+            .filter(|event| relevant_event_selector.is_relevant_event(event));
+        Ok(iter)
+    }
 }

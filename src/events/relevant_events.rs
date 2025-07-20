@@ -24,11 +24,9 @@ impl<E: Event> RelevantEvents<E> {
         let mut events_per_epoch = HashMap::new();
 
         for epoch_id in epoch_ids {
-            // fetch all events at that epoch from storage
+            // fetch all relevant events at that epoch from storage
             let events = event_storage
-                .events_for_epoch(epoch_id)?
-                // filter relevant events using the selector
-                .filter(|event| selector.is_relevant_event(event))
+                .relevant_events_for_epoch(epoch_id, selector)?
                 .collect();
 
             // store the events in the map

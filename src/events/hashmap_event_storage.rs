@@ -8,7 +8,7 @@ use crate::{
 /// Clones events when asked to retrieve events for an epoch.
 #[derive(Debug, Default)]
 pub struct HashMapEventStorage<E: Event> {
-    epochs: HashMap<E::EpochId, Vec<E>>,
+    pub epochs: HashMap<E::EpochId, Vec<E>>,
 }
 
 /// Simple in-memory event storage. Stores a mapping of epoch id to events

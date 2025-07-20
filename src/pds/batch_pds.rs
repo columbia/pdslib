@@ -32,17 +32,17 @@ use crate::{
 pub struct BatchedRequest<Q: EpochReportRequest> {
     /// Since reports are dissociated from the initial report request, we need
     /// to keep track of who asked for what.
-    request_id: u64,
+    pub request_id: u64,
 
     /// Number of times we can try scheduling this request.
     /// E.g. if this is equal to 1, this request goes through only one
     /// `schedule_batch` call. It has to be answered by the end of the
     /// call. If it didn't get allocated in the initialization, online or batch
     /// phase, then it is answered with a null report.
-    n_remaining_scheduling_attempts: u64,
+    pub n_remaining_scheduling_attempts: u64,
 
     /// The actual request.
-    request: Q,
+    pub request: Q,
 }
 
 impl<Q: EpochReportRequest> BatchedRequest<Q> {

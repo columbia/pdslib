@@ -479,7 +479,7 @@ mod tests {
         };
 
         // set epoch 2 PerQuerier filter to be OOB
-        let querier_uri = ReportRequestUris::mock().querier_uris[0].clone();
+        let querier_uri = "querier".to_string();
         let filter_id = FilterId::PerQuerier(2, querier_uri.clone());
         let filter_capacity = capacities.per_querier;
         pds.filter_storage

@@ -259,7 +259,7 @@ impl<U: Uri> HistogramRequest for PpaHistogramRequest<U> {
 
                     // Start from the most recent event in the epoch and go
                     // backwards.
-                    for event in relevant_events_in_epoch.iter().rev() {
+                    for event in relevant_events_in_epoch.into_iter().rev() {
                         if event.histogram_index < self.histogram_size {
                             // Found a relevant event with a valid bucket
                             // key, we're done.

@@ -77,7 +77,7 @@ pub trait EpochReportRequest: Debug {
 
 /// Type for passive privacy loss accounting. Uniform over all epochs for now.
 #[derive(Debug)]
-pub struct PassivePrivacyLossRequest<EI: EpochId, U, PrivacyBudget> {
+pub struct PassivePrivacyLossRequest<EI: EpochId, U: Uri, PrivacyBudget> {
     pub epoch_ids: Vec<EI>,
     pub privacy_budget: PrivacyBudget,
     pub uris: ReportRequestUris<U>,

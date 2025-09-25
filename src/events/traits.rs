@@ -61,7 +61,7 @@ pub trait EventStorage {
 
     /// Retrieves relevant events for a specific epoch, filtered by the
     /// provided selector.
-    /// 
+    ///
     /// A default implementation exists, however a more efficient one
     /// can be provided if allowed by the storage implementation.
     fn relevant_events_for_epoch(

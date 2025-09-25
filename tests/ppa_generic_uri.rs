@@ -43,13 +43,13 @@ fn main() -> Result<(), anyhow::Error> {
 
     let event_uris = EventUris {
         source_uri: CustomUri {},
-        trigger_uris: vec![CustomUri {}],
-        querier_uris: vec![CustomUri {}],
+        trigger_uris: [CustomUri {}].into(),
+        querier_uris: [CustomUri {}].into(),
     };
     let report_uris = ReportRequestUris {
         trigger_uri: CustomUri {},
-        source_uris: vec![CustomUri {}],
-        querier_uris: vec![CustomUri {}],
+        source_uris: [CustomUri {}].into(),
+        querier_uris: [CustomUri {}].into(),
     };
 
     let event = TestEvent {

@@ -747,6 +747,7 @@ mod tests {
             hashmap_event_storage::HashMapEventStorage,
             ppa_event::PpaEvent,
             traits::{Event, EventUris},
+            uri_set::UriSet,
         },
         queries::{
             ppa_histogram::{
@@ -887,10 +888,11 @@ mod tests {
 
         let capacities = StaticCapacities::new(1.0, 10.0, 1.0, 5.0);
 
-        let mut trigger_uris = vec![];
+        let mut trigger_uris = HashSet::new();
         for i in 1..=9 {
-            trigger_uris.push(format!("shoes-{i}.ex"));
+            trigger_uris.insert(format!("shoes-{i}.ex"));
         }
+        let trigger_uris: UriSet<_> = trigger_uris.into();
 
         // Event relevant to all the shoes websites. Could also register 10
         // different events, with one querier each.
@@ -913,8 +915,8 @@ mod tests {
             histogram_index: 0,
             uris: EventUris {
                 source_uri: "blog.ex".to_string(),
-                trigger_uris: vec!["hats-1.ex".to_string()],
-                querier_uris: vec!["hats-1.ex".to_string()],
+                trigger_uris: ["hats-1.ex".to_string()].into(),
+                querier_uris: ["hats-1.ex".to_string()].into(),
             },
             filter_data: 1,
         };
@@ -954,8 +956,9 @@ mod tests {
                     &request_config,
                     always_valid_selector(ReportRequestUris {
                         trigger_uri: format!("shoes-{i}.ex"),
-                        source_uris: vec!["news.ex".to_string()],
-                        querier_uris: vec![format!("shoes-{i}.ex")],
+                        source_uris: ["news.ex".to_string()].into(),
+                        querier_uris: [format!("shoes-{i}.ex").to_string()]
+                            .into(),
                     }),
                 )?,
             ))?;
@@ -969,8 +972,8 @@ mod tests {
                 &request_config,
                 always_valid_selector(ReportRequestUris {
                     trigger_uri: "hats-1.ex".to_string(),
-                    source_uris: vec!["blog.ex".to_string()],
-                    querier_uris: vec!["hats-1.ex".to_string()],
+                    source_uris: ["blog.ex".to_string()].into(),
+                    querier_uris: ["hats-1.ex".to_string()].into(),
                 }),
             )?,
         ))?;
@@ -1055,10 +1058,11 @@ mod tests {
 
         // Event relevant to all the shoes websites. Could also register 10
         // different events, with one querier each.
-        let mut trigger_uris = vec![];
+        let mut trigger_uris = HashSet::new();
         for i in 1..=10 {
-            trigger_uris.push(format!("shoes-{i}.ex"));
+            trigger_uris.insert(format!("shoes-{i}.ex"));
         }
+        let trigger_uris: UriSet<_> = trigger_uris.into();
 
         let event1 = PpaEvent {
             id: 1,
@@ -1074,10 +1078,12 @@ mod tests {
         };
 
         // Site with a lot of requests, but not as many as news.ex.
-        let mut trigger_uris = vec![];
+        let mut trigger_uris = HashSet::new();
         for i in 1..=10 {
-            trigger_uris.push(format!("hats-{i}.ex"));
+            trigger_uris.insert(format!("hats-{i}.ex"));
         }
+        let trigger_uris: UriSet<_> = trigger_uris.into();
+
         let event2 = PpaEvent {
             id: 1,
             timestamp: 0,
@@ -1130,8 +1136,8 @@ mod tests {
                     PpaRelevantEventSelector {
                         report_request_uris: ReportRequestUris {
                             trigger_uri: shoes_conv.clone(),
-                            source_uris: vec!["news.ex".to_string()],
-                            querier_uris: vec![shoes_conv.clone()],
+                            source_uris: ["news.ex".to_string()].into(),
+                            querier_uris: [shoes_conv.clone()].into(),
                         },
                         is_matching_event: Box::new(|_: u64| true),
                         requested_buckets: RequestedBuckets::AllBuckets,
@@ -1153,8 +1159,8 @@ mod tests {
                     PpaRelevantEventSelector {
                         report_request_uris: ReportRequestUris {
                             trigger_uri: hats_conv.clone(),
-                            source_uris: vec!["blog.ex".to_string()],
-                            querier_uris: vec![hats_conv.clone()],
+                            source_uris: ["blog.ex".to_string()].into(),
+                            querier_uris: [hats_conv.clone()].into(),
                         },
                         is_matching_event: Box::new(|_: u64| true),
                         requested_buckets: RequestedBuckets::AllBuckets,

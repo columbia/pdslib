@@ -32,13 +32,13 @@ fn bench_compute_report() -> anyhow::Result<()> {
 
     let event_uris = EventUris {
         source_uri: "source",
-        trigger_uris: vec!["trigger"],
-        querier_uris: vec!["querier"],
+        trigger_uris: ["trigger"].into(),
+        querier_uris: ["querier"].into(),
     };
     let report_uris = ReportRequestUris {
         trigger_uri: "trigger",
-        source_uris: vec!["source"],
-        querier_uris: vec!["querier"],
+        source_uris: ["source"].into(),
+        querier_uris: ["querier"].into(),
     };
 
     // we start at 100 so we can subtract 100 without overflowing

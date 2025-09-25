@@ -1,4 +1,10 @@
-use std::{fmt::Debug, hash::Hash};
+use std::{
+    fmt::Debug,
+    hash::{Hash, Hasher},
+};
+
+use crate::events::uri_set::UriSet;
+
 
 /// Marker trait with bounds for epoch identifiers.
 pub trait EpochId: Clone + Copy + Debug + Eq + Hash {}
@@ -12,16 +18,24 @@ pub trait Uri: Hash + Eq + Clone + Debug {}
 /// Implement URI for all eligible types
 impl<T: Hash + Eq + Clone + Debug> Uri for T {}
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct EventUris<U> {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EventUris<U: Uri> {
     /// URI of the entity that registered this event.
     pub source_uri: U,
 
     /// URI of entities that can trigger the computation of a report
-    pub trigger_uris: Vec<U>,
+    pub trigger_uris: UriSet<U>,
 
     /// URI of entities that can receive reports that include this event.
-    pub querier_uris: Vec<U>,
+    pub querier_uris: UriSet<U>,
+}
+
+impl<U: Uri> Hash for EventUris<U> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.source_uri.hash(state);
+        self.trigger_uris.iter().for_each(|uri| uri.hash(state));
+        self.querier_uris.iter().for_each(|uri| uri.hash(state));
+    }
 }
 
 /// Event with an associated epoch.

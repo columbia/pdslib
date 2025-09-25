@@ -70,7 +70,7 @@ where
     /// events by bucket.
     fn map_events_to_buckets(
         &self,
-        event_values: &HashMap<Self::Event, f64>,
+        event_values: &[(&Self::Event, f64)],
     ) -> HistogramReport<Self::BucketKey> {
         let mut bin_values: HashMap<Self::BucketKey, f64> = HashMap::new();
         let mut total_value: f64 = 0.0;

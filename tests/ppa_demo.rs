@@ -32,18 +32,18 @@ fn main() -> Result<(), anyhow::Error> {
         ..EventUris::mock()
     };
     let event_uris_irrelevant_due_to_trigger = EventUris {
-        trigger_uris: vec!["shoes_off_brand.com".to_string()],
+        trigger_uris: ["shoes_off_brand.com".to_string()].into(),
         ..EventUris::mock()
     };
     let event_uris_irrelevant_due_to_querier = EventUris {
-        querier_uris: vec!["adtech_off_brand.com".to_string()],
+        querier_uris: ["adtech_off_brand.com".to_string()].into(),
         ..EventUris::mock()
     };
 
     let sample_report_request_uris = ReportRequestUris {
         trigger_uri: "shoes.com".to_string(),
-        source_uris: vec!["blog.com".to_string()],
-        querier_uris: vec!["adtech.com".to_string()],
+        source_uris: ["blog.com".to_string()].into(),
+        querier_uris: ["adtech.com".to_string()].into(),
     };
 
     let event1 = PpaEvent {

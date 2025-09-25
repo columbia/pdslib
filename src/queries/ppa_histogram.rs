@@ -324,10 +324,6 @@ impl<U: Uri> EpochReportRequest for PpaHistogramRequest<U> {
         relevant_events: &RelevantEvents<Self::Event>,
     ) -> Self::Report {
         let event_values = self.event_values(relevant_events);
-        let event_values: HashMap<_, _> = event_values
-            .into_iter()
-            .map(|(e, v)| (e.clone(), v))
-            .collect();
         self.map_events_to_buckets(&event_values)
     }
 

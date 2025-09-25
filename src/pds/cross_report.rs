@@ -13,7 +13,9 @@ use crate::{
         traits::{FilterStatus, FilterStorage},
     },
     events::{
-        ppa_event::PpaEvent, relevant_events::RelevantEvents, traits::Uri,
+        ppa_event::PpaEvent,
+        relevant_events::RelevantEvents,
+        traits::{Event as _, Uri},
     },
     mechanisms::NoiseScale,
     pds::core::PrivateDataServiceCore,
@@ -39,7 +41,7 @@ pub struct AttributionObject<Q: HistogramRequest> {
     pub events: RelevantEvents<Q::Event>,
 
     /// The attributed value for each event
-    pub event_values: HashMap<Q::Event, f64>,
+    pub event_values: Vec<(Q::Event, f64)>,
 
     /// The set of histogram buckets that have already been requested.
     /// A histogram bucket can only be requested once. If it is requested
@@ -142,7 +144,7 @@ where
             .event_values(&relevant_events)
             .into_iter()
             .map(|(event, value)| (event.clone(), value))
-            .collect::<HashMap<_, _>>();
+            .collect::<Vec<_>>();
 
         let attribution_object = AttributionObject {
             request,
@@ -207,17 +209,14 @@ impl<U: Uri> AttributionObject<PpaHistogramRequest<U>> {
 
         // get the attributed values for the requested events
         // only keep the buckets that are requested
-        let mut event_values = HashMap::new();
-        for epoch in &epochs {
-            for event in self.events.for_epoch(epoch) {
-                if relevant_event_selector
+        let mut event_values = vec![];
+        for (event, value) in &self.event_values {
+            if epochs.contains(&event.epoch_id())
+                && relevant_event_selector
                     .requested_buckets
                     .contains(&event.histogram_index)
-                {
-                    if let Some(value) = self.event_values.get(event) {
-                        event_values.insert(event.clone(), *value);
-                    }
-                }
+            {
+                event_values.push((event, *value));
             }
         }
 
@@ -247,9 +246,12 @@ impl<U: Uri> AttributionObject<PpaHistogramRequest<U>> {
             if filter_status == FilterStatus::OutOfBudget {
                 // Not enough budget, drop events without any filter
                 // consumption
-                for event in epoch_relevant_events {
-                    event_values.remove(event);
-                }
+                let epoch_relevant_events_set: HashSet<_> =
+                    epoch_relevant_events.iter().collect();
+
+                event_values.retain(|(event, _)| {
+                    !epoch_relevant_events_set.contains(event)
+                });
 
                 // Keep track of why we dropped this epoch
                 oob_filters.push(filter_id);
@@ -272,10 +274,12 @@ impl<U: Uri> AttributionObject<PpaHistogramRequest<U>> {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
     use crate::{
-        events::{ppa_event::PpaEvent, traits::EventUris},
+        events::{
+            ppa_event::PpaEvent,
+            traits::EventUris, uri_set::UriSet,
+        },
         pds::{
             aliases::{PpaFilterStorage, PpaPdsCore},
             quotas::StaticCapacities,
@@ -299,23 +303,24 @@ mod tests {
         // Create test URIs
         let source_uri = "blog.example.com".to_string();
         let trigger_uri = "shoes.example.com".to_string();
-        let querier_uris = vec![
+        let querier_uris_vec = [
             "r1.ex".to_string(), // bucket 1
             "r2.ex".to_string(), // bucket 2
             "r3.ex".to_string(), // also bucket 2
         ];
+        let querier_uris: UriSet<_> = querier_uris_vec.clone().into();
 
         // Create event URIs with appropriate intermediaries
         let event_uris = EventUris {
             source_uri: source_uri.clone(),
-            trigger_uris: vec![trigger_uri.clone()],
+            trigger_uris: [trigger_uri.clone()].into(),
             querier_uris: querier_uris.clone(),
         };
 
         // Create report request URIs
         let report_request_uris = ReportRequestUris {
             trigger_uri: trigger_uri.clone(),
-            source_uris: vec![source_uri.clone()],
+            source_uris: [source_uri.clone()].into(),
             querier_uris: querier_uris.clone(),
         };
 
@@ -379,7 +384,7 @@ mod tests {
         // Verify r1.ex's report has bucket 1, which has zero attribution.
         let r1_report = attr_object
             .get_report(
-                &querier_uris[0],
+                &querier_uris_vec[0],
                 &relevant_event_selector(1),
                 &mut pds.filter_storage,
             )
@@ -390,7 +395,7 @@ mod tests {
         // Verify r2.ex's report has bucket 2
         let r2_report = attr_object
             .get_report(
-                &querier_uris[1],
+                &querier_uris_vec[1],
                 &relevant_event_selector(2),
                 &mut pds.filter_storage,
             )
@@ -414,7 +419,7 @@ mod tests {
         // r2.ex
         let r3_report = attr_object
             .get_report(
-                &querier_uris[2],
+                &querier_uris_vec[2],
                 &relevant_event_selector(2),
                 &mut pds.filter_storage,
             )

@@ -31,11 +31,9 @@ impl EventUris<String> {
     pub fn mock() -> Self {
         Self {
             source_uri: "blog.com".to_string(),
-            trigger_uris: vec!["shoes.com".to_string()],
-            querier_uris: vec![
-                "shoes.com".to_string(),
-                "adtech.com".to_string(),
-            ],
+            trigger_uris: ["shoes.com".to_string()].into(),
+            querier_uris: ["shoes.com".to_string(), "adtech.com".to_string()]
+                .into(),
         }
     }
 }
@@ -45,8 +43,8 @@ impl ReportRequestUris<String> {
     pub fn mock() -> Self {
         Self {
             trigger_uri: "shoes.com".to_string(),
-            source_uris: vec!["blog.com".to_string()],
-            querier_uris: vec!["adtech.com".to_string()],
+            source_uris: ["blog.com".to_string()].into(),
+            querier_uris: ["adtech.com".to_string()].into(),
         }
     }
 }

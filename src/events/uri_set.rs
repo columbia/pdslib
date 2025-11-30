@@ -1,9 +1,4 @@
-use std::{
-    fmt::Debug,
-    hash::{Hash, Hasher},
-    ops::Deref,
-    rc::Rc,
-};
+use std::{collections::hash_set, fmt::Debug, ops::Deref, rc::Rc};
 
 use crate::{events::traits::Uri, util::hashmap::HashSet};
 
@@ -18,12 +13,7 @@ pub struct UriSet<U: Uri> {
     pub uris: Rc<HashSet<U>>,
 }
 
-impl<U: Uri> Hash for UriSet<U> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.uris.iter().for_each(|uri| uri.hash(state));
-    }
-}
-
+/// Allow `uri_set.contains(&uri)`, `uri_set.len()`, etc.
 impl<U: Uri> Deref for UriSet<U> {
     type Target = HashSet<U>;
     fn deref(&self) -> &Self::Target {
@@ -31,6 +21,7 @@ impl<U: Uri> Deref for UriSet<U> {
     }
 }
 
+/// Allow `let uri_set: UriSet<U> = vec![...].into();`
 impl<U: Uri, I: IntoIterator<Item = U>> From<I> for UriSet<U> {
     fn from(uris: I) -> Self {
         Self {
@@ -39,9 +30,10 @@ impl<U: Uri, I: IntoIterator<Item = U>> From<I> for UriSet<U> {
     }
 }
 
+/// Allow `for uri in &uri_set { ... }`
 impl<'a, U: Uri> IntoIterator for &'a UriSet<U> {
     type Item = &'a U;
-    type IntoIter = std::collections::hash_set::Iter<'a, U>;
+    type IntoIter = hash_set::Iter<'a, U>;
     fn into_iter(self) -> Self::IntoIter {
         self.uris.iter()
     }

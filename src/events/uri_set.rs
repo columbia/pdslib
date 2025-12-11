@@ -24,8 +24,10 @@ impl<U: Uri> Deref for UriSet<U> {
 /// Allow `let uri_set: UriSet<U> = vec![...].into();`
 impl<U: Uri, I: IntoIterator<Item = U>> From<I> for UriSet<U> {
     fn from(uris: I) -> Self {
+        let mut uris: HashSet<U> = uris.into_iter().collect();
+        uris.shrink_to_fit();
         Self {
-            uris: Rc::new(uris.into_iter().collect()),
+            uris: Rc::new(uris),
         }
     }
 }

@@ -75,7 +75,7 @@ pub struct StaticCapacities<FID, B> {
     pub source_quota: B,
 
     #[serde(skip_serializing)]
-    _phantom: std::marker::PhantomData<FID>,
+    pub _phantom: std::marker::PhantomData<FID>,
 }
 
 impl<FID, B> StaticCapacities<FID, B> {

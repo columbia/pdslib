@@ -176,13 +176,13 @@ impl<U: Uri> AttributionObject<PpaHistogramRequest<U>> {
         let epochs = self.request.epoch_ids();
         let num_epochs = epochs.len();
 
-        // if already_requested_buckets is None, all buckets have already
-        // been requested
+        // if already_requested_buckets is AllBuckets, there are no un-requested
+        // buckets left
         let RequestedBuckets::SpecificBuckets(already_requested_buckets) =
             &mut self.already_requested_buckets
         else {
             debug!("All buckets have already been requested, returning null report");
-            return Ok(PdsReport::default());
+            return Ok(PdsReport::default()); // null report
         };
 
         match &relevant_event_selector.requested_buckets {
@@ -310,7 +310,7 @@ mod tests {
         ];
         let querier_uris: UriSet<_> = querier_uris_vec.clone().into();
 
-        // Create event URIs with appropriate intermediaries
+        // Create event URIs, shared across events in this test
         let event_uris = EventUris {
             source_uri: source_uri.clone(),
             trigger_uris: [trigger_uri.clone()].into(),
@@ -336,11 +336,10 @@ mod tests {
         };
 
         // The event that should be attributed (latest timestamp in epoch 1)
-        // We'll use a histogram index that's covered by both intermediaries (3)
+        // We'll use a histogram index that's covered by both r2 and r3 (2)
         let main_event = PpaEvent {
             id: 2,
-            timestamp: 200, /* Later timestamp so this event is picked by
-                             * last-touch */
+            timestamp: 200, // Later timestamp so this event is picked by last-touch
             epoch_number: 1,
             histogram_index: 2, // A bucket that will be kept and read by r2.ex
             uris: event_uris.clone(),

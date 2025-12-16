@@ -5,7 +5,10 @@ use pdslib::{
     budget::traits::FilterStorage,
     events::{simple_event::SimpleEvent, traits::EventUris},
     pds::{
-        aliases::{SimpleEventStorage, SimpleFilterStorage, SimplePds},
+        aliases::{
+            SimpleActionStorage, SimpleEventStorage, SimpleFilterStorage,
+            SimplePds,
+        },
         quotas::StaticCapacities,
     },
     queries::{
@@ -26,8 +29,9 @@ fn main() -> Result<(), anyhow::Error> {
     // Set up storage and Private Data Service.
     let capacities = StaticCapacities::mock();
     let filters = SimpleFilterStorage::new(capacities)?;
+    let actions = SimpleActionStorage::new(None);
     let events = SimpleEventStorage::new();
-    let mut pds = SimplePds::new(filters, events);
+    let mut pds = SimplePds::new(filters, actions, events);
 
     let sample_event_uris = EventUris::mock();
     let sample_report_uris = ReportRequestUris {
@@ -45,7 +49,7 @@ fn main() -> Result<(), anyhow::Error> {
     };
 
     // Save impression.
-    pds.register_event(event.clone())?;
+    pds.register_event(event.clone(), None)?;
 
     // Next, a conversion happens and the querier prepares request parameters.
 
@@ -76,7 +80,7 @@ fn main() -> Result<(), anyhow::Error> {
     };
 
     // Measure conversion.
-    let report = pds.compute_report(&report_request)?;
+    let report = pds.compute_report(&report_request, None)?;
 
     // Look at the histogram stored in the report (unencrypted here).
     assert_eq!(

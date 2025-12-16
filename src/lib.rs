@@ -1,3 +1,4 @@
+pub mod actions;
 pub mod budget;
 pub mod events;
 pub mod mechanisms;

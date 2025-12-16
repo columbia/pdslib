@@ -4,6 +4,7 @@ use super::{
     quotas::{FilterId, StaticCapacities},
 };
 use crate::{
+    actions::hashmap_action_storage::HashMapActionStorage,
     budget::{
         hashmap_filter_storage::HashMapFilterStorage,
         pure_dp_filter::{PureDPBudget, PureDPBudgetFilter},
@@ -24,11 +25,27 @@ pub type SimpleFilterStorage = HashMapFilterStorage<
     PureDPBudgetFilter,
     StaticCapacities<FilterId<u64, String>, PureDPBudget>,
 >;
+pub type SimpleActionStorage = HashMapActionStorage<u64, u64, String>;
 pub type SimpleEventStorage = HashMapEventStorage<SimpleEvent>;
-pub type SimplePdsCore<FS = SimpleFilterStorage> =
-    PrivateDataServiceCore<SimpleLastTouchHistogramRequest, FS, anyhow::Error>;
-pub type SimplePds<FS = SimpleFilterStorage, ES = SimpleEventStorage> =
-    PrivateDataService<SimpleLastTouchHistogramRequest, FS, ES, anyhow::Error>;
+
+pub type SimplePdsCore<FS = SimpleFilterStorage, AS = SimpleActionStorage> =
+    PrivateDataServiceCore<
+        SimpleLastTouchHistogramRequest,
+        FS,
+        AS,
+        anyhow::Error,
+    >;
+pub type SimplePds<
+    FS = SimpleFilterStorage,
+    AS = SimpleActionStorage,
+    ES = SimpleEventStorage,
+> = PrivateDataService<
+    SimpleLastTouchHistogramRequest,
+    FS,
+    AS,
+    ES,
+    anyhow::Error,
+>;
 
 // === PPA aliases ===
 
@@ -37,11 +54,18 @@ pub type PpaFilterStorage<U = String> = HashMapFilterStorage<
     StaticCapacities<FilterId<u64, U>, PureDPBudget>,
 >;
 pub type PpaEventStorage<U = String> = HashMapEventStorage<PpaEvent<U>>;
-pub type PpaPdsCore<FS = PpaFilterStorage, U = String, ERR = anyhow::Error> =
-    PrivateDataServiceCore<PpaHistogramRequest<U>, FS, ERR>;
+pub type PpaActionStorage<U = String> = HashMapActionStorage<u64, u64, U>;
+
+pub type PpaPdsCore<
+    FS = PpaFilterStorage,
+    AS = PpaActionStorage,
+    U = String,
+    ERR = anyhow::Error,
+> = PrivateDataServiceCore<PpaHistogramRequest<U>, FS, AS, ERR>;
 pub type PpaPds<
     FS = PpaFilterStorage,
+    AS = PpaActionStorage,
     ES = PpaEventStorage,
     U = String,
     ERR = anyhow::Error,
-> = PrivateDataService<PpaHistogramRequest<U>, FS, ES, ERR>;
+> = PrivateDataService<PpaHistogramRequest<U>, FS, AS, ES, ERR>;

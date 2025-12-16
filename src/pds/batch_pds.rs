@@ -17,6 +17,7 @@ use super::{
     quotas::{PdsFilterStatus, StaticCapacities},
 };
 use crate::{
+    actions::traits::ActionStorage,
     budget::{
         pure_dp_filter::PureDPBudget,
         traits::{Filter, FilterStatus, FilterStorage, ReleaseFilter},
@@ -68,18 +69,19 @@ impl<Q: EpochReportRequest> BatchedRequest<Q> {
 }
 
 /// [Experimental] Batch wrapper for private data service.
-pub struct BatchPrivateDataService<Q, FS, ES, ERR>
+pub struct BatchPrivateDataService<Q, FS, AS, ES, ERR>
 where
     Q: EpochReportRequest,
     Q::Report: Clone,
     FS: FilterStorage<
-        Budget = PureDPBudget,
-        FilterId = FilterIdQ<Q>,
-        Capacities = StaticCapacities<FilterIdQ<Q>, PureDPBudget>,
-    >,
+            Budget = PureDPBudget,
+            FilterId = FilterIdQ<Q>,
+            Capacities = StaticCapacities<FilterIdQ<Q>, PureDPBudget>,
+        >,
     FS::Filter: ReleaseFilter<FS::Budget, Error = FS::Error>,
+    AS: ActionStorage<EpochId = Q::EpochId, Uri = Q::Uri>,
     ES: EventStorage<Event = Q::Event>,
-    ERR: From<FS::Error> + From<ES::Error>,
+    ERR: From<FS::Error> + From<AS::Error> + From<ES::Error>,
 {
     /// Current scheduling interval.
     /// Used to release budget for the Global filter.
@@ -113,7 +115,7 @@ where
 
     /// Base private data service.
     /// Filters need to have functionality to unlock budget.
-    pub pds: PrivateDataService<Q, FS, ES, ERR>,
+    pub pds: PrivateDataService<Q, FS, AS, ES, ERR>,
 }
 
 /// Report for a batched request. Guaranteed to be returned after the number of
@@ -130,22 +132,23 @@ pub struct BatchedReport<Q: EpochReportRequest> {
 #[allow(type_alias_bounds)]
 type FilterIdQ<Q: EpochReportRequest> = FilterId<Q::EpochId, Q::Uri>;
 
-impl<Q, FS, ES, ERR> BatchPrivateDataService<Q, FS, ES, ERR>
+impl<Q, FS, AS, ES, ERR> BatchPrivateDataService<Q, FS, AS, ES, ERR>
 where
     Q: EpochReportRequest,
     Q::Report: Clone,
     FS: FilterStorage<
-        Budget = PureDPBudget,
-        FilterId = FilterIdQ<Q>,
-        Capacities = StaticCapacities<FilterIdQ<Q>, PureDPBudget>,
-    >,
+            Budget = PureDPBudget,
+            FilterId = FilterIdQ<Q>,
+            Capacities = StaticCapacities<FilterIdQ<Q>, PureDPBudget>,
+        >,
     FS::Filter: ReleaseFilter<FS::Budget, Error = FS::Error>,
+    AS: ActionStorage<EpochId = Q::EpochId, Uri = Q::Uri>,
     ES: EventStorage<Event = Q::Event>,
-    ERR: From<FS::Error> + From<ES::Error>,
+    ERR: From<FS::Error> + From<AS::Error> + From<ES::Error>,
 {
     /// Create a new batch private data service.
     pub fn new(
-        pds: PrivateDataService<Q, FS, ES, ERR>,
+        pds: PrivateDataService<Q, FS, AS, ES, ERR>,
         n_releases: usize,
     ) -> Result<Self, ERR> {
         let capacities = pds.core.filter_storage.capacities().clone();
@@ -454,7 +457,7 @@ where
                 self.initialize_filters_for_request(&request.request)?;
 
                 // Compute the actual report. It might be null though.
-                let report = self.pds.compute_report(&request.request)?;
+                let report = self.pds.compute_report(&request.request, None)?;
 
                 if !report.oob_filters.is_empty() {
                     for filter_id in report.oob_filters.iter() {
@@ -464,7 +467,9 @@ where
                             // bounds for the public filters.
                             panic!(
                                 "Request {} was not allocated: {:?}. Final attempt? {}",
-                                request.request_id, report.oob_filters, allocate_final_attempts
+                                request.request_id,
+                                report.oob_filters,
+                                allocate_final_attempts
                             );
                         }
                     }
@@ -739,6 +744,7 @@ mod tests {
 
     use super::*;
     use crate::{
+        actions::hashmap_action_storage::HashMapActionStorage,
         budget::{
             hashmap_filter_storage::HashMapFilterStorage,
             release_filter::PureDPBudgetReleaseFilter,
@@ -799,8 +805,14 @@ mod tests {
 
         let filter_storage: HashMapFilterStorage<PureDPBudgetReleaseFilter, _> =
             HashMapFilterStorage::new(capacities)?;
-        let pds: PrivateDataService<_, _, _, anyhow::Error> =
-            PrivateDataService::new(filter_storage, event_storage);
+        let action_storage: HashMapActionStorage<u64, u64, String> =
+            HashMapActionStorage::new(None);
+        let pds: PrivateDataService<_, _, _, _, anyhow::Error> =
+            PrivateDataService::new(
+                filter_storage,
+                action_storage,
+                event_storage,
+            );
         let mut batch_pds = BatchPrivateDataService::new(pds, 2)?;
 
         let mut request_config = PpaHistogramConfig {
@@ -926,8 +938,14 @@ mod tests {
         // Using a single release here.
         let filter_storage: HashMapFilterStorage<PureDPBudgetReleaseFilter, _> =
             HashMapFilterStorage::new(capacities)?;
-        let pds: PrivateDataService<_, _, _, anyhow::Error> =
-            PrivateDataService::new(filter_storage, event_storage);
+        let action_storage: HashMapActionStorage<u64, u64, String> =
+            HashMapActionStorage::new(None);
+        let pds: PrivateDataService<_, _, _, _, anyhow::Error> =
+            PrivateDataService::new(
+                filter_storage,
+                action_storage,
+                event_storage,
+            );
         let mut batch_pds = BatchPrivateDataService::new(pds, 1)?;
 
         let mut request_config = PpaHistogramConfig {
@@ -1102,8 +1120,14 @@ mod tests {
         // Using a single release here.
         let filter_storage: HashMapFilterStorage<PureDPBudgetReleaseFilter, _> =
             HashMapFilterStorage::new(capacities)?;
-        let pds: PrivateDataService<_, _, _, anyhow::Error> =
-            PrivateDataService::new(filter_storage, event_storage);
+        let action_storage: HashMapActionStorage<u64, u64, String> =
+            HashMapActionStorage::new(None);
+        let pds: PrivateDataService<_, _, _, _, anyhow::Error> =
+            PrivateDataService::new(
+                filter_storage,
+                action_storage,
+                event_storage,
+            );
         let mut batch_pds = BatchPrivateDataService::new(pds, 2)?;
 
         let mut request_config = PpaHistogramConfig {
@@ -1123,7 +1147,7 @@ mod tests {
 
             request_config.requested_epsilon = if i == 3 {
                 0.99 // We want this request to be smaller than the others in
-                     // the tests.
+            // the tests.
             } else {
                 0.99 + 0.0001 * i as f64
             };

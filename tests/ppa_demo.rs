@@ -6,7 +6,9 @@ use pdslib::{
     budget::traits::FilterStorage,
     events::{ppa_event::PpaEvent, traits::EventUris},
     pds::{
-        aliases::{PpaEventStorage, PpaFilterStorage, PpaPds},
+        aliases::{
+            PpaActionStorage, PpaEventStorage, PpaFilterStorage, PpaPds,
+        },
         quotas::StaticCapacities,
     },
     queries::{
@@ -22,9 +24,15 @@ fn main() -> Result<(), anyhow::Error> {
     logging::init_default_logging();
     let capacities = StaticCapacities::mock();
     let filters = PpaFilterStorage::new(capacities)?;
+    let actions = PpaActionStorage::new(None);
     let events = PpaEventStorage::new();
 
-    let mut pds = PpaPds::<_>::new(filters, events);
+    let mut pds = PpaPds::<
+        PpaFilterStorage,
+        PpaActionStorage,
+        PpaEventStorage,
+        String,
+    >::new(filters, actions, events);
 
     let sample_event_uris = EventUris::mock();
     let event_uris_irrelevant_due_to_source = EventUris {
@@ -82,10 +90,10 @@ fn main() -> Result<(), anyhow::Error> {
         filter_data: 1,
     };
 
-    pds.register_event(event1.clone())?;
-    pds.register_event(event_irr_1.clone()).unwrap();
-    pds.register_event(event_irr_2.clone()).unwrap();
-    pds.register_event(event_irr_3.clone()).unwrap();
+    pds.register_event(event1.clone(), None)?;
+    pds.register_event(event_irr_1.clone(), None).unwrap();
+    pds.register_event(event_irr_2.clone(), None).unwrap();
+    pds.register_event(event_irr_3.clone(), None).unwrap();
 
     // Test basic attribution
     let request1 = PpaHistogramRequest::new(
@@ -107,7 +115,7 @@ fn main() -> Result<(), anyhow::Error> {
     )
     .unwrap();
 
-    let report1 = pds.compute_report(&request1).unwrap();
+    let report1 = pds.compute_report(&request1, None).unwrap();
     info!("Report1: {report1:?}");
     let bin_values1 = &report1.filtered_report.bin_values;
 
@@ -156,7 +164,7 @@ fn main() -> Result<(), anyhow::Error> {
     )
     .unwrap();
 
-    let report3 = pds.compute_report(&request3).unwrap();
+    let report3 = pds.compute_report(&request3, None).unwrap();
     info!("Report3: {report3:?}");
 
     // No event attributed because the lambda logic filters out the only

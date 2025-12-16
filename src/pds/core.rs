@@ -8,6 +8,7 @@ use super::{
     quotas::{FilterId, PdsFilterStatus},
 };
 use crate::{
+    actions::traits::ActionStorage,
     budget::{
         pure_dp_filter::PureDPBudget,
         traits::{FilterStatus, FilterStorage},
@@ -17,17 +18,21 @@ use crate::{
     util::hashmap::HashMap,
 };
 
-pub struct PrivateDataServiceCore<Q, FS, ERR>
+pub struct PrivateDataServiceCore<Q, FS, AS, ERR>
 where
     Q: EpochReportRequest,
     FS: FilterStorage<
-        FilterId = FilterId<Q::EpochId, Q::Uri>,
-        Budget = PureDPBudget,
-    >,
-    ERR: From<FS::Error>,
+            FilterId = FilterId<Q::EpochId, Q::Uri>,
+            Budget = PureDPBudget,
+        >,
+    AS: ActionStorage<EpochId = Q::EpochId, Uri = Q::Uri>,
+    ERR: From<FS::Error> + From<AS::Error>,
 {
     /// Filter storage interface.
     pub filter_storage: FS,
+
+    /// Action storage interface.
+    pub action_storage: AS,
 
     /// This PhantomData serves two purposes:
     /// 1. It Defines the Q and ERR generics on the struct instead of on each
@@ -37,19 +42,21 @@ where
     _phantom: PhantomData<Cell<(Q, ERR)>>,
 }
 
-impl<R, Q, FS, ERR> PrivateDataServiceCore<Q, FS, ERR>
+impl<R, Q, FS, AS, ERR> PrivateDataServiceCore<Q, FS, AS, ERR>
 where
     R: Report + Clone,
     Q: EpochReportRequest<Report = R>,
     FS: FilterStorage<
-        FilterId = FilterId<Q::EpochId, Q::Uri>,
-        Budget = PureDPBudget,
-    >,
-    ERR: From<FS::Error>,
+            FilterId = FilterId<Q::EpochId, Q::Uri>,
+            Budget = PureDPBudget,
+        >,
+    AS: ActionStorage<EpochId = Q::EpochId, Uri = Q::Uri>,
+    ERR: From<FS::Error> + From<AS::Error>,
 {
-    pub fn new(filter_storage: FS) -> Self {
+    pub fn new(filter_storage: FS, action_storage: AS) -> Self {
         Self {
             filter_storage,
+            action_storage,
             _phantom: PhantomData,
         }
     }
@@ -62,6 +69,7 @@ where
         request: &Q,
         // mutable, as we will drop out-of-budget epochs from it
         mut relevant_events: RelevantEvents<Q::Event>,
+        action_id: Option<&AS::ActionId>,
     ) -> Result<PdsReport<Q>, ERR> {
         debug!("Computing report for request {request:?}");
 
@@ -78,6 +86,23 @@ where
 
         // Compute the raw report, useful for debugging and accounting.
         let unfiltered_report = request.compute_report(&relevant_events);
+
+        // First, enforce action quotas
+        if let Some(aid) = action_id {
+            let conv_site = &uris.trigger_uri;
+
+            for epoch_id in &epochs {
+                let allowed = self
+                    .action_storage
+                    .try_record_conversion_site(&aid, epoch_id, conv_site)?;
+
+                if !allowed {
+                    // Oscar Paper: "If quota-count is exceeded in epoch e...
+                    // nullifies only epoch e's data"
+                    relevant_events.drop_epoch(epoch_id);
+                }
+            }
+        }
 
         // Browse epochs in the attribution window
         let mut oob_filters = vec![];
@@ -125,7 +150,9 @@ where
                     )?;
 
                     if consume_status != PdsFilterStatus::Continue {
-                        panic!("ERR: Phase 2 failed unexpectedly wtih status {consume_status:?} after Phase 1 succeeded");
+                        panic!(
+                            "ERR: Phase 2 failed unexpectedly wtih status {consume_status:?} after Phase 1 succeeded"
+                        );
                     }
                 }
 

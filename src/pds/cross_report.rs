@@ -8,6 +8,7 @@ use super::{
     quotas::{FilterId, PdsFilterStatus},
 };
 use crate::{
+    actions::traits::ActionStorage,
     budget::{
         pure_dp_filter::PureDPBudget,
         traits::{FilterStatus, FilterStorage},
@@ -50,11 +51,12 @@ pub struct AttributionObject<Q: HistogramRequest> {
     pub already_requested_buckets: RequestedBuckets<Q::BucketKey>,
 }
 
-impl<U, FS, ERR> PrivateDataServiceCore<PpaHistogramRequest<U>, FS, ERR>
+impl<U, FS, AS, ERR> PrivateDataServiceCore<PpaHistogramRequest<U>, FS, AS, ERR>
 where
     U: Uri,
     FS: FilterStorage<FilterId = FilterId<PpaEpochId, U>, Budget = PureDPBudget>,
-    ERR: From<FS::Error>,
+    AS: ActionStorage<EpochId = PpaEpochId, Uri = U>,
+    ERR: From<FS::Error> + From<AS::Error>,
 {
     /// Attributes conversion value to events and deduct privacy loss from
     /// global filter and quotas. Creates an `AttributionObject` that
@@ -284,7 +286,7 @@ mod tests {
     use crate::{
         events::{ppa_event::PpaEvent, traits::EventUris, uri_set::UriSet},
         pds::{
-            aliases::{PpaFilterStorage, PpaPdsCore},
+            aliases::{PpaActionStorage, PpaFilterStorage, PpaPdsCore},
             quotas::StaticCapacities,
         },
         queries::{
@@ -301,7 +303,8 @@ mod tests {
         // Create PDS with mock capacities
         let capacities = StaticCapacities::mock();
         let filters = PpaFilterStorage::new(capacities.clone())?;
-        let mut pds = PpaPdsCore::<_>::new(filters);
+        let actions = PpaActionStorage::new(None);
+        let mut pds = PpaPdsCore::<_>::new(filters, actions);
 
         // Create test URIs
         let source_uri = "blog.example.com".to_string();
@@ -464,7 +467,8 @@ mod tests {
     fn test_cross_epoch_last_touch() -> Result<(), anyhow::Error> {
         let capacities = StaticCapacities::mock();
         let filters = PpaFilterStorage::new(capacities.clone())?;
-        let mut pds = PpaPdsCore::<_>::new(filters);
+        let actions = PpaActionStorage::new(None);
+        let mut pds = PpaPdsCore::<_>::new(filters, actions);
 
         let event1 = PpaEvent {
             id: 1,

@@ -7,7 +7,10 @@ mod experimental_feature_tests {
             traits::{EventStorage, EventUris},
         },
         pds::{
-            aliases::{SimpleEventStorage, SimpleFilterStorage, SimplePds},
+            aliases::{
+                SimpleActionStorage, SimpleEventStorage, SimpleFilterStorage,
+                SimplePds,
+            },
             quotas::{FilterId, StaticCapacities},
         },
         queries::{
@@ -29,6 +32,7 @@ mod experimental_feature_tests {
             );
 
         let filters = SimpleFilterStorage::new(capacities)?;
+        let actions = SimpleActionStorage::new(None);
         let mut events = SimpleEventStorage::new();
 
         // Add events across multiple epochs
@@ -45,7 +49,7 @@ mod experimental_feature_tests {
             }
         }
 
-        Ok(SimplePds::new(filters, events))
+        Ok(SimplePds::new(filters, actions, events))
     }
 
     fn create_high_budget_request() -> SimpleLastTouchHistogramRequest {
@@ -66,8 +70,8 @@ mod experimental_feature_tests {
     // data
     #[cfg(feature = "experimental")]
     #[test]
-    fn experimental_mode_provides_unfiltered_access(
-    ) -> Result<(), anyhow::Error> {
+    fn experimental_mode_provides_unfiltered_access()
+    -> Result<(), anyhow::Error> {
         use pdslib::queries::simple_last_touch_histogram::SimpleLastTouchHistogramReport;
 
         let mut pds = setup_constrained_pds()?;
@@ -85,13 +89,13 @@ mod experimental_feature_tests {
             report_uris: ReportRequestUris::mock(),
         };
 
-        let report = pds.compute_report(&simple_request)?;
+        let report = pds.compute_report(&simple_request, None)?;
 
         // In experimental mode, unfiltered_report should NOT be the default
         // empty report
         let default_report = SimpleLastTouchHistogramReport::default();
         assert_ne!(
-            format!("{:?}", report.unfiltered_report), 
+            format!("{:?}", report.unfiltered_report),
             format!("{:?}", default_report),
             "Experimental mode: unfiltered_report should contain actual data, not default empty report"
         );
@@ -103,8 +107,8 @@ mod experimental_feature_tests {
     // To activate the test, run `cargo test --no-default-features`.
     #[cfg(not(feature = "experimental"))]
     #[test]
-    fn production_mode_uses_default_unfiltered_report(
-    ) -> Result<(), anyhow::Error> {
+    fn production_mode_uses_default_unfiltered_report()
+    -> Result<(), anyhow::Error> {
         use pdslib::queries::simple_last_touch_histogram::SimpleLastTouchHistogramReport;
 
         let mut pds = setup_constrained_pds()?;
@@ -124,12 +128,12 @@ mod experimental_feature_tests {
 
     // Test that core PDS behavior is consistent regardless of feature flag
     #[test]
-    fn core_behavior_and_budget_exhaustion_work_consistently(
-    ) -> Result<(), anyhow::Error> {
+    fn core_behavior_and_budget_exhaustion_work_consistently()
+    -> Result<(), anyhow::Error> {
         let mut pds = setup_constrained_pds()?;
         let request = create_high_budget_request();
 
-        let report = pds.compute_report(&request)?;
+        let report = pds.compute_report(&request, None)?;
 
         // Core PDS behavior should work the same
         // filtered_report should always be populated correctly

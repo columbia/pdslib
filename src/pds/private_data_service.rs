@@ -5,8 +5,12 @@ use log::debug;
 
 use super::{core::PrivateDataServiceCore, quotas::FilterId};
 use crate::{
+    actions::traits::ActionStorage,
     budget::{pure_dp_filter::PureDPBudget, traits::FilterStorage},
-    events::{relevant_events::RelevantEvents, traits::EventStorage},
+    events::{
+        relevant_events::RelevantEvents,
+        traits::{Event as _, EventStorage},
+    },
     queries::traits::EpochReportRequest,
 };
 #[cfg(feature = "experimental")]
@@ -20,13 +24,14 @@ use crate::{
 pub struct PrivateDataService<
     Q: EpochReportRequest,
     FS: FilterStorage<
-        Budget = PureDPBudget,
-        FilterId = FilterId<Q::EpochId, Q::Uri>,
-    >,
+            Budget = PureDPBudget,
+            FilterId = FilterId<Q::EpochId, Q::Uri>,
+        >,
+    AS: ActionStorage<EpochId = Q::EpochId, Uri = Q::Uri>,
     ES: EventStorage<Event = Q::Event>,
-    ERR: From<FS::Error> + From<ES::Error>,
+    ERR: From<FS::Error> + From<AS::Error> + From<ES::Error>,
 > {
-    pub core: PrivateDataServiceCore<Q, FS, ERR>,
+    pub core: PrivateDataServiceCore<Q, FS, AS, ERR>,
 
     /// Event storage interface.
     pub event_storage: ES,
@@ -55,32 +60,63 @@ impl<Q: EpochReportRequest> Default for PdsReport<Q> {
 }
 
 /// API for the epoch-based PDS.
-impl<Q, FS, ES, ERR> PrivateDataService<Q, FS, ES, ERR>
+impl<Q, FS, AS, ES, ERR> PrivateDataService<Q, FS, AS, ES, ERR>
 where
     Q: EpochReportRequest<Report: Clone>,
     FS: FilterStorage<
-        Budget = PureDPBudget,
-        FilterId = FilterId<Q::EpochId, Q::Uri>,
-    >,
+            Budget = PureDPBudget,
+            FilterId = FilterId<Q::EpochId, Q::Uri>,
+        >,
+    AS: ActionStorage<EpochId = Q::EpochId, Uri = Q::Uri>,
     ES: EventStorage<Event = Q::Event>,
-    ERR: From<FS::Error> + From<ES::Error>,
+    ERR: From<FS::Error> + From<AS::Error> + From<ES::Error>,
 {
-    pub fn new(filter_storage: FS, event_storage: ES) -> Self {
+    pub fn new(
+        filter_storage: FS,
+        action_storage: AS,
+        event_storage: ES,
+    ) -> Self {
         Self {
-            core: PrivateDataServiceCore::new(filter_storage),
+            core: PrivateDataServiceCore::new(filter_storage, action_storage),
             event_storage,
         }
     }
 
     /// Registers a new event.
-    pub fn register_event(&mut self, event: Q::Event) -> Result<(), ERR> {
+    pub fn register_event(
+        &mut self,
+        event: Q::Event,
+        action_id: Option<&AS::ActionId>,
+    ) -> Result<(), ERR> {
         debug!("Registering event {event:?}");
+
+        if let Some(aid) = action_id {
+            let uris = event.event_uris();
+            let source_uri = &uris.source_uri;
+
+            let allowed = self
+                .core
+                .action_storage
+                .try_record_impression_site(&aid, source_uri)?;
+
+            if !allowed {
+                debug!(
+                    "Impression quota exceeded for action {aid:?}, dropping event."
+                );
+                return Ok(());
+            }
+        }
+
         self.event_storage.add_event(event)?;
         Ok(())
     }
 
     /// Computes a report for the given report request.
-    pub fn compute_report(&mut self, request: &Q) -> Result<PdsReport<Q>, ERR> {
+    pub fn compute_report(
+        &mut self,
+        request: &Q,
+        action_id: Option<&AS::ActionId>,
+    ) -> Result<PdsReport<Q>, ERR> {
         let relevant_event_selector = request.relevant_event_selector();
         let relevant_events = RelevantEvents::from_event_storage(
             &mut self.event_storage,
@@ -88,7 +124,8 @@ where
             relevant_event_selector,
         )?;
 
-        self.core.compute_report(request, relevant_events)
+        self.core
+            .compute_report(request, relevant_events, action_id)
     }
 
     /// [Experimental] Accounts for passive privacy loss. Can fail if the
@@ -130,7 +167,8 @@ where
             )?;
 
             assert_eq!(
-                consume_status, PdsFilterStatus::Continue,
+                consume_status,
+                PdsFilterStatus::Continue,
                 "ERR: Phase 2 failed unexpectedly with status {consume_status:?} after Phase 1 succeeded",
             );
 

@@ -7,7 +7,9 @@ use pdslib::{
         traits::{EventStorage as _, EventUris},
     },
     pds::{
-        aliases::{PpaEventStorage, PpaFilterStorage, PpaPds},
+        aliases::{
+            PpaActionStorage, PpaEventStorage, PpaFilterStorage, PpaPds,
+        },
         quotas::StaticCapacities,
     },
     queries::{
@@ -24,11 +26,14 @@ use pdslib::{
 fn bench_compute_report() -> anyhow::Result<()> {
     let capacities = StaticCapacities::mock();
     let filters = PpaFilterStorage::<&str>::new(capacities)?;
+    let actions = PpaActionStorage::<&str>::new(None);
     let events = PpaEventStorage::<&str>::new();
-    let mut pds =
-        PpaPds::<PpaFilterStorage<&str>, PpaEventStorage<&str>, &str>::new(
-            filters, events,
-        );
+    let mut pds = PpaPds::<
+        PpaFilterStorage<&str>,
+        PpaActionStorage<&str>,
+        PpaEventStorage<&str>,
+        &str,
+    >::new(filters, actions, events);
 
     let event_uris = EventUris {
         source_uri: "source",
@@ -72,7 +77,7 @@ fn bench_compute_report() -> anyhow::Result<()> {
         };
         let request = PpaHistogramRequest::new(&request_config, selector)?;
 
-        let report = pds.compute_report(&request)?;
+        let report = pds.compute_report(&request, None)?;
 
         assert!(!report.filtered_report.bin_values.is_empty())
     }

@@ -32,8 +32,8 @@ fn main() -> Result<(), anyhow::Error> {
     let sample_event_uris = EventUris::mock();
     let sample_report_uris = ReportRequestUris {
         trigger_uri: "shoes.com".to_string(),
-        source_uris: vec!["blog.com".to_string()],
-        querier_uris: vec!["adtech.com".to_string()],
+        source_uris: ["blog.com".to_string()].into(),
+        querier_uris: ["adtech.com".to_string()].into(),
     };
 
     // Create an impression (event, with very basic metadata).

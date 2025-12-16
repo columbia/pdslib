@@ -13,22 +13,17 @@ pub struct RelevantEvents<E: Event> {
 impl<E: Event> RelevantEvents<E> {
     /// Fetches and filters relevant events from the given event storage,
     /// for the specified epochs.
-    pub fn from_event_storage<ES>(
+    pub fn from_event_storage<ES: EventStorage<Event = E>>(
         event_storage: &mut ES,
         epoch_ids: &[E::EpochId],
         selector: &impl RelevantEventSelector<Event = E>,
-    ) -> Result<Self, ES::Error>
-    where
-        ES: EventStorage<Event = E>,
-    {
-        let mut events_per_epoch = HashMap::new();
+    ) -> Result<Self, ES::Error> {
+        let mut events_per_epoch = HashMap::with_capacity(epoch_ids.len());
 
         for epoch_id in epoch_ids {
-            // fetch all events at that epoch from storage
+            // fetch all relevant events at that epoch from storage
             let events = event_storage
-                .events_for_epoch(epoch_id)?
-                // filter relevant events using the selector
-                .filter(|event| selector.is_relevant_event(event))
+                .relevant_events_for_epoch(epoch_id, selector)?
                 .collect();
 
             // store the events in the map

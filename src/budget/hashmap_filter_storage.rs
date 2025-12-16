@@ -15,8 +15,8 @@ where
     C: FilterCapacities,
     F: Filter<C::Budget>,
 {
-    capacities: C,
-    filters: HashMap<C::FilterId, F>,
+    pub capacities: C,
+    pub filters: HashMap<C::FilterId, F>,
 }
 
 impl<F, C, FID> Serialize for HashMapFilterStorage<F, C>

@@ -1,7 +1,7 @@
 use core::f64;
 
 use log::{debug, warn};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::budget::traits::{Budget, Filter, FilterStatus};
 
@@ -20,7 +20,7 @@ pub type PureDPBudget = f64;
 impl Budget for PureDPBudget {}
 
 /// A filter for pure differential privacy.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PureDPBudgetFilter {
     pub consumed: PureDPBudget,
     pub capacity: Option<PureDPBudget>, // None = infinite budget

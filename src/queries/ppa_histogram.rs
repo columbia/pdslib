@@ -247,33 +247,22 @@ impl<U: Uri> HistogramRequest for PpaHistogramRequest<U> {
             AttributionLogic::LastTouch => {
                 // Browse epochs in the order given by `epoch_ids`, most recent
                 // first.
-                let epoch_ids = self.epoch_ids();
-                for epoch_id in epoch_ids {
+                for epoch_id in self.epoch_ids() {
                     let relevant_events_in_epoch =
                         relevant_events.for_epoch(&epoch_id);
 
+                    // get event with the largest timestamp
                     // TODO(later): pre-sort the events by timestamp in storage
-                    let mut relevant_events_in_epoch: Vec<&_> =
-                        relevant_events_in_epoch.iter().collect();
-                    relevant_events_in_epoch.sort_by_key(|e| e.timestamp);
+                    let Some(event) = relevant_events_in_epoch
+                        .iter()
+                        .filter(|e| e.histogram_index < self.histogram_size)
+                        .max_by_key(|e| e.timestamp)
+                    else {
+                        // No valid event in this epoch, continue to next epoch.
+                        continue;
+                    };
 
-                    // Start from the most recent event in the epoch and go
-                    // backwards.
-                    for event in relevant_events_in_epoch.iter().rev() {
-                        if event.histogram_index < self.histogram_size {
-                            // Found a relevant event with a valid bucket
-                            // key, we're done.
-                            return vec![(event, self.attributable_value)];
-                        } else {
-                            // Log error for dropped events, and keep
-                            // searching.
-                            log::error!(
-                                "Dropping event with id {} due to invalid bucket key {}",
-                                event.id,
-                                event.histogram_index
-                            );
-                        }
-                    }
+                    return vec![(event, self.attributable_value)];
                 }
             }
         }
@@ -299,6 +288,7 @@ impl<U: Uri> EpochReportRequest for PpaHistogramRequest<U> {
     type PrivacyBudget = PureDPBudget;
     type Report = HistogramReport<PpaBucketKey>;
 
+    /// Iterate through epochs in reverse order (most recent first).
     fn epoch_ids(&self) -> Vec<Self::EpochId> {
         (self.start_epoch..=self.end_epoch).rev().collect()
     }
@@ -324,11 +314,7 @@ impl<U: Uri> EpochReportRequest for PpaHistogramRequest<U> {
         relevant_events: &RelevantEvents<Self::Event>,
     ) -> Self::Report {
         let event_values = self.event_values(relevant_events);
-        let event_values: HashMap<_, _> = event_values
-            .into_iter()
-            .map(|(e, v)| (e.clone(), v))
-            .collect();
-        self.map_events_to_buckets(&event_values)
+        self.map_events_to_buckets(event_values)
     }
 
     fn single_epoch_individual_sensitivity(

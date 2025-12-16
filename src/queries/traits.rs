@@ -3,21 +3,21 @@ use std::fmt::Debug;
 use crate::{
     events::{
         relevant_events::RelevantEvents,
-        traits::{EpochId, Event, RelevantEventSelector, Uri},
+        traits::{EpochId, Event, RelevantEventSelector, Uri}, uri_set::UriSet,
     },
     mechanisms::{NoiseScale, NormType},
 };
 
 #[derive(Debug, Clone)]
-pub struct ReportRequestUris<U> {
+pub struct ReportRequestUris<U: Uri> {
     /// URI that triggered the report
     pub trigger_uri: U,
 
     /// Source URIs that can be used to compute the report
-    pub source_uris: Vec<U>,
+    pub source_uris: UriSet<U>,
 
     /// Queriers that will receive a report
-    pub querier_uris: Vec<U>,
+    pub querier_uris: UriSet<U>,
 }
 
 /// Trait for report types returned by a device (in plaintext). Must implement a
@@ -77,7 +77,7 @@ pub trait EpochReportRequest: Debug {
 
 /// Type for passive privacy loss accounting. Uniform over all epochs for now.
 #[derive(Debug)]
-pub struct PassivePrivacyLossRequest<EI: EpochId, U, PrivacyBudget> {
+pub struct PassivePrivacyLossRequest<EI: EpochId, U: Uri, PrivacyBudget> {
     pub epoch_ids: Vec<EI>,
     pub privacy_budget: PrivacyBudget,
     pub uris: ReportRequestUris<U>,

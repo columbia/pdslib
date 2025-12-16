@@ -6,8 +6,8 @@ pub trait Budget: Clone + Debug {
 }
 
 /// Trait for a privacy filter.
-pub trait Filter<B: Budget> {
-    type Error;
+pub trait Filter<B: Budget>: Debug {
+    type Error: Debug;
 
     /// Initializes a new filter with a given capacity.
     fn new(capacity: B) -> Result<Self, Self::Error>

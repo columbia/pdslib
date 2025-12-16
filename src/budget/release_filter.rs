@@ -1,5 +1,5 @@
 use anyhow::Result;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use super::{
     pure_dp_filter::PureDPBudget,
@@ -8,7 +8,7 @@ use super::{
 
 /// [Experimental] A pure DP filter that has additional functionality to release
 /// budget over time.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PureDPBudgetReleaseFilter {
     pub consumed: PureDPBudget,
     pub unlocked: PureDPBudget,

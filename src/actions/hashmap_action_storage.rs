@@ -8,15 +8,13 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct UserActionState<E: EpochId, U: Uri> {
-    accessed_imp_sites: HashSet<U>,
-    accessed_conv_sites: HashMap<E, HashSet<U>>,
+    accessed_sites: HashMap<E, HashSet<U>>,
 }
 
 impl<E: EpochId, U: Uri> Default for UserActionState<E, U> {
     fn default() -> Self {
         Self {
-            accessed_imp_sites: HashSet::new(),
-            accessed_conv_sites: HashMap::new(),
+            accessed_sites: HashMap::new(),
         }
     }
 }
@@ -47,35 +45,14 @@ where
     type Uri = U;
     type Error = anyhow::Error;
 
-    fn try_record_impression_site(
-        &mut self,
-        action_id: Self::ActionId,
-        site: &Self::Uri,
-    ) -> Result<bool, Self::Error> {
-        let state = self.actions.entry(action_id).or_default();
-
-        if state.accessed_imp_sites.contains(site) {
-            return Ok(true);
-        }
-
-        if let Some(quota_limit) = self.quota_limit
-            && state.accessed_imp_sites.len() >= quota_limit
-        {
-            return Ok(false);
-        }
-
-        state.accessed_imp_sites.insert(site.clone());
-        Ok(true)
-    }
-
-    fn try_record_conversion_site(
+    fn try_record_site(
         &mut self,
         action_id: Self::ActionId,
         epoch: Self::EpochId,
         site: &Self::Uri,
     ) -> Result<bool, Self::Error> {
         let state = self.actions.entry(action_id).or_default();
-        let epoch_sites = state.accessed_conv_sites.entry(epoch).or_default();
+        let epoch_sites = state.accessed_sites.entry(epoch).or_default();
 
         if epoch_sites.contains(site) {
             return Ok(true);

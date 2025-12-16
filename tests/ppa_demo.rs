@@ -54,46 +54,44 @@ fn main() -> Result<(), anyhow::Error> {
         querier_uris: ["adtech.com".to_string()].into(),
     };
 
-    let event1 = PpaEvent {
+    let default_event = PpaEvent {
         id: 1,
         timestamp: 0,
         epoch_number: 1,
-        histogram_index: 0x559, // 0x559 = "campaignCounts".to_string() | 0x400
+        histogram_index: 0,
+        user_action_id: None,
         uris: sample_event_uris.clone(),
         filter_data: 1,
     };
 
+    let event1 = PpaEvent {
+        histogram_index: 0x559, // 0x559 = "campaignCounts".to_string() | 0x400
+        uris: sample_event_uris.clone(),
+        ..default_event.clone()
+    };
+
     let event_irr_1 = PpaEvent {
-        id: 1,
-        timestamp: 0,
-        epoch_number: 1,
         histogram_index: 0x559, // 0x559 = "campaignCounts".to_string() | 0x400
         uris: event_uris_irrelevant_due_to_source.clone(),
-        filter_data: 1,
+        ..default_event.clone()
     };
 
     let event_irr_2 = PpaEvent {
-        id: 1,
-        timestamp: 0,
-        epoch_number: 1,
         histogram_index: 0x559, // 0x559 = "campaignCounts".to_string() | 0x400
         uris: event_uris_irrelevant_due_to_trigger.clone(),
-        filter_data: 1,
+        ..default_event.clone()
     };
 
     let event_irr_3 = PpaEvent {
-        id: 1,
-        timestamp: 0,
-        epoch_number: 1,
         histogram_index: 0x559, // 0x559 = "campaignCounts".to_string() | 0x400
         uris: event_uris_irrelevant_due_to_querier.clone(),
-        filter_data: 1,
+        ..default_event.clone()
     };
 
-    pds.register_event(event1.clone(), None)?;
-    pds.register_event(event_irr_1.clone(), None).unwrap();
-    pds.register_event(event_irr_2.clone(), None).unwrap();
-    pds.register_event(event_irr_3.clone(), None).unwrap();
+    pds.register_event(event1.clone())?;
+    pds.register_event(event_irr_1.clone()).unwrap();
+    pds.register_event(event_irr_2.clone()).unwrap();
+    pds.register_event(event_irr_3.clone()).unwrap();
 
     // Test basic attribution
     let request1 = PpaHistogramRequest::new(

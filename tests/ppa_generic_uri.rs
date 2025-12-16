@@ -62,6 +62,7 @@ fn main() -> Result<(), anyhow::Error> {
         timestamp: 1,
         epoch_number: 1,
         histogram_index: 1,
+        user_action_id: None,
         uris: event_uris.clone(),
         filter_data: 1,
     };
@@ -72,7 +73,7 @@ fn main() -> Result<(), anyhow::Error> {
         requested_buckets: RequestedBuckets::AllBuckets,
     };
 
-    pds.register_event(event.clone(), None)?;
+    pds.register_event(event.clone())?;
 
     let config = PpaHistogramConfig {
         start_epoch: 1,

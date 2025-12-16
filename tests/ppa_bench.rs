@@ -55,6 +55,7 @@ fn bench_compute_report() -> anyhow::Result<()> {
                 timestamp: 1000 + epoch_id * 100 + event_id,
                 epoch_number: epoch_id,
                 histogram_index: event_id,
+                user_action_id: None,
                 uris: event_uris.clone(),
                 filter_data: 0,
             };

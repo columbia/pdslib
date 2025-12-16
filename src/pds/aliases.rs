@@ -25,7 +25,7 @@ pub type SimpleFilterStorage = HashMapFilterStorage<
     PureDPBudgetFilter,
     StaticCapacities<FilterId<u64, String>, PureDPBudget>,
 >;
-pub type SimpleActionStorage = HashMapActionStorage<u64, u64, String>;
+pub type SimpleActionStorage = HashMapActionStorage<(), u64, String>;
 pub type SimpleEventStorage = HashMapEventStorage<SimpleEvent>;
 
 pub type SimplePdsCore<FS = SimpleFilterStorage, AS = SimpleActionStorage> =

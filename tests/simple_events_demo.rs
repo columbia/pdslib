@@ -71,7 +71,7 @@ fn main() -> Result<(), anyhow::Error> {
         lambda: always_relevant_event,
     };
 
-    pds.register_event(event.clone(), None)?;
+    pds.register_event(event.clone())?;
     let report_request = SimpleLastTouchHistogramRequest {
         epoch_start: 1,
         epoch_end: 1,
@@ -86,16 +86,14 @@ fn main() -> Result<(), anyhow::Error> {
     assert_eq!(report.filtered_report.bin_value, bucket);
 
     // Test having multiple events in one epoch
-    pds.register_event(event2.clone(), None)?;
+    pds.register_event(event2.clone())?;
 
     let report_request2 = SimpleLastTouchHistogramRequest {
         epoch_start: 1,
         epoch_end: 1, //test restricting the end epoch
-        report_global_sensitivity: 0.1, /* Even 0.1 should be enough to go
-                       * over the
-                       * limit as the current budget left
-                       * for
-                       * epoch 1 is 0. */
+        // Even 0.1 should be enough to go over the limit as the current budget
+        // left for epoch 1 is 0.
+        report_global_sensitivity: 0.1,
         query_global_sensitivity: 5.0,
         requested_epsilon: 5.0,
         is_relevant_event: always_relevant_event_selector,
@@ -134,7 +132,7 @@ fn main() -> Result<(), anyhow::Error> {
     assert_eq!(report3_empty.filtered_report.bin_value, None);
 
     // Test restricting report_global_sensitivity
-    pds.register_event(event4.clone(), None)?;
+    pds.register_event(event4.clone())?;
     let report_request3_over_budget = SimpleLastTouchHistogramRequest {
         epoch_start: 1,
         epoch_end: 3,

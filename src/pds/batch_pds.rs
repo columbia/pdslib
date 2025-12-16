@@ -22,7 +22,7 @@ use crate::{
         pure_dp_filter::PureDPBudget,
         traits::{Filter, FilterStatus, FilterStorage, ReleaseFilter},
     },
-    events::traits::EventStorage,
+    events::traits::{Event, EventStorage},
     mechanisms::NoiseScale,
     pds::quotas::FilterId,
     queries::traits::EpochReportRequest,
@@ -79,7 +79,11 @@ where
             Capacities = StaticCapacities<FilterIdQ<Q>, PureDPBudget>,
         >,
     FS::Filter: ReleaseFilter<FS::Budget, Error = FS::Error>,
-    AS: ActionStorage<EpochId = Q::EpochId, Uri = Q::Uri>,
+    AS: ActionStorage<
+            EpochId = Q::EpochId,
+            Uri = Q::Uri,
+            ActionId = <Q::Event as Event>::ActionId,
+        >,
     ES: EventStorage<Event = Q::Event>,
     ERR: From<FS::Error> + From<AS::Error> + From<ES::Error>,
 {
@@ -142,7 +146,11 @@ where
             Capacities = StaticCapacities<FilterIdQ<Q>, PureDPBudget>,
         >,
     FS::Filter: ReleaseFilter<FS::Budget, Error = FS::Error>,
-    AS: ActionStorage<EpochId = Q::EpochId, Uri = Q::Uri>,
+    AS: ActionStorage<
+            EpochId = Q::EpochId,
+            Uri = Q::Uri,
+            ActionId = <Q::Event as Event>::ActionId,
+        >,
     ES: EventStorage<Event = Q::Event>,
     ERR: From<FS::Error> + From<AS::Error> + From<ES::Error>,
 {
@@ -457,7 +465,9 @@ where
                 self.initialize_filters_for_request(&request.request)?;
 
                 // Compute the actual report. It might be null though.
-                let report = self.pds.compute_report(&request.request, None)?;
+                let report = self
+                    .pds
+                    .compute_report(&request.request, None /* todo */)?;
 
                 if !report.oob_filters.is_empty() {
                     for filter_id in report.oob_filters.iter() {
@@ -798,6 +808,7 @@ mod tests {
             timestamp: 0,
             epoch_number: 1,
             histogram_index: 0,
+            user_action_id: None,
             uris: EventUris::mock(),
             filter_data: 1,
         };
@@ -906,31 +917,34 @@ mod tests {
         }
         let trigger_uris: UriSet<_> = trigger_uris.into();
 
-        // Event relevant to all the shoes websites. Could also register 10
-        // different events, with one querier each.
-        let event1 = PpaEvent {
+        let event_template = PpaEvent {
             id: 1,
             timestamp: 0,
             epoch_number: 1,
             histogram_index: 0,
+            user_action_id: None,
+            uris: EventUris::mock(),
+            filter_data: 1,
+        };
+
+        // Event relevant to all the shoes websites. Could also register 10
+        // different events, with one querier each.
+        let event1 = PpaEvent {
+            user_action_id: None,
             uris: EventUris {
                 source_uri: "news.ex".to_string(),
                 trigger_uris: trigger_uris.clone(),
                 querier_uris: trigger_uris.clone(),
             },
-            filter_data: 1,
+            ..event_template.clone()
         };
         let event2 = PpaEvent {
-            id: 1,
-            timestamp: 0,
-            epoch_number: 1,
-            histogram_index: 0,
             uris: EventUris {
                 source_uri: "blog.ex".to_string(),
                 trigger_uris: ["hats-1.ex".to_string()].into(),
                 querier_uris: ["hats-1.ex".to_string()].into(),
             },
-            filter_data: 1,
+            ..event_template
         };
 
         let event_storage = event_storage_with_events(vec![event1, event2]);
@@ -1087,6 +1101,7 @@ mod tests {
             timestamp: 0,
             epoch_number: 1,
             histogram_index: 0,
+            user_action_id: None,
             uris: EventUris {
                 source_uri: "news.ex".to_string(),
                 trigger_uris: trigger_uris.clone(),
@@ -1107,6 +1122,7 @@ mod tests {
             timestamp: 0,
             epoch_number: 1,
             histogram_index: 0,
+            user_action_id: None,
             uris: EventUris {
                 source_uri: "blog.ex".to_string(),
                 trigger_uris: trigger_uris.clone(),

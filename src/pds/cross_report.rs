@@ -330,27 +330,31 @@ mod tests {
             querier_uris: querier_uris.clone(),
         };
 
+        let event_template = PpaEvent {
+            id: 0,
+            timestamp: 0,
+            epoch_number: 1,
+            histogram_index: 0,
+            user_action_id: None,
+            uris: event_uris.clone(),
+            filter_data: 1,
+        };
+
         // Register an early event with bucket 1 - this should be overridden by
         // last-touch attribution
         let early_event = PpaEvent {
-            id: 1,
             timestamp: 100,
-            epoch_number: 1,
             histogram_index: 1, // r1.ex bucket
-            uris: event_uris.clone(),
-            filter_data: 1,
+            ..event_template.clone()
         };
 
         // The event that should be attributed (latest timestamp in epoch 1)
         // We'll use a histogram index that's covered by both intermediaries (3)
         let main_event = PpaEvent {
-            id: 2,
-            timestamp: 200, /* Later timestamp so this event is picked by
-                             * last-touch */
-            epoch_number: 1,
+            timestamp: 200,     /* Later timestamp so this event is picked by
+                                 * last-touch */
             histogram_index: 2, // A bucket that will be kept and read by r2.ex
-            uris: event_uris.clone(),
-            filter_data: 1,
+            ..event_template.clone()
         };
 
         let relevant_events =
@@ -470,21 +474,25 @@ mod tests {
         let actions = PpaActionStorage::new(None);
         let mut pds = PpaPdsCore::<_>::new(filters, actions);
 
-        let event1 = PpaEvent {
-            id: 1,
-            timestamp: 100,
+        let event_template = PpaEvent {
+            id: 0,
+            timestamp: 0,
             epoch_number: 1,
-            histogram_index: 1,
+            histogram_index: 0,
+            user_action_id: None,
             uris: EventUris::mock(),
             filter_data: 1,
         };
+
+        let event1 = PpaEvent {
+            timestamp: 100,
+            epoch_number: 1,
+            ..event_template.clone()
+        };
         let event2 = PpaEvent {
-            id: 2,
             timestamp: 200, // Later timestamp
             epoch_number: 2,
-            histogram_index: 1, // Same bucket as event1
-            uris: EventUris::mock(),
-            filter_data: 1,
+            ..event_template.clone()
         };
 
         // set epoch 2 PerQuerier filter to be OOB

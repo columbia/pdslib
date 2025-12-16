@@ -9,7 +9,7 @@ use crate::{
     budget::{pure_dp_filter::PureDPBudget, traits::FilterStorage},
     events::{
         relevant_events::RelevantEvents,
-        traits::{Event as _, EventStorage},
+        traits::{Event, EventStorage},
     },
     queries::traits::EpochReportRequest,
 };
@@ -67,7 +67,11 @@ where
             Budget = PureDPBudget,
             FilterId = FilterId<Q::EpochId, Q::Uri>,
         >,
-    AS: ActionStorage<EpochId = Q::EpochId, Uri = Q::Uri>,
+    AS: ActionStorage<
+            EpochId = Q::EpochId,
+            Uri = Q::Uri,
+            ActionId = <Q::Event as Event>::ActionId,
+        >,
     ES: EventStorage<Event = Q::Event>,
     ERR: From<FS::Error> + From<AS::Error> + From<ES::Error>,
 {
@@ -83,21 +87,17 @@ where
     }
 
     /// Registers a new event.
-    pub fn register_event(
-        &mut self,
-        event: Q::Event,
-        action_id: Option<AS::ActionId>,
-    ) -> Result<(), ERR> {
+    pub fn register_event(&mut self, event: Q::Event) -> Result<(), ERR> {
         debug!("Registering event {event:?}");
 
-        if let Some(aid) = action_id {
-            let uris = event.event_uris();
-            let source_uri = &uris.source_uri;
+        if let Some(aid) = event.user_action_id() {
+            let source_uri = &event.event_uris().source_uri;
 
-            let allowed = self
-                .core
-                .action_storage
-                .try_record_impression_site(aid, source_uri)?;
+            let allowed = self.core.action_storage.try_record_site(
+                aid,
+                event.epoch_id(),
+                source_uri,
+            )?;
 
             if !allowed {
                 debug!(
@@ -122,6 +122,7 @@ where
             &mut self.event_storage,
             &request.epoch_ids(),
             relevant_event_selector,
+            action_id,
         )?;
 
         self.core

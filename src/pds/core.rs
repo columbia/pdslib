@@ -62,8 +62,8 @@ where
     }
 
     /// Computes a report for the given report request.
-    /// This function follows `compute_attribution_report` from the Cookie
-    /// Monster Algorithm (https://arxiv.org/pdf/2405.16719, Code Listing 1)
+    /// This function follows Algorithm 2 from the Big Bird paper
+    /// (https://arxiv.org/abs/2506.05290, Alg. 2)
     pub fn compute_report(
         &mut self,
         request: &Q,
@@ -94,7 +94,7 @@ where
             for &epoch_id in &epochs {
                 let allowed = self
                     .action_storage
-                    .try_record_conversion_site(aid, epoch_id, conv_site)?;
+                    .try_record_site(aid, epoch_id, conv_site)?;
 
                 if !allowed {
                     // Oscar Paper: "If quota-count is exceeded in epoch e...

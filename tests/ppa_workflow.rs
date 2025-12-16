@@ -49,7 +49,7 @@ fn main() -> Result<(), anyhow::Error> {
     };
 
     // Save impression.
-    pds.register_event(event.clone(), None)?;
+    pds.register_event(event.clone())?;
 
     // Next, a conversion happens and the querier prepares request parameters.
 

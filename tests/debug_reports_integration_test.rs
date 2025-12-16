@@ -114,7 +114,7 @@ mod experimental_feature_tests {
         let mut pds = setup_constrained_pds()?;
         let request = create_high_budget_request();
 
-        let report = pds.compute_report(&request)?;
+        let report = pds.compute_report(&request, None)?;
 
         // In production mode, unfiltered_report should be the default report
         assert_eq!(

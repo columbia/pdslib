@@ -69,7 +69,7 @@ where
         request: &Q,
         // mutable, as we will drop out-of-budget epochs from it
         mut relevant_events: RelevantEvents<Q::Event>,
-        action_id: Option<&AS::ActionId>,
+        action_id: Option<AS::ActionId>,
     ) -> Result<PdsReport<Q>, ERR> {
         debug!("Computing report for request {request:?}");
 
@@ -91,15 +91,15 @@ where
         if let Some(aid) = action_id {
             let conv_site = &uris.trigger_uri;
 
-            for epoch_id in &epochs {
+            for &epoch_id in &epochs {
                 let allowed = self
                     .action_storage
-                    .try_record_conversion_site(&aid, epoch_id, conv_site)?;
+                    .try_record_conversion_site(aid, epoch_id, conv_site)?;
 
                 if !allowed {
                     // Oscar Paper: "If quota-count is exceeded in epoch e...
                     // nullifies only epoch e's data"
-                    relevant_events.drop_epoch(epoch_id);
+                    relevant_events.drop_epoch(&epoch_id);
                 }
             }
         }

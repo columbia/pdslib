@@ -86,7 +86,7 @@ where
     pub fn register_event(
         &mut self,
         event: Q::Event,
-        action_id: Option<&AS::ActionId>,
+        action_id: Option<AS::ActionId>,
     ) -> Result<(), ERR> {
         debug!("Registering event {event:?}");
 
@@ -97,7 +97,7 @@ where
             let allowed = self
                 .core
                 .action_storage
-                .try_record_impression_site(&aid, source_uri)?;
+                .try_record_impression_site(aid, source_uri)?;
 
             if !allowed {
                 debug!(
@@ -115,7 +115,7 @@ where
     pub fn compute_report(
         &mut self,
         request: &Q,
-        action_id: Option<&AS::ActionId>,
+        action_id: Option<AS::ActionId>,
     ) -> Result<PdsReport<Q>, ERR> {
         let relevant_event_selector = request.relevant_event_selector();
         let relevant_events = RelevantEvents::from_event_storage(

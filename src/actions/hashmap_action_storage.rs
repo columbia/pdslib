@@ -49,10 +49,10 @@ where
 
     fn try_record_impression_site(
         &mut self,
-        action_id: &Self::ActionId,
+        action_id: Self::ActionId,
         site: &Self::Uri,
     ) -> Result<bool, Self::Error> {
-        let state = self.actions.entry(*action_id).or_default();
+        let state = self.actions.entry(action_id).or_default();
 
         if state.accessed_imp_sites.contains(site) {
             return Ok(true);
@@ -70,12 +70,12 @@ where
 
     fn try_record_conversion_site(
         &mut self,
-        action_id: &Self::ActionId,
-        epoch: &Self::EpochId,
+        action_id: Self::ActionId,
+        epoch: Self::EpochId,
         site: &Self::Uri,
     ) -> Result<bool, Self::Error> {
-        let state = self.actions.entry(*action_id).or_default();
-        let epoch_sites = state.accessed_conv_sites.entry(*epoch).or_default();
+        let state = self.actions.entry(action_id).or_default();
+        let epoch_sites = state.accessed_conv_sites.entry(epoch).or_default();
 
         if epoch_sites.contains(site) {
             return Ok(true);

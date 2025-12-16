@@ -17,7 +17,7 @@ pub trait ActionStorage {
     /// exceeded.
     fn try_record_impression_site(
         &mut self,
-        action_id: &Self::ActionId,
+        action_id: Self::ActionId,
         site: &Self::Uri,
     ) -> Result<bool, Self::Error>;
 
@@ -26,8 +26,8 @@ pub trait ActionStorage {
     /// quota exceeded.
     fn try_record_conversion_site(
         &mut self,
-        action_id: &Self::ActionId,
-        epoch: &Self::EpochId,
+        action_id: Self::ActionId,
+        epoch: Self::EpochId,
         site: &Self::Uri,
     ) -> Result<bool, Self::Error>;
 }

@@ -68,9 +68,9 @@ where
 
     /// Computes the report by attributing values to events, and then summing
     /// events by bucket.
-    fn map_events_to_buckets(
-        &self,
-        event_values: &[(&Self::Event, f64)],
+    fn map_events_to_buckets<'a>(
+        &'a self,
+        event_values: impl IntoIterator<Item = (&'a Self::Event, f64)>,
     ) -> HistogramReport<Self::BucketKey> {
         let mut bin_values: HashMap<Self::BucketKey, f64> = HashMap::new();
         let mut total_value: f64 = 0.0;

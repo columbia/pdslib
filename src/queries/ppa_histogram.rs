@@ -288,6 +288,7 @@ impl<U: Uri> EpochReportRequest for PpaHistogramRequest<U> {
     type PrivacyBudget = PureDPBudget;
     type Report = HistogramReport<PpaBucketKey>;
 
+    /// Iterate through epochs in reverse order (most recent first).
     fn epoch_ids(&self) -> Vec<Self::EpochId> {
         (self.start_epoch..=self.end_epoch).rev().collect()
     }
@@ -313,7 +314,7 @@ impl<U: Uri> EpochReportRequest for PpaHistogramRequest<U> {
         relevant_events: &RelevantEvents<Self::Event>,
     ) -> Self::Report {
         let event_values = self.event_values(relevant_events);
-        self.map_events_to_buckets(&event_values)
+        self.map_events_to_buckets(event_values)
     }
 
     fn single_epoch_individual_sensitivity(

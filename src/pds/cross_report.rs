@@ -53,14 +53,11 @@ pub struct AttributionObject<Q: HistogramRequest> {
 impl<U, FS, ERR> PrivateDataServiceCore<PpaHistogramRequest<U>, FS, ERR>
 where
     U: Uri,
-    FS: FilterStorage<
-        FilterId = FilterId<PpaEpochId, U>,
-        Budget = PureDPBudget,
-    >,
+    FS: FilterStorage<FilterId = FilterId<PpaEpochId, U>, Budget = PureDPBudget>,
     ERR: From<FS::Error>,
 {
     /// Attributes conversion value to events and deduct privacy loss from
-    /// global filter and quotas. Creates an `AttributionObject` that can
+    /// global filter and quotas. Creates an `AttributionObject` that
     /// queriers can use to generate reports, that will deduct per-querier
     /// privacy loss and map events to their respective histogram buckets.
     ///
@@ -76,7 +73,9 @@ where
 
         // TODO(later): optimize privacy loss accounting
         if epochs.len() <= 1 {
-            warn!("Cross-report optimization only saves budget when requesting more than 1 epoch. We recommend using the regular API otherwise.")
+            warn!(
+                "Cross-report optimization only saves budget when requesting more than 1 epoch. We recommend using the regular API otherwise."
+            )
         }
 
         let mut oob_filters = vec![];
@@ -125,7 +124,9 @@ where
                     )?;
 
                     if consume_status != PdsFilterStatus::Continue {
-                        panic!("ERR: Phase 2 failed unexpectedly wtih status {consume_status:?} after Phase 1 succeeded");
+                        panic!(
+                            "ERR: Phase 2 failed unexpectedly wtih status {consume_status:?} after Phase 1 succeeded"
+                        );
                     }
                 }
 
@@ -169,23 +170,26 @@ impl<U: Uri> AttributionObject<PpaHistogramRequest<U>> {
     ) -> Result<PdsReport<PpaHistogramRequest<U>>, FS::Error>
     where
         FS: FilterStorage<
-            FilterId = FilterId<PpaEpochId, U>,
-            Budget = PureDPBudget,
-        >,
+                FilterId = FilterId<PpaEpochId, U>,
+                Budget = PureDPBudget,
+            >,
     {
-        let epochs = self.request.epoch_ids();
-        let num_epochs = epochs.len();
+        let requested_epochs = self.request.epoch_ids();
+        let num_requested_epochs = requested_epochs.len();
 
         // if already_requested_buckets is None, all buckets have already
         // been requested
         let RequestedBuckets::SpecificBuckets(already_requested_buckets) =
             &mut self.already_requested_buckets
         else {
-            debug!("All buckets have already been requested, returning null report");
+            debug!(
+                "All buckets have already been requested, returning null report"
+            );
             return Ok(PdsReport::default());
         };
 
-        match &relevant_event_selector.requested_buckets {
+        let requested_buckets = &relevant_event_selector.requested_buckets;
+        match requested_buckets {
             RequestedBuckets::SpecificBuckets(requested_buckets) => {
                 // if any of the requested buckets have already been previously
                 // requested, abort and return null report
@@ -194,7 +198,9 @@ impl<U: Uri> AttributionObject<PpaHistogramRequest<U>> {
                     .count()
                     > 0
                 {
-                    debug!("Some requested buckets have already been requested, returning null report");
+                    debug!(
+                        "Some requested buckets have already been requested, returning null report"
+                    );
                     return Ok(PdsReport::default());
                 }
 
@@ -208,26 +214,27 @@ impl<U: Uri> AttributionObject<PpaHistogramRequest<U>> {
         }
 
         // get the attributed values for the requested events
-        // only keep the buckets that are requested
-        let mut event_values = vec![];
-        for (event, value) in &self.event_values {
-            if epochs.contains(&event.epoch_id())
-                && relevant_event_selector
-                    .requested_buckets
-                    .contains(&event.histogram_index)
-            {
-                event_values.push((event, *value));
-            }
-        }
+        let filtered_event_values = self
+            .event_values
+            .iter()
+            // only keep the events in the requested epochs
+            .filter(|(event, _)| requested_epochs.contains(&event.epoch_id()))
+            // only keep the buckets that are requested
+            .filter(|(event, _)| {
+                requested_buckets.contains(&event.histogram_index)
+            })
+            .map(|(event, value)| (event, *value));
 
         // Per-querier report before filtering out epochs that are OOB for the
         // per-querier filter. `compute_attribution` already filtered
         // epochs that were OOB for the other filters/quotas.
-        let unfiltered_report =
-            self.request.map_events_to_buckets(&event_values);
+        let unfiltered_report = self
+            .request
+            .map_events_to_buckets(filtered_event_values.clone());
 
         let mut oob_filters = vec![];
-        for epoch_id in epochs {
+        let mut events_to_drop = HashSet::new();
+        for &epoch_id in &requested_epochs {
             let epoch_relevant_events = self.events.for_epoch(&epoch_id);
 
             // Compute per-querier individual loss for current epoch.
@@ -235,7 +242,7 @@ impl<U: Uri> AttributionObject<PpaHistogramRequest<U>> {
                 &self.request,
                 epoch_relevant_events,
                 &unfiltered_report,
-                num_epochs,
+                num_requested_epochs,
             );
 
             let filter_id =
@@ -244,24 +251,23 @@ impl<U: Uri> AttributionObject<PpaHistogramRequest<U>> {
                 .try_consume(&filter_id, &individual_privacy_loss)?;
 
             if filter_status == FilterStatus::OutOfBudget {
-                // Not enough budget, drop events without any filter
-                // consumption
-                let epoch_relevant_events_set: HashSet<_> =
-                    epoch_relevant_events.iter().collect();
+                // Add this epoch's events to the list of events to drop
+                events_to_drop.extend(epoch_relevant_events.iter());
 
-                event_values.retain(|(event, _)| {
-                    !epoch_relevant_events_set.contains(event)
-                });
-
-                // Keep track of why we dropped this epoch
+                // Keep track of dropped filters
                 oob_filters.push(filter_id);
             }
         }
 
+        // filter out dropped events
+        let filtered_event_values = filtered_event_values
+            .filter(|(event, _)| !events_to_drop.contains(event));
+
         // Now that we've dropped OOB epochs, we can compute the final report,
         // using the attributed event values precomputed by
         // `measure_conversion`.
-        let filtered_report = self.request.map_events_to_buckets(&event_values);
+        let filtered_report =
+            self.request.map_events_to_buckets(filtered_event_values);
 
         let report = PdsReport {
             filtered_report,
@@ -276,10 +282,7 @@ impl<U: Uri> AttributionObject<PpaHistogramRequest<U>> {
 mod tests {
     use super::*;
     use crate::{
-        events::{
-            ppa_event::PpaEvent,
-            traits::EventUris, uri_set::UriSet,
-        },
+        events::{ppa_event::PpaEvent, traits::EventUris, uri_set::UriSet},
         pds::{
             aliases::{PpaFilterStorage, PpaPdsCore},
             quotas::StaticCapacities,
@@ -347,8 +350,8 @@ mod tests {
             filter_data: 1,
         };
 
-        let events = HashMap::from([(1, vec![early_event, main_event])]);
-        let relevant_events = RelevantEvents::from_mapping(events);
+        let relevant_events =
+            RelevantEvents::from_vec(vec![early_event, main_event]);
 
         let config = PpaHistogramConfig {
             start_epoch: 1,
@@ -365,15 +368,9 @@ mod tests {
             requested_buckets: vec![bucket].into(),
         };
 
-        let request = PpaHistogramRequest::new(
-            &config,
-            PpaRelevantEventSelector {
-                report_request_uris: report_request_uris.clone(),
-                is_matching_event: Box::new(|_| true),
-                requested_buckets: vec![1].into(),
-            },
-        )
-        .expect("Failed to create request");
+        let request =
+            PpaHistogramRequest::new(&config, relevant_event_selector(1))
+                .expect("Failed to create request");
 
         let NoiseScale::Laplace(noise_scale) = request.noise_scale();
 
@@ -390,7 +387,10 @@ mod tests {
             )
             .unwrap();
         let r1_bins = &r1_report.filtered_report.bin_values;
-        assert!(r1_bins.is_empty(), "1 bucket for r1.ex should have been filtered out by last-touch attribution");
+        assert!(
+            r1_bins.is_empty(),
+            "1 bucket for r1.ex should have been filtered out by last-touch attribution"
+        );
 
         // Verify r2.ex's report has bucket 2
         let r2_report = attr_object

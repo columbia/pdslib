@@ -8,7 +8,7 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct UserActionState<E: EpochId, U: Uri> {
-    accessed_sites: HashMap<E, HashSet<U>>,
+    pub accessed_sites: HashMap<E, HashSet<U>>,
 }
 
 impl<E: EpochId, U: Uri> Default for UserActionState<E, U> {

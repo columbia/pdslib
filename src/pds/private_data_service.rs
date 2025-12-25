@@ -11,6 +11,7 @@ use crate::{
         relevant_events::RelevantEvents,
         traits::{Event, EventStorage},
     },
+    pds::core::DropEpochReason,
     queries::traits::EpochReportRequest,
 };
 #[cfg(feature = "experimental")]
@@ -43,9 +44,9 @@ pub struct PdsReport<Q: EpochReportRequest> {
     pub filtered_report: Q::Report,
     pub unfiltered_report: Q::Report,
 
-    /// Store a list of the filter IDs that were out-of-budget in the atomic
-    /// check for any epoch in the attribution window.
-    pub oob_filters: Vec<FilterId<Q::EpochId, Q::Uri>>,
+    /// Store a list of reasons for which all the events in an epoch were
+    /// dropped. This can include out-of-budget filters or the count-quota.
+    pub drop_epoch_reasons: Vec<DropEpochReason<FilterId<Q::EpochId, Q::Uri>>>,
 }
 
 /// Default implementation for a null report
@@ -54,7 +55,7 @@ impl<Q: EpochReportRequest> Default for PdsReport<Q> {
         Self {
             filtered_report: Q::Report::default(),
             unfiltered_report: Q::Report::default(),
-            oob_filters: Vec::new(),
+            drop_epoch_reasons: Vec::new(),
         }
     }
 }

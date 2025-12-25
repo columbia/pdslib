@@ -19,7 +19,7 @@ use crate::{
         traits::{Event as _, Uri},
     },
     mechanisms::NoiseScale,
-    pds::core::PrivateDataServiceCore,
+    pds::core::{DropEpochReason, PrivateDataServiceCore},
     queries::{
         histogram::HistogramRequest,
         ppa_histogram::{
@@ -234,7 +234,7 @@ impl<U: Uri> AttributionObject<PpaHistogramRequest<U>> {
             .request
             .map_events_to_buckets(filtered_event_values.clone());
 
-        let mut oob_filters = vec![];
+        let mut drop_epoch_reasons = vec![];
         let mut events_to_drop = HashSet::new();
         for &epoch_id in &requested_epochs {
             let epoch_relevant_events = self.events.for_epoch(&epoch_id);
@@ -257,7 +257,8 @@ impl<U: Uri> AttributionObject<PpaHistogramRequest<U>> {
                 events_to_drop.extend(epoch_relevant_events.iter());
 
                 // Keep track of dropped filters
-                oob_filters.push(filter_id);
+                drop_epoch_reasons
+                    .push(DropEpochReason::OutOfBudget(vec![filter_id]));
             }
         }
 
@@ -274,7 +275,7 @@ impl<U: Uri> AttributionObject<PpaHistogramRequest<U>> {
         let report = PdsReport {
             filtered_report,
             unfiltered_report,
-            oob_filters,
+            drop_epoch_reasons,
         };
         Ok(report)
     }

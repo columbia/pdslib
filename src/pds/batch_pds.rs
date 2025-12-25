@@ -24,7 +24,7 @@ use crate::{
     },
     events::traits::{Event, EventStorage},
     mechanisms::NoiseScale,
-    pds::quotas::FilterId,
+    pds::{core::DropEpochReason, quotas::FilterId},
     queries::traits::EpochReportRequest,
     util::hashmap::{HashMap, HashSet},
 };
@@ -469,18 +469,25 @@ where
                     .pds
                     .compute_report(&request.request, None /* todo */)?;
 
-                if !report.oob_filters.is_empty() {
-                    for filter_id in report.oob_filters.iter() {
-                        if let FilterId::SourceQuota(_, _) = filter_id {
-                            // SourceQuota should never block a request if we
-                            // have perfect upper
-                            // bounds for the public filters.
-                            panic!(
-                                "Request {} was not allocated: {:?}. Final attempt? {}",
-                                request.request_id,
-                                report.oob_filters,
-                                allocate_final_attempts
-                            );
+                if !report.drop_epoch_reasons.is_empty() {
+                    for drop_reason in report.drop_epoch_reasons.iter() {
+                        let DropEpochReason::OutOfBudget(filters) = drop_reason
+                        else {
+                            continue;
+                        };
+
+                        for filter_id in filters {
+                            if let FilterId::SourceQuota(_, _) = filter_id {
+                                // SourceQuota should never block a request if
+                                // we have perfect upper bounds for the public
+                                // filters.
+                                panic!(
+                                    "Request {} was not allocated: {:?}. Final attempt? {}",
+                                    request.request_id,
+                                    report.drop_epoch_reasons,
+                                    allocate_final_attempts
+                                );
+                            }
                         }
                     }
                 }
@@ -885,9 +892,9 @@ mod tests {
 
         for report in reports {
             assert!(
-                report.report.oob_filters.is_empty(),
-                "Report should not have any OOB filters. Got: {:?}",
-                report.report.oob_filters
+                report.report.drop_epoch_reasons.is_empty(),
+                "Report should not have any dropped epochs. Got: {:?}",
+                report.report.drop_epoch_reasons
             );
         }
 
@@ -896,9 +903,9 @@ mod tests {
         debug!("Reports again: {reports:?}");
 
         assert!(
-            reports[0].report.oob_filters.is_empty(),
-            "Report should not have any OOB filters. Got: {:?}",
-            reports[0].report.oob_filters
+            reports[0].report.drop_epoch_reasons.is_empty(),
+            "Report should not have any dropped epochs. Got: {:?}",
+            reports[0].report.drop_epoch_reasons
         );
 
         Ok(())
@@ -1059,9 +1066,9 @@ mod tests {
         // No report should be null
         for report in &reports {
             assert!(
-                report.report.oob_filters.is_empty(),
+                report.report.drop_epoch_reasons.is_empty(),
                 "Report should not have an error cause. Got: {:?}",
-                report.report.oob_filters
+                report.report.drop_epoch_reasons
             );
         }
 
@@ -1251,7 +1258,7 @@ mod tests {
         // Only 5 reports should be non-null.
         let mut n_non_null_reports = 0;
         for report in &reports {
-            if report.report.oob_filters.is_empty() {
+            if report.report.drop_epoch_reasons.is_empty() {
                 n_non_null_reports += 1;
             }
         }

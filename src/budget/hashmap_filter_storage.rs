@@ -1,6 +1,6 @@
 use std::{fmt::Debug, hash::Hash};
 
-use serde::{ser::SerializeStruct, Serialize};
+use serde::{Serialize, ser::SerializeStruct};
 
 use crate::{
     budget::traits::{Filter, FilterCapacities, FilterStorage},

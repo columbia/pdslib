@@ -87,6 +87,8 @@ where
         // Compute the raw report, useful for debugging and accounting.
         let unfiltered_report = request.compute_report(&relevant_events);
 
+        let mut drop_epoch_reasons: Vec<DropEpochReason<_>> = vec![];
+
         // First, enforce action quotas
         if let Some(aid) = action_id {
             let conv_site = &uris.trigger_uri;
@@ -100,12 +102,13 @@ where
                     // Oscar Paper: "If quota-count is exceeded in epoch e...
                     // nullifies only epoch e's data"
                     relevant_events.drop_epoch(&epoch_id);
+                    drop_epoch_reasons
+                        .push(DropEpochReason::CountQuotaExceeded);
                 }
             }
         }
 
         // Browse epochs in the attribution window
-        let mut oob_filters = vec![];
         for epoch_id in epochs {
             // Step 1. Get relevant events for the current epoch `epoch_id`.
             let epoch_relevant_events = relevant_events.for_epoch(&epoch_id);
@@ -156,13 +159,14 @@ where
                     }
                 }
 
-                PdsFilterStatus::OutOfBudget(mut filters) => {
+                PdsFilterStatus::OutOfBudget(filters) => {
                     // Not enough budget, drop events without any filter
                     // consumption
                     relevant_events.drop_epoch(&epoch_id);
 
                     // Keep track of why we dropped this epoch
-                    oob_filters.append(&mut filters);
+                    drop_epoch_reasons
+                        .push(DropEpochReason::OutOfBudget(filters));
                 }
             }
         }
@@ -179,7 +183,7 @@ where
         let report_with_metadata = PdsReport {
             filtered_report,
             unfiltered_report,
-            oob_filters,
+            drop_epoch_reasons,
         };
         #[cfg(not(feature = "experimental"))]
         let report_with_metadata = PdsReport {
@@ -256,4 +260,10 @@ where
         }
         Ok(PdsFilterStatus::Continue)
     }
+}
+
+#[derive(Debug)]
+pub enum DropEpochReason<FID> {
+    CountQuotaExceeded,
+    OutOfBudget(Vec<FID>),
 }

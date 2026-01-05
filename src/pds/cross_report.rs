@@ -371,9 +371,8 @@ mod tests {
         };
 
         let relevant_event_selector = |bucket: u64| PpaRelevantEventSelector {
-            report_request_uris: report_request_uris.clone(),
-            is_matching_event: Box::new(|_: u64| true),
             requested_buckets: vec![bucket].into(),
+            ..PpaRelevantEventSelector::new(report_request_uris.clone())
         };
 
         let request =
@@ -514,9 +513,8 @@ mod tests {
                 histogram_size: 3,
             },
             PpaRelevantEventSelector {
-                report_request_uris: ReportRequestUris::mock(),
-                is_matching_event: Box::new(|_| true),
                 requested_buckets: vec![1].into(),
+                ..PpaRelevantEventSelector::new(ReportRequestUris::mock())
             },
         )
         .unwrap();
@@ -527,9 +525,8 @@ mod tests {
         let report = attr_object.get_report(
             &querier_uri,
             &PpaRelevantEventSelector {
-                report_request_uris: ReportRequestUris::mock(),
-                is_matching_event: Box::new(|_| true),
                 requested_buckets: RequestedBuckets::AllBuckets,
+                ..PpaRelevantEventSelector::new(ReportRequestUris::mock())
             },
             &mut pds.filter_storage,
         )?;

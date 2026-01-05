@@ -775,7 +775,7 @@ mod tests {
         queries::{
             ppa_histogram::{
                 PpaHistogramConfig, PpaHistogramRequest,
-                PpaRelevantEventSelector, RequestedBuckets,
+                PpaRelevantEventSelector,
             },
             traits::ReportRequestUris,
         },
@@ -844,11 +844,8 @@ mod tests {
 
         let report_uris = ReportRequestUris::mock();
 
-        let always_relevant_selector = || PpaRelevantEventSelector {
-            report_request_uris: report_uris.clone(),
-            is_matching_event: Box::new(|_: u64| true),
-            requested_buckets: RequestedBuckets::AllBuckets,
-        };
+        let always_relevant_selector =
+            || PpaRelevantEventSelector::new(report_uris.clone());
 
         // Request that will be answered in the first scheduling attempt.
         batch_pds.register_report_request(BatchedRequest::new(
@@ -978,12 +975,9 @@ mod tests {
             histogram_size: 5,
         };
 
-        let always_valid_selector =
-            |uris: ReportRequestUris<String>| PpaRelevantEventSelector {
-                report_request_uris: uris,
-                is_matching_event: Box::new(|_: u64| true),
-                requested_buckets: RequestedBuckets::AllBuckets,
-            };
+        let always_valid_selector = |uris: ReportRequestUris<String>| {
+            PpaRelevantEventSelector::new(uris)
+        };
 
         // Every single conversion sites gets a conversion.
         for i in 1..=9 {
@@ -1180,15 +1174,11 @@ mod tests {
                 2, // Space for one more time. Easier to check the batch.
                 PpaHistogramRequest::new(
                     &request_config,
-                    PpaRelevantEventSelector {
-                        report_request_uris: ReportRequestUris {
-                            trigger_uri: shoes_conv.clone(),
-                            source_uris: ["news.ex".to_string()].into(),
-                            querier_uris: [shoes_conv.clone()].into(),
-                        },
-                        is_matching_event: Box::new(|_: u64| true),
-                        requested_buckets: RequestedBuckets::AllBuckets,
-                    },
+                    PpaRelevantEventSelector::new(ReportRequestUris {
+                        trigger_uri: shoes_conv.clone(),
+                        source_uris: ["news.ex".to_string()].into(),
+                        querier_uris: [shoes_conv.clone()].into(),
+                    }),
                 )?,
             ))?;
         }
@@ -1203,15 +1193,11 @@ mod tests {
                 2,
                 PpaHistogramRequest::new(
                     &request_config,
-                    PpaRelevantEventSelector {
-                        report_request_uris: ReportRequestUris {
-                            trigger_uri: hats_conv.clone(),
-                            source_uris: ["blog.ex".to_string()].into(),
-                            querier_uris: [hats_conv.clone()].into(),
-                        },
-                        is_matching_event: Box::new(|_: u64| true),
-                        requested_buckets: RequestedBuckets::AllBuckets,
-                    },
+                    PpaRelevantEventSelector::new(ReportRequestUris {
+                        trigger_uri: hats_conv.clone(),
+                        source_uris: ["blog.ex".to_string()].into(),
+                        querier_uris: [hats_conv.clone()].into(),
+                    }),
                 )?,
             ))?;
         }

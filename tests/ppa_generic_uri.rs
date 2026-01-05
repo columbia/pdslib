@@ -68,9 +68,9 @@ fn main() -> Result<(), anyhow::Error> {
     };
 
     let always_relevant_event_selector = TestRelevantEventSelector {
-        report_request_uris: report_uris.clone(),
         is_matching_event: Box::new(|_| true),
         requested_buckets: RequestedBuckets::AllBuckets,
+        ..TestRelevantEventSelector::new(report_uris.clone())
     };
 
     pds.register_event(event.clone())?;

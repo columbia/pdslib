@@ -15,7 +15,6 @@ use pdslib::{
     queries::{
         ppa_histogram::{
             PpaHistogramConfig, PpaHistogramRequest, PpaRelevantEventSelector,
-            RequestedBuckets,
         },
         traits::ReportRequestUris,
     },
@@ -71,11 +70,7 @@ fn bench_compute_report() -> anyhow::Result<()> {
             requested_epsilon: 1.0,
             histogram_size: 1001,
         };
-        let selector = PpaRelevantEventSelector {
-            report_request_uris: report_uris.clone(),
-            is_matching_event: Box::new(|_| true),
-            requested_buckets: RequestedBuckets::AllBuckets,
-        };
+        let selector = PpaRelevantEventSelector::new(report_uris.clone());
         let request = PpaHistogramRequest::new(&request_config, selector)?;
 
         let report = pds.compute_report(&request, None)?;

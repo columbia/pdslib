@@ -123,7 +123,6 @@ where
             &mut self.event_storage,
             &request.epoch_ids(),
             relevant_event_selector,
-            action_id,
         )?;
 
         self.core

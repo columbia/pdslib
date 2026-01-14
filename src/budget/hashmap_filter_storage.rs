@@ -45,15 +45,11 @@ where
     pub fn with_hashmap_capacity(
         capacities: C,
         hashmap_capacity: usize,
-    ) -> Result<Self, F::Error>
-    where
-        Self: Sized,
-    {
-        let this = Self {
+    ) -> Self {
+        Self {
             capacities,
             filters: HashMap::with_capacity(hashmap_capacity),
-        };
-        Ok(this)
+        }
     }
 }
 
@@ -73,7 +69,7 @@ where
     where
         Self: Sized,
     {
-        Self::with_hashmap_capacity(capacities, 0)
+        Ok(Self::with_hashmap_capacity(capacities, 0))
     }
 
     fn capacities(&self) -> &Self::Capacities {

@@ -1,33 +1,50 @@
+use std::hash::BuildHasher;
+
 use crate::{
     events::traits::{Event, EventStorage, RelevantEventSelector},
-    util::hashmap::HashMap,
+    util::hashmap::{HashMap, RandomState},
 };
 
 /// A simple in-memory event storage. Stores a mapping of epoch id to epoch
 /// events, where each epoch events is just a vec of events.
 /// Clones events when asked to retrieve events for an epoch.
-#[derive(Debug, Default)]
-pub struct HashMapEventStorage<E: Event> {
-    pub epochs: HashMap<E::EpochId, Vec<E>>,
+#[derive(Debug)]
+pub struct HashMapEventStorage<E: Event, S = RandomState>
+where
+    S: BuildHasher,
+{
+    pub epochs: HashMap<E::EpochId, Vec<E>, S>,
+}
+
+impl<E: Event, S: BuildHasher + Default> Default for HashMapEventStorage<E, S> {
+    fn default() -> Self {
+        Self {
+            epochs: HashMap::with_hasher(S::default()),
+        }
+    }
 }
 
 /// Simple in-memory event storage. Stores a mapping of epoch id to events
 /// in that epoch.
-impl<E: Event> HashMapEventStorage<E> {
+impl<E: Event, S: BuildHasher + Default> HashMapEventStorage<E, S> {
     pub fn new() -> Self {
         Self::with_hashmap_capacity(0)
     }
 
     pub fn with_hashmap_capacity(hashmap_capacity: usize) -> Self {
         Self {
-            epochs: HashMap::with_capacity(hashmap_capacity),
+            epochs: HashMap::with_capacity_and_hasher(
+                hashmap_capacity,
+                S::default(),
+            ),
         }
     }
 }
 
-impl<E> EventStorage for HashMapEventStorage<E>
+impl<E, S> EventStorage for HashMapEventStorage<E, S>
 where
     E: Event + Clone,
+    S: BuildHasher + Default,
 {
     type Event = E;
     type Error = anyhow::Error;

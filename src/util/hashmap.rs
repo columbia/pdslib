@@ -1,5 +1,8 @@
 #[cfg(not(feature = "ahash"))]
-pub use std::collections::{HashMap, HashSet};
+pub use std::collections::{
+    HashSet,
+    hash_map::{HashMap, RandomState},
+};
 
 #[cfg(feature = "ahash")]
-pub use ahash::{AHashMap as HashMap, AHashSet as HashSet};
+pub use ahash::{AHashMap as HashMap, AHashSet as HashSet, RandomState};

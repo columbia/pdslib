@@ -1,33 +1,54 @@
-use std::{collections::hash_map::Entry, fmt::Debug, hash::Hash};
+use std::{
+    collections::hash_map::Entry,
+    fmt::Debug,
+    hash::{BuildHasher, Hash},
+};
 
 use serde::{Serialize, ser::SerializeStruct};
 
 use crate::{
     budget::traits::{Filter, FilterCapacities, FilterStorage},
-    util::hashmap::HashMap,
+    util::hashmap::{HashMap, RandomState},
 };
 
 /// Simple implementation of FilterStorage using a HashMap.
 /// Works for any Filter that implements the Filter trait.
-#[derive(Debug, Default)]
-pub struct HashMapFilterStorage<F, C>
+#[derive(Debug)]
+pub struct HashMapFilterStorage<F, C, S = RandomState>
 where
     C: FilterCapacities,
     F: Filter<C::Budget>,
+    S: BuildHasher + Default,
 {
     pub capacities: C,
-    pub filters: HashMap<C::FilterId, F>,
+    pub filters: HashMap<C::FilterId, F, S>,
 }
 
-impl<F, C, FID> Serialize for HashMapFilterStorage<F, C>
+impl<F, C, S> Default for HashMapFilterStorage<F, C, S>
+where
+    C: FilterCapacities + Default,
+    F: Filter<C::Budget>,
+    S: BuildHasher + Default,
+{
+    fn default() -> Self {
+        Self {
+            capacities: C::default(),
+            filters: HashMap::with_hasher(S::default()),
+        }
+    }
+}
+
+impl<F, C, FID, S> Serialize for HashMapFilterStorage<F, C, S>
 where
     C: FilterCapacities<FilterId = FID> + Serialize,
     F: Filter<C::Budget> + Serialize,
     FID: Serialize + Eq + Hash + Debug,
+    S: BuildHasher + Default,
+    HashMap<FID, F, S>: Serialize,
 {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    fn serialize<Ser>(&self, serializer: Ser) -> Result<Ser::Ok, Ser::Error>
     where
-        S: serde::Serializer,
+        Ser: serde::Serializer,
     {
         let mut state =
             serializer.serialize_struct("HashMapFilterStorage", 2)?;
@@ -37,10 +58,11 @@ where
     }
 }
 
-impl<F, C> HashMapFilterStorage<F, C>
+impl<F, C, S> HashMapFilterStorage<F, C, S>
 where
     C: FilterCapacities,
     F: Filter<C::Budget>,
+    S: BuildHasher + Default,
 {
     pub fn with_hashmap_capacity(
         capacities: C,
@@ -48,16 +70,20 @@ where
     ) -> Self {
         Self {
             capacities,
-            filters: HashMap::with_capacity(hashmap_capacity),
+            filters: HashMap::with_capacity_and_hasher(
+                hashmap_capacity,
+                S::default(),
+            ),
         }
     }
 }
 
-impl<F, C> FilterStorage for HashMapFilterStorage<F, C>
+impl<F, C, S> FilterStorage for HashMapFilterStorage<F, C, S>
 where
     F: Filter<C::Budget, Error = anyhow::Error> + Clone,
     C: FilterCapacities<Error = anyhow::Error>,
     C::FilterId: Clone + Eq + Hash + Debug,
+    S: BuildHasher + Default,
 {
     type FilterId = C::FilterId;
     type Filter = F;

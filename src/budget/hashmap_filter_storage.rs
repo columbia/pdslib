@@ -1,4 +1,4 @@
-use std::{fmt::Debug, hash::Hash};
+use std::{collections::hash_map::Entry, fmt::Debug, hash::Hash};
 
 use serde::{Serialize, ser::SerializeStruct};
 
@@ -79,6 +79,25 @@ where
     ) -> Result<(), Self::Error> {
         self.filters.insert(filter_id.clone(), filter);
         Ok(())
+    }
+
+    /// Optimized version using Entry API
+    fn edit_filter_or_new<R>(
+        &mut self,
+        filter_id: &Self::FilterId,
+        f: impl FnOnce(&mut Self::Filter) -> Result<R, Self::Error>,
+    ) -> Result<R, Self::Error> {
+        let entry = self.filters.entry(filter_id.clone());
+
+        let filter = match entry {
+            Entry::Occupied(occupied) => occupied.into_mut(),
+            Entry::Vacant(vacant) => {
+                let capacity = self.capacities.capacity(filter_id)?;
+                vacant.insert(Self::Filter::new(capacity)?)
+            }
+        };
+
+        f(filter)
     }
 }
 

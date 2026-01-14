@@ -144,10 +144,7 @@ pub trait FilterStorage {
         filter_id: &Self::FilterId,
         budget: &Self::Budget,
     ) -> Result<FilterStatus, Self::Error> {
-        let mut filter = self.get_filter_or_new(filter_id)?;
-        let status = filter.try_consume(budget)?;
-        self.set_filter(filter_id, filter)?;
-        Ok(status)
+        self.edit_filter_or_new(filter_id, |filter| filter.try_consume(budget))
     }
 
     /// Gets the remaining budget for a filter.

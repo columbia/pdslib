@@ -62,14 +62,14 @@ pub fn compute_epoch_source_losses<Q: EpochReportRequest>(
     computed_attribution: &Q::Report,
     num_epochs: usize,
 ) -> HashMap<Q::Uri, PureDPBudget> {
-    let mut per_source_losses = HashMap::new();
-
     // Collect sources and noise scale from the request.
     let requested_sources = &request.report_uris().source_uris;
     let NoiseScale::Laplace(noise_scale) = request.noise_scale();
 
     // Count requested sources for case analysis
     let num_requested_sources = requested_sources.len();
+
+    let mut per_source_losses = HashMap::with_capacity(num_requested_sources);
 
     for source in requested_sources {
         let has_relevant_events = epoch_event_sources.contains(&source);

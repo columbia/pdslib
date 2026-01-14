@@ -15,8 +15,12 @@ pub struct HashMapEventStorage<E: Event> {
 /// in that epoch.
 impl<E: Event> HashMapEventStorage<E> {
     pub fn new() -> Self {
+        Self::with_hashmap_capacity(0)
+    }
+
+    pub fn with_hashmap_capacity(hashmap_capacity: usize) -> Self {
         Self {
-            epochs: HashMap::new(),
+            epochs: HashMap::with_capacity(hashmap_capacity),
         }
     }
 }

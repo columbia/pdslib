@@ -37,6 +37,26 @@ where
     }
 }
 
+impl<F, C> HashMapFilterStorage<F, C>
+where
+    C: FilterCapacities,
+    F: Filter<C::Budget>,
+{
+    pub fn with_hashmap_capacity(
+        capacities: C,
+        hashmap_capacity: usize,
+    ) -> Result<Self, F::Error>
+    where
+        Self: Sized,
+    {
+        let this = Self {
+            capacities,
+            filters: HashMap::with_capacity(hashmap_capacity),
+        };
+        Ok(this)
+    }
+}
+
 impl<F, C> FilterStorage for HashMapFilterStorage<F, C>
 where
     F: Filter<C::Budget, Error = anyhow::Error> + Clone,
@@ -53,11 +73,7 @@ where
     where
         Self: Sized,
     {
-        let this = Self {
-            capacities,
-            filters: HashMap::new(),
-        };
-        Ok(this)
+        Self::with_hashmap_capacity(capacities, 0)
     }
 
     fn capacities(&self) -> &Self::Capacities {

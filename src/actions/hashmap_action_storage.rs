@@ -27,8 +27,15 @@ pub struct HashMapActionStorage<AID: ActionId, E: EpochId, U: Uri> {
 
 impl<AID: ActionId, E: EpochId, U: Uri> HashMapActionStorage<AID, E, U> {
     pub fn new(quota_limit: Option<usize>) -> Self {
+        Self::with_hashmap_capacity(quota_limit, 0)
+    }
+
+    pub fn with_hashmap_capacity(
+        quota_limit: Option<usize>,
+        hashmap_capacity: usize,
+    ) -> Self {
         Self {
-            actions: HashMap::new(),
+            actions: HashMap::with_capacity(hashmap_capacity),
             quota_limit,
         }
     }

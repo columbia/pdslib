@@ -699,11 +699,9 @@ where
         // We (mis-)use PDS's filters_to_consume() method to get a list of
         // filters that will be deducted for this request.
         for epoch_id in request.epoch_ids() {
-            let mut source_losses = HashMap::default();
-            source_losses.reserve(uris.source_uris.len());
-
+            let mut source_losses = Vec::with_capacity(uris.source_uris.len());
             for source in &uris.source_uris {
-                source_losses.insert(source.clone(), 0.0);
+                source_losses.push((source.clone(), 0.0));
             }
 
             let filter_ids = self

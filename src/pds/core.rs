@@ -201,7 +201,7 @@ where
         &self,
         epoch_id: Q::EpochId,
         loss: &'a FS::Budget,
-        source_losses: &'a HashMap<Q::Uri, FS::Budget>,
+        source_losses: &'a Vec<(Q::Uri, FS::Budget)>,
         uris: &ReportRequestUris<Q::Uri>,
     ) -> Vec<(FilterId<Q::EpochId, Q::Uri>, &'a PureDPBudget)> {
         // Build the filter IDs for PerQuerier, Global and TriggerQuota

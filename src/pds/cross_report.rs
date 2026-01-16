@@ -92,7 +92,7 @@ where
                 .source_uris
                 .iter()
                 .map(|source_uri| (source_uri.clone(), individual_privacy_loss))
-                .collect::<HashMap<_, _>>();
+                .collect::<Vec<_>>();
 
             // Try to consume budget from current epoch, drop events if OOB.
             // Two phase commit.

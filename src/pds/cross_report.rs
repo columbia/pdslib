@@ -154,7 +154,7 @@ where
             event_values,
             events: relevant_events,
             already_requested_buckets: RequestedBuckets::SpecificBuckets(
-                HashSet::new(),
+                HashSet::default(),
             ),
         };
 

@@ -36,7 +36,9 @@ pub fn compute_epoch_loss<Q: EpochReportRequest>(
         }
     };
 
-    debug!("Individual sensitivity: {individual_sensitivity} for {num_epochs} epochs");
+    debug!(
+        "Individual sensitivity: {individual_sensitivity} for {num_epochs} epochs"
+    );
 
     let NoiseScale::Laplace(noise_scale) = request.noise_scale();
 
@@ -69,7 +71,8 @@ pub fn compute_epoch_source_losses<Q: EpochReportRequest>(
     // Count requested sources for case analysis
     let num_requested_sources = requested_sources.len();
 
-    let mut per_source_losses = HashMap::with_capacity(num_requested_sources);
+    let mut per_source_losses = HashMap::default();
+    per_source_losses.reserve(num_requested_sources);
 
     for source in requested_sources {
         let has_relevant_events = epoch_event_sources.contains(&source);

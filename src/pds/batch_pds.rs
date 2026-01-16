@@ -183,9 +183,9 @@ where
             current_scheduling_interval: 0,
             new_pending_requests: vec![],
             batched_requests: vec![],
-            delayed_reports: HashMap::new(),
+            delayed_reports: HashMap::default(),
             epochs: None,
-            sources_per_epoch: HashMap::new(),
+            sources_per_epoch: HashMap::default(),
         })
     }
 
@@ -605,7 +605,8 @@ where
         }
         debug!("Epochs across all requests: {all_epochs:?}");
 
-        let mut budget_per_source: HashMap<Q::Uri, FS::Budget> = HashMap::new();
+        let mut budget_per_source: HashMap<Q::Uri, FS::Budget> =
+            HashMap::default();
         for source in &all_sources {
             let source = (*source).clone();
             let mut source_total_budget: f64 = 0.0;
@@ -698,7 +699,9 @@ where
         // We (mis-)use PDS's filters_to_consume() method to get a list of
         // filters that will be deducted for this request.
         for epoch_id in request.epoch_ids() {
-            let mut source_losses = HashMap::new();
+            let mut source_losses = HashMap::default();
+            source_losses.reserve(uris.source_uris.len());
+
             for source in &uris.source_uris {
                 source_losses.insert(source.clone(), 0.0);
             }

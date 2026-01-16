@@ -141,7 +141,7 @@ where
         &mut self,
         request: PassivePrivacyLossRequest<Q::EpochId, Q::Uri, PureDPBudget>,
     ) -> Result<PdsFilterStatus<FilterId<Q::EpochId, Q::Uri>>, ERR> {
-        let source_losses = HashMap::new(); // Dummy.
+        let source_losses = HashMap::default(); // Dummy.
 
         // For each epoch, try to consume the privacy budget.
         for epoch_id in request.epoch_ids {

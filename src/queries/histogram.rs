@@ -22,7 +22,7 @@ impl<T: Debug + Hash + Eq + Clone> BucketKey for T {}
 impl<BK> Default for HistogramReport<BK> {
     fn default() -> Self {
         Self {
-            bin_values: HashMap::new(),
+            bin_values: HashMap::default(),
         }
     }
 }
@@ -72,7 +72,7 @@ where
         &'a self,
         event_values: impl IntoIterator<Item = (&'a Self::Event, f64)>,
     ) -> HistogramReport<Self::BucketKey> {
-        let mut bin_values: HashMap<Self::BucketKey, f64> = HashMap::new();
+        let mut bin_values: HashMap<Self::BucketKey, f64> = HashMap::default();
         let mut total_value: f64 = 0.0;
 
         // The event_values function selects the relevant events and assigns
@@ -85,7 +85,7 @@ where
         // dropped by the contribution cap. `event_values` is in charge of
         // ordering the events from `relevant_events`.
         let mut report = HistogramReport {
-            bin_values: HashMap::new(),
+            bin_values: HashMap::default(),
         };
         let mut early_stop = false;
 

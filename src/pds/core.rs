@@ -213,9 +213,10 @@ where
             .push(FilterId::TriggerQuota(epoch_id, uris.trigger_uri.clone()));
         device_epoch_filter_ids.push(FilterId::Global(epoch_id));
 
-        let mut filters_to_consume = HashMap::with_capacity(
-            device_epoch_filter_ids.len() + source_losses.len(),
-        );
+        let mut filters_to_consume = HashMap::default();
+
+        let cap = device_epoch_filter_ids.len() + source_losses.len();
+        filters_to_consume.reserve(cap);
 
         // PerQuerier, Global and TriggerQuota all have the same device-epoch
         // level loss

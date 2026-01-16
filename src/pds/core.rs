@@ -196,13 +196,14 @@ where
 
     /// Calculate how much privacy to deduct from which filters,
     /// for the given epoch and losses.
+    #[allow(clippy::type_complexity)]
     pub fn filters_to_consume<'a>(
         &self,
         epoch_id: Q::EpochId,
         loss: &'a FS::Budget,
         source_losses: &'a HashMap<Q::Uri, FS::Budget>,
         uris: &ReportRequestUris<Q::Uri>,
-    ) -> HashMap<FilterId<Q::EpochId, Q::Uri>, &'a PureDPBudget> {
+    ) -> Vec<(FilterId<Q::EpochId, Q::Uri>, &'a PureDPBudget)> {
         // Build the filter IDs for PerQuerier, Global and TriggerQuota
         let mut device_epoch_filter_ids = Vec::new();
         for query_uri in &uris.querier_uris {
@@ -213,22 +214,21 @@ where
             .push(FilterId::TriggerQuota(epoch_id, uris.trigger_uri.clone()));
         device_epoch_filter_ids.push(FilterId::Global(epoch_id));
 
-        let mut filters_to_consume = HashMap::default();
-
-        let cap = device_epoch_filter_ids.len() + source_losses.len();
-        filters_to_consume.reserve(cap);
+        let mut filters_to_consume = Vec::with_capacity(
+            device_epoch_filter_ids.len() + source_losses.len(),
+        );
 
         // PerQuerier, Global and TriggerQuota all have the same device-epoch
         // level loss
         for filter_id in device_epoch_filter_ids {
-            filters_to_consume.insert(filter_id, loss);
+            filters_to_consume.push((filter_id, loss));
         }
 
         // Add the SourceQuota filters with their own device-epoch-source level
         // loss
         for (source, loss) in source_losses {
             let fid = FilterId::SourceQuota(epoch_id, source.clone());
-            filters_to_consume.insert(fid, loss);
+            filters_to_consume.push((fid, loss));
         }
 
         filters_to_consume
@@ -238,10 +238,7 @@ where
     #[allow(clippy::type_complexity)]
     pub fn deduct_budget(
         &mut self,
-        filters_to_consume: &HashMap<
-            FilterId<Q::EpochId, Q::Uri>,
-            &PureDPBudget,
-        >,
+        filters_to_consume: &Vec<(FilterId<Q::EpochId, Q::Uri>, &PureDPBudget)>,
         dry_run: bool,
     ) -> Result<PdsFilterStatus<FilterId<Q::EpochId, Q::Uri>>, ERR> {
         // Try to consume the privacy loss from the filters

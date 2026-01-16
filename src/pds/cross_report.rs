@@ -104,12 +104,8 @@ where
             );
 
             // Do not consume per-querier, that is done in get_report().
-            for querier_uri in &uris.querier_uris {
-                filters_to_consume.remove(&FilterId::PerQuerier(
-                    epoch_id,
-                    querier_uri.clone(),
-                ));
-            }
+            filters_to_consume
+                .retain(|(fid, _)| !matches!(fid, FilterId::PerQuerier(_, _)));
 
             // Phase 1: dry run.
             let check_status = self.deduct_budget(

@@ -706,28 +706,32 @@ where
                 source_losses.insert(source.clone(), 0.0);
             }
 
-            let filter_ids = self.pds.core.filters_to_consume(
-                epoch_id,
-                &0.0, // just set to 0, we only care about the filter IDs
-                &source_losses,
-                request.report_uris(),
-            );
-            self.initialize_filters(filter_ids.keys())?;
+            let filter_ids = self
+                .pds
+                .core
+                .filters_to_consume(
+                    epoch_id,
+                    &0.0, // just set to 0, we only care about the filter IDs
+                    &source_losses,
+                    request.report_uris(),
+                )
+                .into_iter()
+                .map(|(fid, _)| fid);
+
+            self.initialize_filters(filter_ids)?;
         }
         Ok(())
     }
 
     /// Given a list of filter IDs, initialize them in the filter storage,
     /// such that non-global filters are unlocked and act as regular filters.
-    fn initialize_filters<'f, FID>(
+    fn initialize_filters<FID>(
         &mut self,
         filters: impl Iterator<Item = FID>,
     ) -> Result<(), ERR>
     where
         // accept both owned and borrowed FilterIDs
-        FID: Borrow<&'f FilterIdQ<Q>> + 'f,
-        Q::EpochId: 'f, // required by borrow checker
-        Q::Uri: 'f,
+        FID: Borrow<FilterIdQ<Q>>,
     {
         for filter_id in filters {
             let filter_id = filter_id.borrow();

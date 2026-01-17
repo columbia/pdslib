@@ -65,10 +65,10 @@ pub trait FilterStorage {
     type Budget: Budget;
     type Filter: Filter<Self::Budget, Error = Self::Error>;
     type Capacities: FilterCapacities<
-        FilterId = Self::FilterId,
-        Budget = Self::Budget,
-        Error = Self::Error,
-    >;
+            FilterId = Self::FilterId,
+            Budget = Self::Budget,
+            Error = Self::Error,
+        >;
     type Error;
 
     /// Create a new filter storage with the given capacities for new filters.

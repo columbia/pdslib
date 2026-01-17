@@ -15,7 +15,6 @@ use crate::{
     },
     events::relevant_events::RelevantEvents,
     queries::traits::{EpochReportRequest, Report, ReportRequestUris},
-    util::hashmap::HashMap,
 };
 
 pub struct PrivateDataServiceCore<Q, FS, AS, ERR>

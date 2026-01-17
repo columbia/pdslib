@@ -28,7 +28,7 @@ use crate::{
         },
         traits::EpochReportRequest,
     },
-    util::hashmap::{HashMap, HashSet},
+    util::hashmap::HashSet,
 };
 
 /// The attribution object that can be used to compute distinct

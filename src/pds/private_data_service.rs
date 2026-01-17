@@ -17,7 +17,6 @@ use crate::{
 #[cfg(feature = "experimental")]
 use crate::{
     pds::quotas::PdsFilterStatus, queries::traits::PassivePrivacyLossRequest,
-    util::hashmap::HashMap,
 };
 
 /// Epoch-based private data service, using generic filter

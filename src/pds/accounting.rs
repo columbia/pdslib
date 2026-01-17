@@ -6,7 +6,7 @@ use crate::{
     budget::pure_dp_filter::PureDPBudget,
     mechanisms::{NoiseScale, NormType},
     queries::traits::EpochReportRequest,
-    util::hashmap::{HashMap, HashSet},
+    util::hashmap::HashSet,
 };
 
 /// Pure DP individual privacy loss, following

@@ -15,9 +15,9 @@ maturin develop
 ## Usage
 
 ```python
-import pdslib
+import pdslib_python
 
-print(pdslib.__version__)
+print(pdslib_python.__version__)
 ```
 
 ## Development

@@ -1,7 +1,10 @@
-import pdslib
+import pdslib_python
+
 
 def test_version():
-    assert pdslib.__version__ == "0.3.0"
+    assert pdslib_python.__version__ == "0.3.0"
+
 
 def test_module_exists():
-    assert pdslib is not None
+    assert pdslib_python is not None
+

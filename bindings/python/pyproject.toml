@@ -3,7 +3,7 @@ requires = ["maturin>=1.0,<2.0"]
 build-backend = "maturin"
 
 [project]
-name = "pdslib"
+name = "pdslib_python"
 version = "0.3.0"
 description = "Python bindings for pdslib - on-device differential privacy budgeting"
 requires-python = ">=3.8"

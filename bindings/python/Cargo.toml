@@ -4,7 +4,7 @@ version = "0.3.0"
 edition = "2024"
 
 [lib]
-name = "pdslib"
+name = "pdslib_python"
 crate-type = ["cdylib"]
 
 [dependencies]

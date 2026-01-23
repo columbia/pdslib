@@ -15,3 +15,6 @@ format:
     cargo +nightly fmt
     cargo clippy --fix --allow-dirty
     cargo clippy --tests  -- -D warnings
+
+python-test:
+    cd bindings/python && maturin develop && .venv/bin/pytest tests/

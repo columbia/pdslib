@@ -35,6 +35,12 @@ source .venv/bin/activate
 pytest tests/
 ```
 
+Or from the repo root:
+
+```bash
+just python-test
+```
+
 ### Rebuild after Rust changes
 
 ```bash

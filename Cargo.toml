@@ -1,3 +1,6 @@
+[workspace]
+members = [".", "bindings/python"]
+
 [package]
 name = "pdslib"
 version = "0.3.0"

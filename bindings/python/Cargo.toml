@@ -1,0 +1,12 @@
+[package]
+name = "pdslib-python"
+version = "0.3.0"
+edition = "2024"
+
+[lib]
+name = "pdslib"
+crate-type = ["cdylib"]
+
+[dependencies]
+pdslib = { path = "../.." }
+pyo3 = { version = "0.23", features = ["extension-module"] }

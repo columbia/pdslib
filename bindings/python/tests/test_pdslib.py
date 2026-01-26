@@ -41,3 +41,101 @@ def test_ppa_event_create():
         filter_data=1,
     )
     assert event is not None
+
+
+def test_ppa_histogram_config_create():
+    config = pdslib_python.PpaHistogramConfig(
+        start_epoch=1,
+        end_epoch=2,
+        attributable_value=32768.0,
+        max_attributable_value=65536.0,
+        requested_epsilon=1.0,
+        histogram_size=2048,
+    )
+    assert config is not None
+
+
+def test_direct_ppa_histogram_config_create():
+    config = pdslib_python.DirectPpaHistogramConfig(
+        start_epoch=1,
+        end_epoch=2,
+        attributable_value=32768.0,
+        laplace_noise_scale=131072.0,
+        histogram_size=2048,
+    )
+    assert config is not None
+
+
+def test_requested_buckets_all():
+    buckets = pdslib_python.RequestedBuckets.all_buckets()
+    assert buckets is not None
+
+
+def test_requested_buckets_specific():
+    buckets = pdslib_python.RequestedBuckets.specific_buckets([0x559, 0x560])
+    assert buckets is not None
+
+
+def test_ppa_relevant_event_selector_create():
+    source_uris = pdslib_python.UriSet(["blog.com"])
+    querier_uris = pdslib_python.UriSet(["adtech.com"])
+    report_uris = pdslib_python.ReportRequestUris("shoes.com", source_uris, querier_uris)
+    selector = pdslib_python.PpaRelevantEventSelector(
+        report_request_uris=report_uris,
+        filter_data=1,
+        requested_buckets=pdslib_python.RequestedBuckets.specific_buckets([0x559]),
+    )
+    assert selector is not None
+
+
+def test_ppa_relevant_event_selector_match_all():
+    source_uris = pdslib_python.UriSet(["blog.com"])
+    querier_uris = pdslib_python.UriSet(["adtech.com"])
+    report_uris = pdslib_python.ReportRequestUris("shoes.com", source_uris, querier_uris)
+    selector = pdslib_python.PpaRelevantEventSelector(
+        report_request_uris=report_uris,
+        filter_data=None,  # match all events
+        requested_buckets=pdslib_python.RequestedBuckets.all_buckets(),
+    )
+    assert selector is not None
+
+
+def test_ppa_histogram_request_new_direct():
+    source_uris = pdslib_python.UriSet(["blog.com"])
+    querier_uris = pdslib_python.UriSet(["adtech.com"])
+    report_uris = pdslib_python.ReportRequestUris("shoes.com", source_uris, querier_uris)
+    config = pdslib_python.DirectPpaHistogramConfig(
+        start_epoch=1,
+        end_epoch=2,
+        attributable_value=32768.0,
+        laplace_noise_scale=131072.0,
+        histogram_size=2048,
+    )
+    selector = pdslib_python.PpaRelevantEventSelector(
+        report_request_uris=report_uris,
+        filter_data=1,
+        requested_buckets=pdslib_python.RequestedBuckets.specific_buckets([0x559]),
+    )
+    request = pdslib_python.PpaHistogramRequest.new_direct(config, selector)
+    assert request is not None
+
+
+def test_ppa_histogram_request_new():
+    source_uris = pdslib_python.UriSet(["blog.com"])
+    querier_uris = pdslib_python.UriSet(["adtech.com"])
+    report_uris = pdslib_python.ReportRequestUris("shoes.com", source_uris, querier_uris)
+    config = pdslib_python.PpaHistogramConfig(
+        start_epoch=1,
+        end_epoch=2,
+        attributable_value=32768.0,
+        max_attributable_value=65536.0,
+        requested_epsilon=1.0,
+        histogram_size=2048,
+    )
+    selector = pdslib_python.PpaRelevantEventSelector(
+        report_request_uris=report_uris,
+        filter_data=None,
+        requested_buckets=pdslib_python.RequestedBuckets.all_buckets(),
+    )
+    request = pdslib_python.PpaHistogramRequest.new(config, selector)
+    assert request is not None

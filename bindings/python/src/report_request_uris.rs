@@ -5,6 +5,7 @@ use pdslib::queries::traits::ReportRequestUris;
 use crate::uri_set::PyUriSet;
 
 #[pyclass(name = "ReportRequestUris", unsendable)]
+#[derive(Clone)]
 pub struct PyReportRequestUris {
     pub inner: ReportRequestUris<String>,
 }

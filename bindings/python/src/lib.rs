@@ -1,7 +1,6 @@
 use pyo3::prelude::*;
 
 mod event_uris;
-mod filter_id;
 mod pds;
 mod ppa_event;
 mod ppa_histogram_config;

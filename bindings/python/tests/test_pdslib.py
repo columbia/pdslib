@@ -204,9 +204,5 @@ def test_pds_compute_report():
     # Compute the report
     report = pds.compute_report(request)
     assert report is not None
-    assert hasattr(report, "filtered_bin_values")
-    assert hasattr(report, "unfiltered_bin_values")
-    assert hasattr(report, "oob_filters")
-    assert isinstance(report.filtered_bin_values, list)
-    assert isinstance(report.unfiltered_bin_values, list)
-    assert isinstance(report.oob_filters, list)
+    assert hasattr(report, "bin_values")
+    assert isinstance(report.bin_values, list)

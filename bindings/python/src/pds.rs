@@ -4,7 +4,6 @@ use pdslib::budget::traits::FilterStorage;
 use pdslib::pds::aliases::{PpaEventStorage, PpaFilterStorage, PpaPds};
 use pdslib::pds::quotas::StaticCapacities;
 
-use crate::filter_id::PyFilterId;
 use crate::ppa_event::PyPpaEvent;
 use crate::ppa_histogram_request::PyPpaHistogramRequest;
 
@@ -56,40 +55,20 @@ impl PyPds {
             })?;
 
         Ok(PyPdsReport {
-            filtered_bin_values: report
+            bin_values: report
                 .filtered_report
                 .bin_values
                 .into_iter()
-                .collect(),
-            unfiltered_bin_values: report
-                .unfiltered_report
-                .bin_values
-                .into_iter()
-                .collect(),
-            oob_filters: report
-                .oob_filters
-                .into_iter()
-                .map(|inner| PyFilterId { inner })
                 .collect(),
         })
     }
 }
 
-/// Report returned by Pds containing histogram bin values and budget information.
+/// Report returned by Pds containing histogram bin values.
 #[pyclass(name = "PdsReport", unsendable)]
 pub struct PyPdsReport {
     /// Histogram bin values after budget filtering is applied.
     /// Epochs that exceeded their budget are excluded.
     #[pyo3(get)]
-    pub filtered_bin_values: Vec<(u64, f64)>,
-
-    /// Histogram bin values before budget filtering.
-    /// Useful for debugging to see what the report would be without privacy constraints.
-    #[pyo3(get)]
-    pub unfiltered_bin_values: Vec<(u64, f64)>,
-
-    /// List of filters that were out of budget during the atomic check.
-    /// Empty if all filters had sufficient budget.
-    #[pyo3(get)]
-    pub oob_filters: Vec<PyFilterId>,
+    pub bin_values: Vec<(u64, f64)>,
 }

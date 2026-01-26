@@ -1,44 +1,10 @@
 use pyo3::prelude::*;
 
-use pdslib::events::traits::EventUris;
-use pdslib::events::uri_set::UriSet;
+mod event_uris;
+mod uri_set;
 
-#[pyclass(name = "UriSet", unsendable)]
-#[derive(Clone)]
-pub struct PyUriSet {
-    pub inner: UriSet<String>,
-}
-
-#[pymethods]
-impl PyUriSet {
-    #[new]
-    fn new(uris: Vec<String>) -> Self {
-        PyUriSet { inner: uris.into() }
-    }
-}
-
-#[pyclass(name = "EventUris", unsendable)]
-pub struct PyEventUris {
-    pub inner: EventUris<String>,
-}
-
-#[pymethods]
-impl PyEventUris {
-    #[new]
-    fn new(
-        source_uri: String,
-        trigger_uris: PyUriSet,
-        querier_uris: PyUriSet,
-    ) -> Self {
-        PyEventUris {
-            inner: EventUris {
-                source_uri,
-                trigger_uris: trigger_uris.inner,
-                querier_uris: querier_uris.inner,
-            },
-        }
-    }
-}
+use event_uris::PyEventUris;
+use uri_set::PyUriSet;
 
 #[pymodule]
 fn pdslib_python(m: &Bound<'_, PyModule>) -> PyResult<()> {

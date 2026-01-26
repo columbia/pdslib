@@ -19,3 +19,10 @@ def test_event_uris_create():
     querier_uris = pdslib_python.UriSet(["adtech.com"])
     event_uris = pdslib_python.EventUris("blog.com", trigger_uris, querier_uris)
     assert event_uris is not None
+
+
+def test_report_request_uris_create():
+    source_uris = pdslib_python.UriSet(["blog.com"])
+    querier_uris = pdslib_python.UriSet(["adtech.com"])
+    report_uris = pdslib_python.ReportRequestUris("shoes.com", source_uris, querier_uris)
+    assert report_uris is not None

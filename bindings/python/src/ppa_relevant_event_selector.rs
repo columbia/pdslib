@@ -1,6 +1,8 @@
 use pyo3::prelude::*;
 
-use pdslib::queries::ppa_histogram::{PpaRelevantEventSelector, RequestedBuckets};
+use pdslib::queries::ppa_histogram::{
+    PpaRelevantEventSelector, RequestedBuckets,
+};
 use pdslib::queries::traits::ReportRequestUris;
 
 use crate::report_request_uris::PyReportRequestUris;
@@ -14,7 +16,8 @@ use crate::requested_buckets::PyRequestedBuckets;
 /// - `Some(x)` = match events where filter_data == x
 ///
 /// This covers the common use cases without GIL overhead from Python callables.
-/// A callable could be added later if complex matching is needed.
+/// A callable can be added later if complex matching is needed.
+///
 #[pyclass(name = "PpaRelevantEventSelector", unsendable)]
 #[derive(Clone)]
 pub struct PyPpaRelevantEventSelector {
@@ -25,7 +28,8 @@ pub struct PyPpaRelevantEventSelector {
 
 impl PyPpaRelevantEventSelector {
     pub fn into_inner(self) -> PpaRelevantEventSelector<String> {
-        let is_matching_event: Box<dyn Fn(u64) -> bool> = match self.filter_data {
+        let is_matching_event: Box<dyn Fn(u64) -> bool> = match self.filter_data
+        {
             Some(fd) => {
                 Box::new(move |event_filter_data| event_filter_data == fd)
             }

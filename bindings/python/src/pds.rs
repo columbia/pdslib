@@ -69,7 +69,7 @@ impl PyPds {
             oob_filters: report
                 .oob_filters
                 .into_iter()
-                .map(PyFilterId::from)
+                .map(|inner| PyFilterId { inner })
                 .collect(),
         })
     }

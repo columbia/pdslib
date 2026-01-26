@@ -64,11 +64,8 @@ impl PyPds {
     }
 }
 
-/// Report returned by Pds containing histogram bin values.
 #[pyclass(name = "PdsReport", unsendable)]
 pub struct PyPdsReport {
-    /// Histogram bin values after budget filtering is applied.
-    /// Epochs that exceeded their budget are excluded.
     #[pyo3(get)]
     pub bin_values: Vec<(u64, f64)>,
 }

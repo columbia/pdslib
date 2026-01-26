@@ -8,16 +8,15 @@ use pdslib::queries::traits::ReportRequestUris;
 use crate::report_request_uris::PyReportRequestUris;
 use crate::requested_buckets::PyRequestedBuckets;
 
-/// Stores the parameters needed to build a PpaRelevantEventSelector.
-///
-/// The Rust struct has `is_matching_event: Box<dyn Fn(u64) -> bool>` for flexible
-/// event filtering. We simplify this to `filter_data: Option<u64>`:
-/// - `None` = match all events (equivalent to `|_| true`)
-/// - `Some(x)` = match events where filter_data == x
-///
-/// This covers the common use cases without GIL overhead from Python callables.
-/// A callable can be added later if complex matching is needed.
-///
+// Stores the parameters needed to build a PpaRelevantEventSelector.
+//
+// The Rust struct has `is_matching_event: Box<dyn Fn(u64) -> bool>` for flexible
+// event filtering. We simplify this to `filter_data: Option<u64>`:
+// - `None` = match all events (equivalent to `|_| true`)
+// - `Some(x)` = match events where filter_data == x
+//
+// This covers the common use cases without GIL overhead from Python callables.
+// A callable can be added later if complex matching is needed.
 #[pyclass(name = "PpaRelevantEventSelector", unsendable)]
 #[derive(Clone)]
 pub struct PyPpaRelevantEventSelector {

@@ -28,3 +28,26 @@ jobs:
         cargo test --package pdslib --features experimental --test simple_events_demo -- --nocapture
     - name: Run clippy
       run: cargo clippy --tests -- -D warnings
+
+  python:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    - name: Install dependencies
+      run: |
+        cd bindings/python
+        python -m venv .venv
+        source .venv/bin/activate
+        pip install -e ".[dev]"
+    - name: Build and test
+      run: |
+        cd bindings/python
+        source .venv/bin/activate
+        pip install maturin
+        maturin develop
+        pytest tests/

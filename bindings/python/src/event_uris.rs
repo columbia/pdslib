@@ -5,6 +5,7 @@ use pdslib::events::traits::EventUris;
 use crate::uri_set::PyUriSet;
 
 #[pyclass(name = "EventUris", unsendable)]
+#[derive(Clone)]
 pub struct PyEventUris {
     pub inner: EventUris<String>,
 }

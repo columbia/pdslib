@@ -26,3 +26,18 @@ def test_report_request_uris_create():
     querier_uris = pdslib_python.UriSet(["adtech.com"])
     report_uris = pdslib_python.ReportRequestUris("shoes.com", source_uris, querier_uris)
     assert report_uris is not None
+
+
+def test_ppa_event_create():
+    trigger_uris = pdslib_python.UriSet(["shoes.com"])
+    querier_uris = pdslib_python.UriSet(["adtech.com"])
+    event_uris = pdslib_python.EventUris("blog.com", trigger_uris, querier_uris)
+    event = pdslib_python.PpaEvent(
+        id=1,
+        timestamp=0,
+        epoch_number=1,
+        histogram_index=1369,
+        uris=event_uris,
+        filter_data=1,
+    )
+    assert event is not None

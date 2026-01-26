@@ -12,7 +12,6 @@ mod requested_buckets;
 mod uri_set;
 
 use event_uris::PyEventUris;
-use filter_id::PyFilterId;
 use pds::{PyPds, PyPdsReport};
 use ppa_event::PyPpaEvent;
 use ppa_histogram_config::{PyDirectPpaHistogramConfig, PyPpaHistogramConfig};
@@ -34,7 +33,6 @@ fn pdslib_python(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyRequestedBuckets>()?;
     m.add_class::<PyPpaRelevantEventSelector>()?;
     m.add_class::<PyPpaHistogramRequest>()?;
-    m.add_class::<PyFilterId>()?;
     m.add_class::<PyPds>()?;
     m.add_class::<PyPdsReport>()?;
     Ok(())

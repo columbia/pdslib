@@ -5,6 +5,7 @@ use pdslib::events::ppa_event::PpaEvent;
 use crate::event_uris::PyEventUris;
 
 #[pyclass(name = "PpaEvent", unsendable)]
+#[derive(Clone)]
 pub struct PyPpaEvent {
     pub inner: PpaEvent<String>,
 }

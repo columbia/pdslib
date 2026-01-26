@@ -1,6 +1,8 @@
 use pyo3::prelude::*;
 
 mod event_uris;
+mod filter_id;
+mod pds;
 mod ppa_event;
 mod ppa_histogram_config;
 mod ppa_histogram_request;
@@ -10,6 +12,8 @@ mod requested_buckets;
 mod uri_set;
 
 use event_uris::PyEventUris;
+use filter_id::PyFilterId;
+use pds::{PyPds, PyPdsReport};
 use ppa_event::PyPpaEvent;
 use ppa_histogram_config::{PyDirectPpaHistogramConfig, PyPpaHistogramConfig};
 use ppa_histogram_request::PyPpaHistogramRequest;
@@ -30,5 +34,8 @@ fn pdslib_python(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyRequestedBuckets>()?;
     m.add_class::<PyPpaRelevantEventSelector>()?;
     m.add_class::<PyPpaHistogramRequest>()?;
+    m.add_class::<PyFilterId>()?;
+    m.add_class::<PyPds>()?;
+    m.add_class::<PyPdsReport>()?;
     Ok(())
 }

@@ -139,3 +139,74 @@ def test_ppa_histogram_request_new():
     )
     request = pdslib_python.PpaHistogramRequest.new(config, selector)
     assert request is not None
+
+
+def test_pds_create():
+    pds = pdslib_python.Pds(
+        per_querier_budget=1.0,
+        global_budget=20.0,
+        trigger_quota=1.5,
+        source_quota=4.0,
+    )
+    assert pds is not None
+
+
+def test_pds_register_event():
+    pds = pdslib_python.Pds(1.0, 20.0, 1.5, 4.0)
+    trigger_uris = pdslib_python.UriSet(["shoes.com"])
+    querier_uris = pdslib_python.UriSet(["adtech.com"])
+    event_uris = pdslib_python.EventUris("blog.com", trigger_uris, querier_uris)
+    event = pdslib_python.PpaEvent(
+        id=1,
+        timestamp=0,
+        epoch_number=1,
+        histogram_index=0x559,
+        uris=event_uris,
+        filter_data=1,
+    )
+    pds.register_event(event)
+
+
+def test_pds_compute_report():
+    pds = pdslib_python.Pds(1.0, 20.0, 1.5, 4.0)
+
+    # Register an event
+    trigger_uris = pdslib_python.UriSet(["shoes.com"])
+    querier_uris = pdslib_python.UriSet(["adtech.com"])
+    event_uris = pdslib_python.EventUris("blog.com", trigger_uris, querier_uris)
+    event = pdslib_python.PpaEvent(
+        id=1,
+        timestamp=0,
+        epoch_number=1,
+        histogram_index=0x559,
+        uris=event_uris,
+        filter_data=1,
+    )
+    pds.register_event(event)
+
+    # Create a report request
+    source_uris = pdslib_python.UriSet(["blog.com"])
+    report_uris = pdslib_python.ReportRequestUris("shoes.com", source_uris, querier_uris)
+    config = pdslib_python.DirectPpaHistogramConfig(
+        start_epoch=1,
+        end_epoch=2,
+        attributable_value=32768.0,
+        laplace_noise_scale=131072.0,
+        histogram_size=2048,
+    )
+    selector = pdslib_python.PpaRelevantEventSelector(
+        report_request_uris=report_uris,
+        filter_data=1,
+        requested_buckets=pdslib_python.RequestedBuckets.specific_buckets([0x559]),
+    )
+    request = pdslib_python.PpaHistogramRequest.new_direct(config, selector)
+
+    # Compute the report
+    report = pds.compute_report(request)
+    assert report is not None
+    assert hasattr(report, "filtered_bin_values")
+    assert hasattr(report, "unfiltered_bin_values")
+    assert hasattr(report, "oob_filters")
+    assert isinstance(report.filtered_bin_values, list)
+    assert isinstance(report.unfiltered_bin_values, list)
+    assert isinstance(report.oob_filters, list)

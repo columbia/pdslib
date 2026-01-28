@@ -8,5 +8,6 @@ name = "pdslib_python"
 crate-type = ["cdylib"]
 
 [dependencies]
+anyhow = "1"
 pdslib = { path = "../.." }
-pyo3 = { version = "0.27", features = ["extension-module"] }
+pyo3 = { version = "0.27", features = ["extension-module", "anyhow"] }

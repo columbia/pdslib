@@ -20,7 +20,7 @@ impl PyPds {
         global_budget: f64,
         trigger_quota: f64,
         source_quota: f64,
-    ) -> PyResult<Self> {
+    ) -> anyhow::Result<Self> {
         let capacities = StaticCapacities::new(
             per_querier_budget.into(),
             global_budget.into(),
@@ -28,10 +28,7 @@ impl PyPds {
             source_quota.into(),
         );
 
-        let filters = PpaFilterStorage::new(capacities).map_err(|e| {
-            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string())
-        })?;
-
+        let filters = PpaFilterStorage::new(capacities)?;
         let events = PpaEventStorage::new();
 
         Ok(PyPds {
@@ -39,20 +36,16 @@ impl PyPds {
         })
     }
 
-    fn register_event(&mut self, event: PyPpaEvent) -> PyResult<()> {
-        self.inner.register_event(event.inner).map_err(|e| {
-            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string())
-        })
+    fn register_event(&mut self, event: PyPpaEvent) -> anyhow::Result<()> {
+        self.inner.register_event(event.inner)?;
+        Ok(())
     }
 
     fn compute_report(
         &mut self,
         request: &PyPpaHistogramRequest,
-    ) -> PyResult<PyPdsReport> {
-        let report =
-            self.inner.compute_report(&request.inner).map_err(|e| {
-                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string())
-            })?;
+    ) -> anyhow::Result<PyPdsReport> {
+        let report = self.inner.compute_report(&request.inner)?;
 
         Ok(PyPdsReport {
             bin_values: report

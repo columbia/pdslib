@@ -1,0 +1,15 @@
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "pdslib_python"
+version = "0.3.0"
+description = "Python bindings for pdslib - on-device differential privacy budgeting"
+requires-python = ">=3.8"
+
+[project.optional-dependencies]
+dev = ["pytest>=9.0"]
+
+[tool.maturin]
+features = ["pyo3/extension-module"]

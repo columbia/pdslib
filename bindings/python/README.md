@@ -74,7 +74,7 @@ for bucket, value in report.bin_values:
 
 - `PpaRelevantEventSelector.filter_data` is simplified from the Rust API. The Python bindings take
   `int | None`, where `int` matches events with that exact `filter_data` value, and `None` matches all events.
-- Experimental features from the Rust library (`unfiltered_bin_values`, `oob_filters`) are not currently exposed in
+- Experimental feature from the Rust library (`oob_filters`) is not currently exposed in
   these bindings.
 
 ## Development

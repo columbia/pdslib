@@ -53,6 +53,12 @@ impl PyPds {
                 .bin_values
                 .into_iter()
                 .collect(),
+            #[cfg(feature = "experimental")]
+            unfiltered_bin_values: report
+                .unfiltered_report
+                .bin_values
+                .into_iter()
+                .collect(),
         })
     }
 }
@@ -61,4 +67,8 @@ impl PyPds {
 pub struct PyPdsReport {
     #[pyo3(get)]
     pub bin_values: Vec<(u64, f64)>,
+
+    #[cfg(feature = "experimental")]
+    #[pyo3(get)]
+    pub unfiltered_bin_values: Vec<(u64, f64)>,
 }

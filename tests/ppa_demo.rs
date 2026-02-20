@@ -6,7 +6,9 @@ use pdslib::{
     budget::traits::FilterStorage,
     events::{ppa_event::PpaEvent, traits::EventUris},
     pds::{
-        aliases::{PpaEventStorage, PpaFilterStorage, PpaPds},
+        aliases::{
+            PpaActionStorage, PpaEventStorage, PpaFilterStorage, PpaPds,
+        },
         quotas::StaticCapacities,
     },
     queries::{
@@ -22,9 +24,15 @@ fn main() -> Result<(), anyhow::Error> {
     logging::init_default_logging();
     let capacities = StaticCapacities::mock();
     let filters = PpaFilterStorage::new(capacities)?;
+    let actions = PpaActionStorage::new(None);
     let events = PpaEventStorage::new();
 
-    let mut pds = PpaPds::<_>::new(filters, events);
+    let mut pds = PpaPds::<
+        PpaFilterStorage,
+        PpaActionStorage,
+        PpaEventStorage,
+        String,
+    >::new(filters, actions, events);
 
     let sample_event_uris = EventUris::mock();
     let event_uris_irrelevant_due_to_source = EventUris {
@@ -46,40 +54,38 @@ fn main() -> Result<(), anyhow::Error> {
         querier_uris: ["adtech.com".to_string()].into(),
     };
 
-    let event1 = PpaEvent {
+    let default_event = PpaEvent {
         id: 1,
         timestamp: 0,
         epoch_number: 1,
-        histogram_index: 0x559, // 0x559 = "campaignCounts".to_string() | 0x400
+        histogram_index: 0,
+        user_action_id: None,
         uris: sample_event_uris.clone(),
         filter_data: 1,
     };
 
+    let event1 = PpaEvent {
+        histogram_index: 0x559, // 0x559 = "campaignCounts".to_string() | 0x400
+        uris: sample_event_uris.clone(),
+        ..default_event.clone()
+    };
+
     let event_irr_1 = PpaEvent {
-        id: 1,
-        timestamp: 0,
-        epoch_number: 1,
         histogram_index: 0x559, // 0x559 = "campaignCounts".to_string() | 0x400
         uris: event_uris_irrelevant_due_to_source.clone(),
-        filter_data: 1,
+        ..default_event.clone()
     };
 
     let event_irr_2 = PpaEvent {
-        id: 1,
-        timestamp: 0,
-        epoch_number: 1,
         histogram_index: 0x559, // 0x559 = "campaignCounts".to_string() | 0x400
         uris: event_uris_irrelevant_due_to_trigger.clone(),
-        filter_data: 1,
+        ..default_event.clone()
     };
 
     let event_irr_3 = PpaEvent {
-        id: 1,
-        timestamp: 0,
-        epoch_number: 1,
         histogram_index: 0x559, // 0x559 = "campaignCounts".to_string() | 0x400
         uris: event_uris_irrelevant_due_to_querier.clone(),
-        filter_data: 1,
+        ..default_event.clone()
     };
 
     pds.register_event(event1.clone())?;
@@ -98,16 +104,16 @@ fn main() -> Result<(), anyhow::Error> {
             histogram_size: 2048,
         },
         PpaRelevantEventSelector {
-            report_request_uris: sample_report_request_uris.clone(),
             is_matching_event: Box::new(|event_filter_data: u64| {
                 event_filter_data == 1
             }),
             requested_buckets: vec![0x559].into(),
+            ..PpaRelevantEventSelector::new(sample_report_request_uris.clone())
         }, // Not filtering yet.
     )
     .unwrap();
 
-    let report1 = pds.compute_report(&request1).unwrap();
+    let report1 = pds.compute_report(&request1, None).unwrap();
     info!("Report1: {report1:?}");
     let bin_values1 = &report1.filtered_report.bin_values;
 
@@ -128,11 +134,11 @@ fn main() -> Result<(), anyhow::Error> {
             histogram_size: 2048,
         },
         PpaRelevantEventSelector {
-            report_request_uris: sample_report_request_uris.clone(),
             is_matching_event: Box::new(|event_filter_data: u64| {
                 event_filter_data == 1
             }),
             requested_buckets: vec![0x559].into(),
+            ..PpaRelevantEventSelector::new(sample_report_request_uris.clone())
         }, // Not filtering yet.
     );
     assert!(request2.is_err());
@@ -147,16 +153,16 @@ fn main() -> Result<(), anyhow::Error> {
             histogram_size: 2048,
         },
         PpaRelevantEventSelector {
-            report_request_uris: sample_report_request_uris.clone(),
             is_matching_event: Box::new(|event_filter_data: u64| {
                 event_filter_data != 1
             }),
             requested_buckets: vec![0x559].into(),
+            ..PpaRelevantEventSelector::new(sample_report_request_uris.clone())
         }, // Not filtering yet.
     )
     .unwrap();
 
-    let report3 = pds.compute_report(&request3).unwrap();
+    let report3 = pds.compute_report(&request3, None).unwrap();
     info!("Report3: {report3:?}");
 
     // No event attributed because the lambda logic filters out the only

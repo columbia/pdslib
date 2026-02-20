@@ -18,7 +18,8 @@ impl<E: Event> RelevantEvents<E> {
         epoch_ids: &[E::EpochId],
         selector: &impl RelevantEventSelector<Event = E>,
     ) -> Result<Self, ES::Error> {
-        let mut events_per_epoch = HashMap::with_capacity(epoch_ids.len());
+        let mut events_per_epoch = HashMap::default();
+        events_per_epoch.reserve(epoch_ids.len());
 
         for epoch_id in epoch_ids {
             // fetch all relevant events at that epoch from storage
@@ -41,7 +42,8 @@ impl<E: Event> RelevantEvents<E> {
     }
 
     pub fn from_vec(events: Vec<E>) -> Self {
-        let mut events_per_epoch: HashMap<E::EpochId, Vec<E>> = HashMap::new();
+        let mut events_per_epoch: HashMap<E::EpochId, Vec<E>> =
+            HashMap::default();
 
         for event in events {
             events_per_epoch

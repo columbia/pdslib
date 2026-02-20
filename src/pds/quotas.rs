@@ -67,7 +67,7 @@ impl<E: EpochId + Display, U: Uri + Display> fmt::Display for FilterId<E, U> {
 }
 
 /// Struct containing the default capacity for each type of filter.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct StaticCapacities<FID, B> {
     pub per_querier: B,
     pub global: B,

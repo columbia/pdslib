@@ -6,7 +6,7 @@ use crate::{
     budget::pure_dp_filter::PureDPBudget,
     mechanisms::{NoiseScale, NormType},
     queries::traits::EpochReportRequest,
-    util::hashmap::{HashMap, HashSet},
+    util::hashmap::HashSet,
 };
 
 /// Pure DP individual privacy loss, following
@@ -36,7 +36,9 @@ pub fn compute_epoch_loss<Q: EpochReportRequest>(
         }
     };
 
-    debug!("Individual sensitivity: {individual_sensitivity} for {num_epochs} epochs");
+    debug!(
+        "Individual sensitivity: {individual_sensitivity} for {num_epochs} epochs"
+    );
 
     let NoiseScale::Laplace(noise_scale) = request.noise_scale();
 
@@ -61,15 +63,15 @@ pub fn compute_epoch_source_losses<Q: EpochReportRequest>(
     epoch_event_sources: HashSet<&Q::Uri>,
     computed_attribution: &Q::Report,
     num_epochs: usize,
-) -> HashMap<Q::Uri, PureDPBudget> {
-    let mut per_source_losses = HashMap::new();
-
+) -> Vec<(Q::Uri, PureDPBudget)> {
     // Collect sources and noise scale from the request.
     let requested_sources = &request.report_uris().source_uris;
     let NoiseScale::Laplace(noise_scale) = request.noise_scale();
 
     // Count requested sources for case analysis
     let num_requested_sources = requested_sources.len();
+
+    let mut per_source_losses = Vec::with_capacity(num_requested_sources);
 
     for source in requested_sources {
         let has_relevant_events = epoch_event_sources.contains(&source);
@@ -109,14 +111,14 @@ pub fn compute_epoch_source_losses<Q: EpochReportRequest>(
         // not related to privacy.
         if noise_scale.abs() < f64::EPSILON {
             per_source_losses
-                .insert(source.clone(), PureDPBudget::from(f64::INFINITY));
+                .push((source.clone(), PureDPBudget::from(f64::INFINITY)));
         } else {
             // In Cookie Monster, we have `query_global_sensitivity` /
             // `requested_epsilon` instead of just `noise_scale`.
-            per_source_losses.insert(
+            per_source_losses.push((
                 source.clone(),
                 PureDPBudget::from(individual_sensitivity / noise_scale),
-            );
+            ));
         }
     }
 

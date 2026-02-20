@@ -1,13 +1,14 @@
 use std::vec;
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 
 use crate::{
+    actions::traits::ActionId,
     budget::pure_dp_filter::PureDPBudget,
     events::{
         ppa_event::PpaEvent,
         relevant_events::RelevantEvents,
-        traits::{RelevantEventSelector, Uri},
+        traits::{Event, RelevantEventSelector, Uri},
     },
     mechanisms::{NoiseScale, NormType},
     queries::{
@@ -21,9 +22,12 @@ pub type PpaBucketKey = u64;
 pub type PpaEpochId = u64;
 pub type PpaFilterData = u64;
 
-pub struct PpaRelevantEventSelector<U: Uri = String> {
+pub struct PpaRelevantEventSelector<U: Uri = String, A: ActionId = u64> {
     /// source/trigger/querier URIs for this request
     pub report_request_uris: ReportRequestUris<U>,
+
+    /// user action id, to filter out events from the same user-action context
+    pub user_action_id: Option<A>,
 
     /// Function to determine if an event is relevant based on its filter_data
     pub is_matching_event: Box<dyn Fn(PpaFilterData) -> bool>,
@@ -31,6 +35,17 @@ pub struct PpaRelevantEventSelector<U: Uri = String> {
     /// List of requested histogram buckets. All other buckets are ignored.
     /// If None, all buckets are requested.
     pub requested_buckets: RequestedBuckets<PpaBucketKey>,
+}
+
+impl<U: Uri, A: ActionId> PpaRelevantEventSelector<U, A> {
+    pub fn new(uris: ReportRequestUris<U>) -> Self {
+        Self {
+            report_request_uris: uris,
+            user_action_id: None,
+            is_matching_event: Box::new(|_filter_data| true),
+            requested_buckets: RequestedBuckets::AllBuckets,
+        }
+    }
 }
 
 impl<U: Uri> std::fmt::Debug for PpaRelevantEventSelector<U> {
@@ -104,14 +119,35 @@ impl<U: Uri> RelevantEventSelector for PpaRelevantEventSelector<U> {
     type Event = PpaEvent<U>;
 
     fn is_relevant_event(&self, event: &Self::Event) -> bool {
-        // Condition 1: Event's source URI should be in the allowed list by the
+        // Condition 1: Requests must be cross-site, so the impression site
+        // (source_uri) must be different from the conversion site
+        // (trigger_uri).
+        let trying_to_match_itself =
+            event.uris.source_uri == self.report_request_uris.trigger_uri;
+        if trying_to_match_itself {
+            return false;
+        }
+
+        // Condition 2: If user_action_id is Some(aid), filter out events from
+        // the same user-action context.
+        let action_id_match = self
+            .user_action_id
+            .is_none_or(|aid| event.user_action_id() != Some(aid));
+        if !action_id_match {
+            return false;
+        }
+
+        // Condition 3: Event's source URI should be in the allowed list by the
         // report request source URIs.
         let source_match = self
             .report_request_uris
             .source_uris
             .contains(&event.uris.source_uri);
+        if !source_match {
+            return false;
+        }
 
-        // Condition 2: Every querier URI from the report must be in the event’s
+        // Condition 4: Every querier URI from the report must be in the event’s
         // querier URIs.
         // TODO(https://github.com/columbia/pdslib/issues/71): modify this for cross-report
         // loss optimization, where one querier is authorized but not others?
@@ -120,18 +156,27 @@ impl<U: Uri> RelevantEventSelector for PpaRelevantEventSelector<U> {
             .querier_uris
             .iter()
             .all(|uri| event.uris.querier_uris.contains(uri));
+        if !querier_match {
+            return false;
+        }
 
-        // Condition 3: The report’s trigger URI should be allowed by the event
+        // Condition 5: The report’s trigger URI should be allowed by the event
         // trigger URIs.
         let trigger_match = event
             .uris
             .trigger_uris
             .contains(&self.report_request_uris.trigger_uri);
+        if !trigger_match {
+            return false;
+        }
 
-        source_match
-            && querier_match
-            && trigger_match
-            && (self.is_matching_event)(event.filter_data)
+        // Condition 6: Apply the custom filter function on event's filter_data
+        let filter_data_match = (self.is_matching_event)(event.filter_data);
+        if !filter_data_match {
+            return false;
+        }
+
+        true
     }
 }
 

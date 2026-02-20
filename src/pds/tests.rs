@@ -14,11 +14,14 @@ use crate::{
 #[test]
 #[cfg(feature = "experimental")]
 fn test_account_for_passive_privacy_loss() -> Result<(), anyhow::Error> {
+    use crate::pds::aliases::SimpleActionStorage;
+
     let capacities: StaticCapacities<FilterId, PureDPBudget> =
         StaticCapacities::mock();
     let filters = SimpleFilterStorage::new(capacities)?;
+    let actions = SimpleActionStorage::new(None);
     let events = SimpleEventStorage::new();
-    let mut pds = SimplePds::new(filters, events);
+    let mut pds = SimplePds::new(filters, actions, events);
 
     let uris = ReportRequestUris::mock();
     let querier_uri = uris.querier_uris.iter().next().unwrap().clone();
@@ -129,6 +132,8 @@ fn assert_remaining_budgets<FS: FilterStorage<Budget = PureDPBudget>>(
 #[cfg(feature = "experimental")]
 fn test_budget_rollback_on_depletion() -> Result<(), anyhow::Error> {
     // PDS with several filters
+
+    use crate::pds::aliases::SimpleActionStorage;
     let capacities: StaticCapacities<FilterId, PureDPBudget> =
         StaticCapacities::new(
             PureDPBudget::from(1.0),  // PerQuerier
@@ -138,8 +143,9 @@ fn test_budget_rollback_on_depletion() -> Result<(), anyhow::Error> {
         );
 
     let filters = SimpleFilterStorage::new(capacities)?;
+    let actions = SimpleActionStorage::new(None);
     let events = SimpleEventStorage::new();
-    let mut pds = SimplePds::new(filters, events);
+    let mut pds = SimplePds::new(filters, actions, events);
 
     // Create a sample request uris with multiple queriers
     let mut uris = ReportRequestUris::mock();

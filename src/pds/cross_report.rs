@@ -8,6 +8,7 @@ use super::{
     quotas::{FilterId, PdsFilterStatus},
 };
 use crate::{
+    actions::traits::ActionStorage,
     budget::{
         pure_dp_filter::PureDPBudget,
         traits::{FilterStatus, FilterStorage},
@@ -18,7 +19,7 @@ use crate::{
         traits::{Event as _, Uri},
     },
     mechanisms::NoiseScale,
-    pds::core::PrivateDataServiceCore,
+    pds::core::{DropEpochReason, PrivateDataServiceCore},
     queries::{
         histogram::HistogramRequest,
         ppa_histogram::{
@@ -27,7 +28,7 @@ use crate::{
         },
         traits::EpochReportRequest,
     },
-    util::hashmap::{HashMap, HashSet},
+    util::hashmap::HashSet,
 };
 
 /// The attribution object that can be used to compute distinct
@@ -50,11 +51,12 @@ pub struct AttributionObject<Q: HistogramRequest> {
     pub already_requested_buckets: RequestedBuckets<Q::BucketKey>,
 }
 
-impl<U, FS, ERR> PrivateDataServiceCore<PpaHistogramRequest<U>, FS, ERR>
+impl<U, FS, AS, ERR> PrivateDataServiceCore<PpaHistogramRequest<U>, FS, AS, ERR>
 where
     U: Uri,
     FS: FilterStorage<FilterId = FilterId<PpaEpochId, U>, Budget = PureDPBudget>,
-    ERR: From<FS::Error>,
+    AS: ActionStorage<EpochId = PpaEpochId, Uri = U>,
+    ERR: From<FS::Error> + From<AS::Error>,
 {
     /// Attributes conversion value to events and deduct privacy loss from
     /// global filter and quotas. Creates an `AttributionObject` that
@@ -90,7 +92,7 @@ where
                 .source_uris
                 .iter()
                 .map(|source_uri| (source_uri.clone(), individual_privacy_loss))
-                .collect::<HashMap<_, _>>();
+                .collect::<Vec<_>>();
 
             // Try to consume budget from current epoch, drop events if OOB.
             // Two phase commit.
@@ -102,12 +104,8 @@ where
             );
 
             // Do not consume per-querier, that is done in get_report().
-            for querier_uri in &uris.querier_uris {
-                filters_to_consume.remove(&FilterId::PerQuerier(
-                    epoch_id,
-                    querier_uri.clone(),
-                ));
-            }
+            filters_to_consume
+                .retain(|(fid, _)| !matches!(fid, FilterId::PerQuerier(_, _)));
 
             // Phase 1: dry run.
             let check_status = self.deduct_budget(
@@ -152,7 +150,7 @@ where
             event_values,
             events: relevant_events,
             already_requested_buckets: RequestedBuckets::SpecificBuckets(
-                HashSet::new(),
+                HashSet::default(),
             ),
         };
 
@@ -232,7 +230,7 @@ impl<U: Uri> AttributionObject<PpaHistogramRequest<U>> {
             .request
             .map_events_to_buckets(filtered_event_values.clone());
 
-        let mut oob_filters = vec![];
+        let mut drop_epoch_reasons = vec![];
         let mut events_to_drop = HashSet::new();
         for &epoch_id in &requested_epochs {
             let epoch_relevant_events = self.events.for_epoch(&epoch_id);
@@ -255,7 +253,8 @@ impl<U: Uri> AttributionObject<PpaHistogramRequest<U>> {
                 events_to_drop.extend(epoch_relevant_events.iter());
 
                 // Keep track of dropped filters
-                oob_filters.push(filter_id);
+                drop_epoch_reasons
+                    .push(DropEpochReason::OutOfBudget(vec![filter_id]));
             }
         }
 
@@ -272,7 +271,7 @@ impl<U: Uri> AttributionObject<PpaHistogramRequest<U>> {
         let report = PdsReport {
             filtered_report,
             unfiltered_report,
-            oob_filters,
+            drop_epoch_reasons,
         };
         Ok(report)
     }
@@ -284,7 +283,7 @@ mod tests {
     use crate::{
         events::{ppa_event::PpaEvent, traits::EventUris, uri_set::UriSet},
         pds::{
-            aliases::{PpaFilterStorage, PpaPdsCore},
+            aliases::{PpaActionStorage, PpaFilterStorage, PpaPdsCore},
             quotas::StaticCapacities,
         },
         queries::{
@@ -301,7 +300,8 @@ mod tests {
         // Create PDS with mock capacities
         let capacities = StaticCapacities::mock();
         let filters = PpaFilterStorage::new(capacities.clone())?;
-        let mut pds = PpaPdsCore::<_>::new(filters);
+        let actions = PpaActionStorage::new(None);
+        let mut pds = PpaPdsCore::<_>::new(filters, actions);
 
         // Create test URIs
         let source_uri = "blog.example.com".to_string();
@@ -327,27 +327,31 @@ mod tests {
             querier_uris: querier_uris.clone(),
         };
 
+        let event_template = PpaEvent {
+            id: 0,
+            timestamp: 0,
+            epoch_number: 1,
+            histogram_index: 0,
+            user_action_id: None,
+            uris: event_uris.clone(),
+            filter_data: 1,
+        };
+
         // Register an early event with bucket 1 - this should be overridden by
         // last-touch attribution
         let early_event = PpaEvent {
-            id: 1,
             timestamp: 100,
-            epoch_number: 1,
             histogram_index: 1, // r1.ex bucket
-            uris: event_uris.clone(),
-            filter_data: 1,
+            ..event_template.clone()
         };
 
         // The event that should be attributed (latest timestamp in epoch 1)
         // We'll use a histogram index that's covered by both intermediaries (3)
         let main_event = PpaEvent {
-            id: 2,
-            timestamp: 200, /* Later timestamp so this event is picked by
-                             * last-touch */
-            epoch_number: 1,
+            timestamp: 200,     /* Later timestamp so this event is picked by
+                                 * last-touch */
             histogram_index: 2, // A bucket that will be kept and read by r2.ex
-            uris: event_uris.clone(),
-            filter_data: 1,
+            ..event_template.clone()
         };
 
         let relevant_events =
@@ -363,9 +367,8 @@ mod tests {
         };
 
         let relevant_event_selector = |bucket: u64| PpaRelevantEventSelector {
-            report_request_uris: report_request_uris.clone(),
-            is_matching_event: Box::new(|_: u64| true),
             requested_buckets: vec![bucket].into(),
+            ..PpaRelevantEventSelector::new(report_request_uris.clone())
         };
 
         let request =
@@ -464,23 +467,28 @@ mod tests {
     fn test_cross_epoch_last_touch() -> Result<(), anyhow::Error> {
         let capacities = StaticCapacities::mock();
         let filters = PpaFilterStorage::new(capacities.clone())?;
-        let mut pds = PpaPdsCore::<_>::new(filters);
+        let actions = PpaActionStorage::new(None);
+        let mut pds = PpaPdsCore::<_>::new(filters, actions);
 
-        let event1 = PpaEvent {
-            id: 1,
-            timestamp: 100,
+        let event_template = PpaEvent {
+            id: 0,
+            timestamp: 0,
             epoch_number: 1,
-            histogram_index: 1,
+            histogram_index: 0,
+            user_action_id: None,
             uris: EventUris::mock(),
             filter_data: 1,
         };
+
+        let event1 = PpaEvent {
+            timestamp: 100,
+            epoch_number: 1,
+            ..event_template.clone()
+        };
         let event2 = PpaEvent {
-            id: 2,
             timestamp: 200, // Later timestamp
             epoch_number: 2,
-            histogram_index: 1, // Same bucket as event1
-            uris: EventUris::mock(),
-            filter_data: 1,
+            ..event_template.clone()
         };
 
         // set epoch 2 PerQuerier filter to be OOB
@@ -501,9 +509,8 @@ mod tests {
                 histogram_size: 3,
             },
             PpaRelevantEventSelector {
-                report_request_uris: ReportRequestUris::mock(),
-                is_matching_event: Box::new(|_| true),
                 requested_buckets: vec![1].into(),
+                ..PpaRelevantEventSelector::new(ReportRequestUris::mock())
             },
         )
         .unwrap();
@@ -514,9 +521,8 @@ mod tests {
         let report = attr_object.get_report(
             &querier_uri,
             &PpaRelevantEventSelector {
-                report_request_uris: ReportRequestUris::mock(),
-                is_matching_event: Box::new(|_| true),
                 requested_buckets: RequestedBuckets::AllBuckets,
+                ..PpaRelevantEventSelector::new(ReportRequestUris::mock())
             },
             &mut pds.filter_storage,
         )?;

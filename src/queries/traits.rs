@@ -3,7 +3,8 @@ use std::fmt::Debug;
 use crate::{
     events::{
         relevant_events::RelevantEvents,
-        traits::{EpochId, Event, RelevantEventSelector, Uri}, uri_set::UriSet,
+        traits::{EpochId, Event, RelevantEventSelector, Uri},
+        uri_set::UriSet,
     },
     mechanisms::{NoiseScale, NormType},
 };

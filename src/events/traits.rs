@@ -3,7 +3,7 @@ use std::{
     hash::{Hash, Hasher},
 };
 
-use crate::events::uri_set::UriSet;
+use crate::{actions::traits::ActionId, events::uri_set::UriSet};
 
 /// Marker trait with bounds for epoch identifiers.
 pub trait EpochId: Clone + Copy + Debug + Eq + Hash {}
@@ -41,10 +41,11 @@ impl<U: Uri> Hash for EventUris<U> {
 pub trait Event: Debug + Clone {
     type EpochId: EpochId;
     type Uri: Uri;
+    type ActionId: ActionId;
 
     fn epoch_id(&self) -> Self::EpochId;
-
     fn event_uris(&self) -> &EventUris<Self::Uri>;
+    fn user_action_id(&self) -> Option<Self::ActionId>;
 }
 
 /// Selector that can tag relevant events one by one or in bulk.

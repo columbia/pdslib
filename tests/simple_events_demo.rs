@@ -5,7 +5,10 @@ use pdslib::{
     budget::{pure_dp_filter::PureDPBudget, traits::FilterStorage},
     events::{simple_event::SimpleEvent, traits::EventUris},
     pds::{
-        aliases::{SimpleEventStorage, SimpleFilterStorage, SimplePds},
+        aliases::{
+            SimpleActionStorage, SimpleEventStorage, SimpleFilterStorage,
+            SimplePds,
+        },
         quotas::StaticCapacities,
     },
     queries::{
@@ -28,8 +31,9 @@ fn main() -> Result<(), anyhow::Error> {
         PureDPBudget::from(8.0),
     );
     let filters = SimpleFilterStorage::new(capacities)?;
+    let actions = SimpleActionStorage::new(None);
 
-    let mut pds = SimplePds::new(filters, events);
+    let mut pds = SimplePds::new(filters, actions, events);
 
     let sample_event_uris = EventUris::mock();
     let sample_report_uris = ReportRequestUris {
@@ -77,7 +81,7 @@ fn main() -> Result<(), anyhow::Error> {
         is_relevant_event: always_relevant_event_selector,
         report_uris: sample_report_uris.clone(),
     };
-    let report = pds.compute_report(&report_request)?;
+    let report = pds.compute_report(&report_request, None)?;
     let bucket = Some((event.event_key, 3.0));
     assert_eq!(report.filtered_report.bin_value, bucket);
 
@@ -87,17 +91,15 @@ fn main() -> Result<(), anyhow::Error> {
     let report_request2 = SimpleLastTouchHistogramRequest {
         epoch_start: 1,
         epoch_end: 1, //test restricting the end epoch
-        report_global_sensitivity: 0.1, /* Even 0.1 should be enough to go
-                       * over the
-                       * limit as the current budget left
-                       * for
-                       * epoch 1 is 0. */
+        // Even 0.1 should be enough to go over the limit as the current budget
+        // left for epoch 1 is 0.
+        report_global_sensitivity: 0.1,
         query_global_sensitivity: 5.0,
         requested_epsilon: 5.0,
         is_relevant_event: always_relevant_event_selector,
         report_uris: sample_report_uris.clone(),
     };
-    let report2 = pds.compute_report(&report_request2)?;
+    let report2 = pds.compute_report(&report_request2, None)?;
     // Allocated budget for epoch 1 is 3.0, but 3.0 has already been consumed in
     // the last request, so the budget is depleted. Now, the null report should
     // be returned for this additional query.
@@ -112,7 +114,7 @@ fn main() -> Result<(), anyhow::Error> {
         is_relevant_event: always_relevant_event_selector,
         report_uris: sample_report_uris.clone(),
     };
-    let report2 = pds.compute_report(&report_request2)?;
+    let report2 = pds.compute_report(&report_request2, None)?;
     let bucket2 = Some((event2.event_key, 3.0));
     assert_eq!(report2.filtered_report.bin_value, bucket2);
 
@@ -126,7 +128,7 @@ fn main() -> Result<(), anyhow::Error> {
         is_relevant_event: always_relevant_event_selector,
         report_uris: sample_report_uris.clone(),
     };
-    let report3_empty = pds.compute_report(&report_request3_empty)?;
+    let report3_empty = pds.compute_report(&report_request3_empty, None)?;
     assert_eq!(report3_empty.filtered_report.bin_value, None);
 
     // Test restricting report_global_sensitivity
@@ -141,7 +143,7 @@ fn main() -> Result<(), anyhow::Error> {
         report_uris: sample_report_uris.clone(),
     };
     let report3_over_budget =
-        pds.compute_report(&report_request3_over_budget)?;
+        pds.compute_report(&report_request3_over_budget, None)?;
     assert_eq!(report3_over_budget.filtered_report.bin_value, None);
 
     // This tests the case where we meet the first event in epoch 3, below the
@@ -155,7 +157,7 @@ fn main() -> Result<(), anyhow::Error> {
         is_relevant_event: always_relevant_event_selector,
         report_uris: sample_report_uris.clone(),
     };
-    let report3 = pds.compute_report(&report_request3)?;
+    let report3 = pds.compute_report(&report_request3, None)?;
     let bucket3 = Some((event3.event_key, 3.0));
     assert_eq!(report3.filtered_report.bin_value, bucket3);
 
@@ -171,7 +173,7 @@ fn main() -> Result<(), anyhow::Error> {
         },
         report_uris: sample_report_uris.clone(),
     };
-    let report4 = pds.compute_report(&report_request4)?;
+    let report4 = pds.compute_report(&report_request4, None)?;
     let bucket4: Option<(u64, f64)> = None;
     assert_eq!(report4.filtered_report.bin_value, bucket4);
 

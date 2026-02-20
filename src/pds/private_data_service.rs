@@ -5,14 +5,18 @@ use log::debug;
 
 use super::{core::PrivateDataServiceCore, quotas::FilterId};
 use crate::{
+    actions::traits::ActionStorage,
     budget::{pure_dp_filter::PureDPBudget, traits::FilterStorage},
-    events::{relevant_events::RelevantEvents, traits::EventStorage},
+    events::{
+        relevant_events::RelevantEvents,
+        traits::{Event, EventStorage},
+    },
+    pds::core::DropEpochReason,
     queries::traits::EpochReportRequest,
 };
 #[cfg(feature = "experimental")]
 use crate::{
     pds::quotas::PdsFilterStatus, queries::traits::PassivePrivacyLossRequest,
-    util::hashmap::HashMap,
 };
 
 /// Epoch-based private data service, using generic filter
@@ -20,13 +24,14 @@ use crate::{
 pub struct PrivateDataService<
     Q: EpochReportRequest,
     FS: FilterStorage<
-        Budget = PureDPBudget,
-        FilterId = FilterId<Q::EpochId, Q::Uri>,
-    >,
+            Budget = PureDPBudget,
+            FilterId = FilterId<Q::EpochId, Q::Uri>,
+        >,
+    AS: ActionStorage<EpochId = Q::EpochId, Uri = Q::Uri>,
     ES: EventStorage<Event = Q::Event>,
-    ERR: From<FS::Error> + From<ES::Error>,
+    ERR: From<FS::Error> + From<AS::Error> + From<ES::Error>,
 > {
-    pub core: PrivateDataServiceCore<Q, FS, ERR>,
+    pub core: PrivateDataServiceCore<Q, FS, AS, ERR>,
 
     /// Event storage interface.
     pub event_storage: ES,
@@ -38,9 +43,9 @@ pub struct PdsReport<Q: EpochReportRequest> {
     pub filtered_report: Q::Report,
     pub unfiltered_report: Q::Report,
 
-    /// Store a list of the filter IDs that were out-of-budget in the atomic
-    /// check for any epoch in the attribution window.
-    pub oob_filters: Vec<FilterId<Q::EpochId, Q::Uri>>,
+    /// Store a list of reasons for which all the events in an epoch were
+    /// dropped. This can include out-of-budget filters or the count-quota.
+    pub drop_epoch_reasons: Vec<DropEpochReason<FilterId<Q::EpochId, Q::Uri>>>,
 }
 
 /// Default implementation for a null report
@@ -49,25 +54,34 @@ impl<Q: EpochReportRequest> Default for PdsReport<Q> {
         Self {
             filtered_report: Q::Report::default(),
             unfiltered_report: Q::Report::default(),
-            oob_filters: Vec::new(),
+            drop_epoch_reasons: Vec::new(),
         }
     }
 }
 
 /// API for the epoch-based PDS.
-impl<Q, FS, ES, ERR> PrivateDataService<Q, FS, ES, ERR>
+impl<Q, FS, AS, ES, ERR> PrivateDataService<Q, FS, AS, ES, ERR>
 where
     Q: EpochReportRequest<Report: Clone>,
     FS: FilterStorage<
-        Budget = PureDPBudget,
-        FilterId = FilterId<Q::EpochId, Q::Uri>,
-    >,
+            Budget = PureDPBudget,
+            FilterId = FilterId<Q::EpochId, Q::Uri>,
+        >,
+    AS: ActionStorage<
+            EpochId = Q::EpochId,
+            Uri = Q::Uri,
+            ActionId = <Q::Event as Event>::ActionId,
+        >,
     ES: EventStorage<Event = Q::Event>,
-    ERR: From<FS::Error> + From<ES::Error>,
+    ERR: From<FS::Error> + From<AS::Error> + From<ES::Error>,
 {
-    pub fn new(filter_storage: FS, event_storage: ES) -> Self {
+    pub fn new(
+        filter_storage: FS,
+        action_storage: AS,
+        event_storage: ES,
+    ) -> Self {
         Self {
-            core: PrivateDataServiceCore::new(filter_storage),
+            core: PrivateDataServiceCore::new(filter_storage, action_storage),
             event_storage,
         }
     }
@@ -75,12 +89,34 @@ where
     /// Registers a new event.
     pub fn register_event(&mut self, event: Q::Event) -> Result<(), ERR> {
         debug!("Registering event {event:?}");
+
+        if let Some(aid) = event.user_action_id() {
+            let source_uri = &event.event_uris().source_uri;
+
+            let allowed = self.core.action_storage.try_record_site(
+                aid,
+                event.epoch_id(),
+                source_uri,
+            )?;
+
+            if !allowed {
+                debug!(
+                    "Impression quota exceeded for action {aid:?}, dropping event."
+                );
+                return Ok(());
+            }
+        }
+
         self.event_storage.add_event(event)?;
         Ok(())
     }
 
     /// Computes a report for the given report request.
-    pub fn compute_report(&mut self, request: &Q) -> Result<PdsReport<Q>, ERR> {
+    pub fn compute_report(
+        &mut self,
+        request: &Q,
+        action_id: Option<AS::ActionId>,
+    ) -> Result<PdsReport<Q>, ERR> {
         let relevant_event_selector = request.relevant_event_selector();
         let relevant_events = RelevantEvents::from_event_storage(
             &mut self.event_storage,
@@ -88,7 +124,8 @@ where
             relevant_event_selector,
         )?;
 
-        self.core.compute_report(request, relevant_events)
+        self.core
+            .compute_report(request, relevant_events, action_id)
     }
 
     /// [Experimental] Accounts for passive privacy loss. Can fail if the
@@ -103,7 +140,7 @@ where
         &mut self,
         request: PassivePrivacyLossRequest<Q::EpochId, Q::Uri, PureDPBudget>,
     ) -> Result<PdsFilterStatus<FilterId<Q::EpochId, Q::Uri>>, ERR> {
-        let source_losses = HashMap::new(); // Dummy.
+        let source_losses = vec![]; // Dummy.
 
         // For each epoch, try to consume the privacy budget.
         for epoch_id in request.epoch_ids {
@@ -130,7 +167,8 @@ where
             )?;
 
             assert_eq!(
-                consume_status, PdsFilterStatus::Continue,
+                consume_status,
+                PdsFilterStatus::Continue,
                 "ERR: Phase 2 failed unexpectedly with status {consume_status:?} after Phase 1 succeeded",
             );
 

@@ -16,6 +16,7 @@ pub struct SimpleEvent<U: Uri = String> {
 impl<U: Uri> Event for SimpleEvent<U> {
     type EpochId = u64;
     type Uri = U;
+    type ActionId = ();
 
     fn epoch_id(&self) -> Self::EpochId {
         self.epoch_number
@@ -23,6 +24,10 @@ impl<U: Uri> Event for SimpleEvent<U> {
 
     fn event_uris(&self) -> &EventUris<U> {
         &self.uris
+    }
+
+    fn user_action_id(&self) -> Option<Self::ActionId> {
+        None
     }
 }
 

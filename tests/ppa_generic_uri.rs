@@ -7,7 +7,10 @@ use pdslib::{
         hashmap_event_storage::HashMapEventStorage, ppa_event::PpaEvent,
         traits::EventUris,
     },
-    pds::{private_data_service::PrivateDataService, quotas::StaticCapacities},
+    pds::{
+        aliases::PpaActionStorage, private_data_service::PrivateDataService,
+        quotas::StaticCapacities,
+    },
     queries::{
         ppa_histogram::{
             PpaHistogramConfig, PpaHistogramRequest, PpaRelevantEventSelector,
@@ -37,9 +40,11 @@ fn main() -> Result<(), anyhow::Error> {
     let capacities = StaticCapacities::mock();
     let filters: HashMapFilterStorage<PureDPBudgetFilter, _> =
         HashMapFilterStorage::new(capacities)?;
+    let actions = PpaActionStorage::new(None);
 
-    let mut pds =
-        PrivateDataService::<_, _, _, anyhow::Error>::new(filters, events);
+    let mut pds = PrivateDataService::<_, _, _, _, anyhow::Error>::new(
+        filters, actions, events,
+    );
 
     let event_uris = EventUris {
         source_uri: CustomUri {},
@@ -57,14 +62,15 @@ fn main() -> Result<(), anyhow::Error> {
         timestamp: 1,
         epoch_number: 1,
         histogram_index: 1,
+        user_action_id: None,
         uris: event_uris.clone(),
         filter_data: 1,
     };
 
     let always_relevant_event_selector = TestRelevantEventSelector {
-        report_request_uris: report_uris.clone(),
         is_matching_event: Box::new(|_| true),
         requested_buckets: RequestedBuckets::AllBuckets,
+        ..TestRelevantEventSelector::new(report_uris.clone())
     };
 
     pds.register_event(event.clone())?;
@@ -80,7 +86,7 @@ fn main() -> Result<(), anyhow::Error> {
     let report_request =
         TestHistogramRequest::new(&config, always_relevant_event_selector)
             .unwrap();
-    let _report = pds.compute_report(&report_request)?;
+    let _report = pds.compute_report(&report_request, None)?;
 
     Ok(())
 }

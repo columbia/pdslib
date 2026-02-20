@@ -8,26 +8,30 @@ use super::{
     quotas::{FilterId, PdsFilterStatus},
 };
 use crate::{
+    actions::traits::ActionStorage,
     budget::{
         pure_dp_filter::PureDPBudget,
         traits::{FilterStatus, FilterStorage},
     },
     events::relevant_events::RelevantEvents,
     queries::traits::{EpochReportRequest, Report, ReportRequestUris},
-    util::hashmap::HashMap,
 };
 
-pub struct PrivateDataServiceCore<Q, FS, ERR>
+pub struct PrivateDataServiceCore<Q, FS, AS, ERR>
 where
     Q: EpochReportRequest,
     FS: FilterStorage<
-        FilterId = FilterId<Q::EpochId, Q::Uri>,
-        Budget = PureDPBudget,
-    >,
-    ERR: From<FS::Error>,
+            FilterId = FilterId<Q::EpochId, Q::Uri>,
+            Budget = PureDPBudget,
+        >,
+    AS: ActionStorage<EpochId = Q::EpochId, Uri = Q::Uri>,
+    ERR: From<FS::Error> + From<AS::Error>,
 {
     /// Filter storage interface.
     pub filter_storage: FS,
+
+    /// Action storage interface.
+    pub action_storage: AS,
 
     /// This PhantomData serves two purposes:
     /// 1. It Defines the Q and ERR generics on the struct instead of on each
@@ -37,31 +41,34 @@ where
     _phantom: PhantomData<Cell<(Q, ERR)>>,
 }
 
-impl<R, Q, FS, ERR> PrivateDataServiceCore<Q, FS, ERR>
+impl<R, Q, FS, AS, ERR> PrivateDataServiceCore<Q, FS, AS, ERR>
 where
     R: Report + Clone,
     Q: EpochReportRequest<Report = R>,
     FS: FilterStorage<
-        FilterId = FilterId<Q::EpochId, Q::Uri>,
-        Budget = PureDPBudget,
-    >,
-    ERR: From<FS::Error>,
+            FilterId = FilterId<Q::EpochId, Q::Uri>,
+            Budget = PureDPBudget,
+        >,
+    AS: ActionStorage<EpochId = Q::EpochId, Uri = Q::Uri>,
+    ERR: From<FS::Error> + From<AS::Error>,
 {
-    pub fn new(filter_storage: FS) -> Self {
+    pub fn new(filter_storage: FS, action_storage: AS) -> Self {
         Self {
             filter_storage,
+            action_storage,
             _phantom: PhantomData,
         }
     }
 
     /// Computes a report for the given report request.
-    /// This function follows `compute_attribution_report` from the Cookie
-    /// Monster Algorithm (https://arxiv.org/pdf/2405.16719, Code Listing 1)
+    /// This function follows Algorithm 2 from the Big Bird paper
+    /// (https://arxiv.org/abs/2506.05290, Alg. 2)
     pub fn compute_report(
         &mut self,
         request: &Q,
         // mutable, as we will drop out-of-budget epochs from it
         mut relevant_events: RelevantEvents<Q::Event>,
+        action_id: Option<AS::ActionId>,
     ) -> Result<PdsReport<Q>, ERR> {
         debug!("Computing report for request {request:?}");
 
@@ -79,8 +86,28 @@ where
         // Compute the raw report, useful for debugging and accounting.
         let unfiltered_report = request.compute_report(&relevant_events);
 
+        let mut drop_epoch_reasons: Vec<DropEpochReason<_>> = vec![];
+
+        // First, enforce action quotas
+        if let Some(aid) = action_id {
+            let conv_site = &uris.trigger_uri;
+
+            for &epoch_id in &epochs {
+                let allowed = self
+                    .action_storage
+                    .try_record_site(aid, epoch_id, conv_site)?;
+
+                if !allowed {
+                    // Oscar Paper: "If quota-count is exceeded in epoch e...
+                    // nullifies only epoch e's data"
+                    relevant_events.drop_epoch(&epoch_id);
+                    drop_epoch_reasons
+                        .push(DropEpochReason::CountQuotaExceeded);
+                }
+            }
+        }
+
         // Browse epochs in the attribution window
-        let mut oob_filters = vec![];
         for epoch_id in epochs {
             // Step 1. Get relevant events for the current epoch `epoch_id`.
             let epoch_relevant_events = relevant_events.for_epoch(&epoch_id);
@@ -125,17 +152,20 @@ where
                     )?;
 
                     if consume_status != PdsFilterStatus::Continue {
-                        panic!("ERR: Phase 2 failed unexpectedly wtih status {consume_status:?} after Phase 1 succeeded");
+                        panic!(
+                            "ERR: Phase 2 failed unexpectedly wtih status {consume_status:?} after Phase 1 succeeded"
+                        );
                     }
                 }
 
-                PdsFilterStatus::OutOfBudget(mut filters) => {
+                PdsFilterStatus::OutOfBudget(filters) => {
                     // Not enough budget, drop events without any filter
                     // consumption
                     relevant_events.drop_epoch(&epoch_id);
 
                     // Keep track of why we dropped this epoch
-                    oob_filters.append(&mut filters);
+                    drop_epoch_reasons
+                        .push(DropEpochReason::OutOfBudget(filters));
                 }
             }
         }
@@ -152,7 +182,7 @@ where
         let report_with_metadata = PdsReport {
             filtered_report,
             unfiltered_report,
-            oob_filters,
+            drop_epoch_reasons,
         };
         #[cfg(not(feature = "experimental"))]
         let report_with_metadata = PdsReport {
@@ -165,13 +195,14 @@ where
 
     /// Calculate how much privacy to deduct from which filters,
     /// for the given epoch and losses.
+    #[allow(clippy::type_complexity)]
     pub fn filters_to_consume<'a>(
         &self,
         epoch_id: Q::EpochId,
         loss: &'a FS::Budget,
-        source_losses: &'a HashMap<Q::Uri, FS::Budget>,
+        source_losses: &'a Vec<(Q::Uri, FS::Budget)>,
         uris: &ReportRequestUris<Q::Uri>,
-    ) -> HashMap<FilterId<Q::EpochId, Q::Uri>, &'a PureDPBudget> {
+    ) -> Vec<(FilterId<Q::EpochId, Q::Uri>, &'a PureDPBudget)> {
         // Build the filter IDs for PerQuerier, Global and TriggerQuota
         let mut device_epoch_filter_ids = Vec::new();
         for query_uri in &uris.querier_uris {
@@ -182,18 +213,21 @@ where
             .push(FilterId::TriggerQuota(epoch_id, uris.trigger_uri.clone()));
         device_epoch_filter_ids.push(FilterId::Global(epoch_id));
 
+        let mut filters_to_consume = Vec::with_capacity(
+            device_epoch_filter_ids.len() + source_losses.len(),
+        );
+
         // PerQuerier, Global and TriggerQuota all have the same device-epoch
         // level loss
-        let mut filters_to_consume = HashMap::new();
         for filter_id in device_epoch_filter_ids {
-            filters_to_consume.insert(filter_id, loss);
+            filters_to_consume.push((filter_id, loss));
         }
 
         // Add the SourceQuota filters with their own device-epoch-source level
         // loss
         for (source, loss) in source_losses {
             let fid = FilterId::SourceQuota(epoch_id, source.clone());
-            filters_to_consume.insert(fid, loss);
+            filters_to_consume.push((fid, loss));
         }
 
         filters_to_consume
@@ -203,10 +237,7 @@ where
     #[allow(clippy::type_complexity)]
     pub fn deduct_budget(
         &mut self,
-        filters_to_consume: &HashMap<
-            FilterId<Q::EpochId, Q::Uri>,
-            &PureDPBudget,
-        >,
+        filters_to_consume: &Vec<(FilterId<Q::EpochId, Q::Uri>, &PureDPBudget)>,
         dry_run: bool,
     ) -> Result<PdsFilterStatus<FilterId<Q::EpochId, Q::Uri>>, ERR> {
         // Try to consume the privacy loss from the filters
@@ -229,4 +260,10 @@ where
         }
         Ok(PdsFilterStatus::Continue)
     }
+}
+
+#[derive(Debug)]
+pub enum DropEpochReason<FID> {
+    CountQuotaExceeded,
+    OutOfBudget(Vec<FID>),
 }

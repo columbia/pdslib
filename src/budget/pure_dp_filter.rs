@@ -67,7 +67,10 @@ impl Filter<PureDPBudget> for PureDPBudgetFilter {
         &mut self,
         budget: &PureDPBudget,
     ) -> Result<FilterStatus, Self::Error> {
-        debug!("The budget consumed in this epoch is {:?}, budget capacity for this epoch is  {:?}, and we need to consume this much budget {:?}", self.consumed, self.capacity, budget);
+        debug!(
+            "The budget consumed in this epoch is {:?}, budget capacity for this epoch is  {:?}, and we need to consume this much budget {:?}",
+            self.consumed, self.capacity, budget
+        );
 
         let status = self.can_consume(budget)?;
         if status == FilterStatus::Continue {

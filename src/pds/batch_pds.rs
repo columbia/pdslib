@@ -17,13 +17,14 @@ use super::{
     quotas::{PdsFilterStatus, StaticCapacities},
 };
 use crate::{
+    actions::traits::ActionStorage,
     budget::{
         pure_dp_filter::PureDPBudget,
         traits::{Filter, FilterStatus, FilterStorage, ReleaseFilter},
     },
-    events::traits::EventStorage,
+    events::traits::{Event, EventStorage},
     mechanisms::NoiseScale,
-    pds::quotas::FilterId,
+    pds::{core::DropEpochReason, quotas::FilterId},
     queries::traits::EpochReportRequest,
     util::hashmap::{HashMap, HashSet},
 };
@@ -68,18 +69,23 @@ impl<Q: EpochReportRequest> BatchedRequest<Q> {
 }
 
 /// [Experimental] Batch wrapper for private data service.
-pub struct BatchPrivateDataService<Q, FS, ES, ERR>
+pub struct BatchPrivateDataService<Q, FS, AS, ES, ERR>
 where
     Q: EpochReportRequest,
     Q::Report: Clone,
     FS: FilterStorage<
-        Budget = PureDPBudget,
-        FilterId = FilterIdQ<Q>,
-        Capacities = StaticCapacities<FilterIdQ<Q>, PureDPBudget>,
-    >,
+            Budget = PureDPBudget,
+            FilterId = FilterIdQ<Q>,
+            Capacities = StaticCapacities<FilterIdQ<Q>, PureDPBudget>,
+        >,
     FS::Filter: ReleaseFilter<FS::Budget, Error = FS::Error>,
+    AS: ActionStorage<
+            EpochId = Q::EpochId,
+            Uri = Q::Uri,
+            ActionId = <Q::Event as Event>::ActionId,
+        >,
     ES: EventStorage<Event = Q::Event>,
-    ERR: From<FS::Error> + From<ES::Error>,
+    ERR: From<FS::Error> + From<AS::Error> + From<ES::Error>,
 {
     /// Current scheduling interval.
     /// Used to release budget for the Global filter.
@@ -113,7 +119,7 @@ where
 
     /// Base private data service.
     /// Filters need to have functionality to unlock budget.
-    pub pds: PrivateDataService<Q, FS, ES, ERR>,
+    pub pds: PrivateDataService<Q, FS, AS, ES, ERR>,
 }
 
 /// Report for a batched request. Guaranteed to be returned after the number of
@@ -130,22 +136,27 @@ pub struct BatchedReport<Q: EpochReportRequest> {
 #[allow(type_alias_bounds)]
 type FilterIdQ<Q: EpochReportRequest> = FilterId<Q::EpochId, Q::Uri>;
 
-impl<Q, FS, ES, ERR> BatchPrivateDataService<Q, FS, ES, ERR>
+impl<Q, FS, AS, ES, ERR> BatchPrivateDataService<Q, FS, AS, ES, ERR>
 where
     Q: EpochReportRequest,
     Q::Report: Clone,
     FS: FilterStorage<
-        Budget = PureDPBudget,
-        FilterId = FilterIdQ<Q>,
-        Capacities = StaticCapacities<FilterIdQ<Q>, PureDPBudget>,
-    >,
+            Budget = PureDPBudget,
+            FilterId = FilterIdQ<Q>,
+            Capacities = StaticCapacities<FilterIdQ<Q>, PureDPBudget>,
+        >,
     FS::Filter: ReleaseFilter<FS::Budget, Error = FS::Error>,
+    AS: ActionStorage<
+            EpochId = Q::EpochId,
+            Uri = Q::Uri,
+            ActionId = <Q::Event as Event>::ActionId,
+        >,
     ES: EventStorage<Event = Q::Event>,
-    ERR: From<FS::Error> + From<ES::Error>,
+    ERR: From<FS::Error> + From<AS::Error> + From<ES::Error>,
 {
     /// Create a new batch private data service.
     pub fn new(
-        pds: PrivateDataService<Q, FS, ES, ERR>,
+        pds: PrivateDataService<Q, FS, AS, ES, ERR>,
         n_releases: usize,
     ) -> Result<Self, ERR> {
         let capacities = pds.core.filter_storage.capacities().clone();
@@ -172,9 +183,9 @@ where
             current_scheduling_interval: 0,
             new_pending_requests: vec![],
             batched_requests: vec![],
-            delayed_reports: HashMap::new(),
+            delayed_reports: HashMap::default(),
             epochs: None,
-            sources_per_epoch: HashMap::new(),
+            sources_per_epoch: HashMap::default(),
         })
     }
 
@@ -454,18 +465,29 @@ where
                 self.initialize_filters_for_request(&request.request)?;
 
                 // Compute the actual report. It might be null though.
-                let report = self.pds.compute_report(&request.request)?;
+                let report = self
+                    .pds
+                    .compute_report(&request.request, None /* todo */)?;
 
-                if !report.oob_filters.is_empty() {
-                    for filter_id in report.oob_filters.iter() {
-                        if let FilterId::SourceQuota(_, _) = filter_id {
-                            // SourceQuota should never block a request if we
-                            // have perfect upper
-                            // bounds for the public filters.
-                            panic!(
-                                "Request {} was not allocated: {:?}. Final attempt? {}",
-                                request.request_id, report.oob_filters, allocate_final_attempts
-                            );
+                if !report.drop_epoch_reasons.is_empty() {
+                    for drop_reason in report.drop_epoch_reasons.iter() {
+                        let DropEpochReason::OutOfBudget(filters) = drop_reason
+                        else {
+                            continue;
+                        };
+
+                        for filter_id in filters {
+                            if let FilterId::SourceQuota(_, _) = filter_id {
+                                // SourceQuota should never block a request if
+                                // we have perfect upper bounds for the public
+                                // filters.
+                                panic!(
+                                    "Request {} was not allocated: {:?}. Final attempt? {}",
+                                    request.request_id,
+                                    report.drop_epoch_reasons,
+                                    allocate_final_attempts
+                                );
+                            }
                         }
                     }
                 }
@@ -583,7 +605,8 @@ where
         }
         debug!("Epochs across all requests: {all_epochs:?}");
 
-        let mut budget_per_source: HashMap<Q::Uri, FS::Budget> = HashMap::new();
+        let mut budget_per_source: HashMap<Q::Uri, FS::Budget> =
+            HashMap::default();
         for source in &all_sources {
             let source = (*source).clone();
             let mut source_total_budget: f64 = 0.0;
@@ -676,33 +699,37 @@ where
         // We (mis-)use PDS's filters_to_consume() method to get a list of
         // filters that will be deducted for this request.
         for epoch_id in request.epoch_ids() {
-            let mut source_losses = HashMap::new();
+            let mut source_losses = Vec::with_capacity(uris.source_uris.len());
             for source in &uris.source_uris {
-                source_losses.insert(source.clone(), 0.0);
+                source_losses.push((source.clone(), 0.0));
             }
 
-            let filter_ids = self.pds.core.filters_to_consume(
-                epoch_id,
-                &0.0, // just set to 0, we only care about the filter IDs
-                &source_losses,
-                request.report_uris(),
-            );
-            self.initialize_filters(filter_ids.keys())?;
+            let filter_ids = self
+                .pds
+                .core
+                .filters_to_consume(
+                    epoch_id,
+                    &0.0, // just set to 0, we only care about the filter IDs
+                    &source_losses,
+                    request.report_uris(),
+                )
+                .into_iter()
+                .map(|(fid, _)| fid);
+
+            self.initialize_filters(filter_ids)?;
         }
         Ok(())
     }
 
     /// Given a list of filter IDs, initialize them in the filter storage,
     /// such that non-global filters are unlocked and act as regular filters.
-    fn initialize_filters<'f, FID>(
+    fn initialize_filters<FID>(
         &mut self,
         filters: impl Iterator<Item = FID>,
     ) -> Result<(), ERR>
     where
         // accept both owned and borrowed FilterIDs
-        FID: Borrow<&'f FilterIdQ<Q>> + 'f,
-        Q::EpochId: 'f, // required by borrow checker
-        Q::Uri: 'f,
+        FID: Borrow<FilterIdQ<Q>>,
     {
         for filter_id in filters {
             let filter_id = filter_id.borrow();
@@ -739,6 +766,7 @@ mod tests {
 
     use super::*;
     use crate::{
+        actions::hashmap_action_storage::HashMapActionStorage,
         budget::{
             hashmap_filter_storage::HashMapFilterStorage,
             release_filter::PureDPBudgetReleaseFilter,
@@ -752,7 +780,7 @@ mod tests {
         queries::{
             ppa_histogram::{
                 PpaHistogramConfig, PpaHistogramRequest,
-                PpaRelevantEventSelector, RequestedBuckets,
+                PpaRelevantEventSelector,
             },
             traits::ReportRequestUris,
         },
@@ -792,6 +820,7 @@ mod tests {
             timestamp: 0,
             epoch_number: 1,
             histogram_index: 0,
+            user_action_id: None,
             uris: EventUris::mock(),
             filter_data: 1,
         };
@@ -799,8 +828,14 @@ mod tests {
 
         let filter_storage: HashMapFilterStorage<PureDPBudgetReleaseFilter, _> =
             HashMapFilterStorage::new(capacities)?;
-        let pds: PrivateDataService<_, _, _, anyhow::Error> =
-            PrivateDataService::new(filter_storage, event_storage);
+        let action_storage: HashMapActionStorage<u64, u64, String> =
+            HashMapActionStorage::new(None);
+        let pds: PrivateDataService<_, _, _, _, anyhow::Error> =
+            PrivateDataService::new(
+                filter_storage,
+                action_storage,
+                event_storage,
+            );
         let mut batch_pds = BatchPrivateDataService::new(pds, 2)?;
 
         let mut request_config = PpaHistogramConfig {
@@ -814,11 +849,8 @@ mod tests {
 
         let report_uris = ReportRequestUris::mock();
 
-        let always_relevant_selector = || PpaRelevantEventSelector {
-            report_request_uris: report_uris.clone(),
-            is_matching_event: Box::new(|_: u64| true),
-            requested_buckets: RequestedBuckets::AllBuckets,
-        };
+        let always_relevant_selector =
+            || PpaRelevantEventSelector::new(report_uris.clone());
 
         // Request that will be answered in the first scheduling attempt.
         batch_pds.register_report_request(BatchedRequest::new(
@@ -862,9 +894,9 @@ mod tests {
 
         for report in reports {
             assert!(
-                report.report.oob_filters.is_empty(),
-                "Report should not have any OOB filters. Got: {:?}",
-                report.report.oob_filters
+                report.report.drop_epoch_reasons.is_empty(),
+                "Report should not have any dropped epochs. Got: {:?}",
+                report.report.drop_epoch_reasons
             );
         }
 
@@ -873,9 +905,9 @@ mod tests {
         debug!("Reports again: {reports:?}");
 
         assert!(
-            reports[0].report.oob_filters.is_empty(),
-            "Report should not have any OOB filters. Got: {:?}",
-            reports[0].report.oob_filters
+            reports[0].report.drop_epoch_reasons.is_empty(),
+            "Report should not have any dropped epochs. Got: {:?}",
+            reports[0].report.drop_epoch_reasons
         );
 
         Ok(())
@@ -894,31 +926,34 @@ mod tests {
         }
         let trigger_uris: UriSet<_> = trigger_uris.into();
 
-        // Event relevant to all the shoes websites. Could also register 10
-        // different events, with one querier each.
-        let event1 = PpaEvent {
+        let event_template = PpaEvent {
             id: 1,
             timestamp: 0,
             epoch_number: 1,
             histogram_index: 0,
+            user_action_id: None,
+            uris: EventUris::mock(),
+            filter_data: 1,
+        };
+
+        // Event relevant to all the shoes websites. Could also register 10
+        // different events, with one querier each.
+        let event1 = PpaEvent {
+            user_action_id: None,
             uris: EventUris {
                 source_uri: "news.ex".to_string(),
                 trigger_uris: trigger_uris.clone(),
                 querier_uris: trigger_uris.clone(),
             },
-            filter_data: 1,
+            ..event_template.clone()
         };
         let event2 = PpaEvent {
-            id: 1,
-            timestamp: 0,
-            epoch_number: 1,
-            histogram_index: 0,
             uris: EventUris {
                 source_uri: "blog.ex".to_string(),
                 trigger_uris: ["hats-1.ex".to_string()].into(),
                 querier_uris: ["hats-1.ex".to_string()].into(),
             },
-            filter_data: 1,
+            ..event_template
         };
 
         let event_storage = event_storage_with_events(vec![event1, event2]);
@@ -926,8 +961,14 @@ mod tests {
         // Using a single release here.
         let filter_storage: HashMapFilterStorage<PureDPBudgetReleaseFilter, _> =
             HashMapFilterStorage::new(capacities)?;
-        let pds: PrivateDataService<_, _, _, anyhow::Error> =
-            PrivateDataService::new(filter_storage, event_storage);
+        let action_storage: HashMapActionStorage<u64, u64, String> =
+            HashMapActionStorage::new(None);
+        let pds: PrivateDataService<_, _, _, _, anyhow::Error> =
+            PrivateDataService::new(
+                filter_storage,
+                action_storage,
+                event_storage,
+            );
         let mut batch_pds = BatchPrivateDataService::new(pds, 1)?;
 
         let mut request_config = PpaHistogramConfig {
@@ -939,12 +980,9 @@ mod tests {
             histogram_size: 5,
         };
 
-        let always_valid_selector =
-            |uris: ReportRequestUris<String>| PpaRelevantEventSelector {
-                report_request_uris: uris,
-                is_matching_event: Box::new(|_: u64| true),
-                requested_buckets: RequestedBuckets::AllBuckets,
-            };
+        let always_valid_selector = |uris: ReportRequestUris<String>| {
+            PpaRelevantEventSelector::new(uris)
+        };
 
         // Every single conversion sites gets a conversion.
         for i in 1..=9 {
@@ -1027,9 +1065,9 @@ mod tests {
         // No report should be null
         for report in &reports {
             assert!(
-                report.report.oob_filters.is_empty(),
+                report.report.drop_epoch_reasons.is_empty(),
                 "Report should not have an error cause. Got: {:?}",
-                report.report.oob_filters
+                report.report.drop_epoch_reasons
             );
         }
 
@@ -1069,6 +1107,7 @@ mod tests {
             timestamp: 0,
             epoch_number: 1,
             histogram_index: 0,
+            user_action_id: None,
             uris: EventUris {
                 source_uri: "news.ex".to_string(),
                 trigger_uris: trigger_uris.clone(),
@@ -1089,6 +1128,7 @@ mod tests {
             timestamp: 0,
             epoch_number: 1,
             histogram_index: 0,
+            user_action_id: None,
             uris: EventUris {
                 source_uri: "blog.ex".to_string(),
                 trigger_uris: trigger_uris.clone(),
@@ -1102,8 +1142,14 @@ mod tests {
         // Using a single release here.
         let filter_storage: HashMapFilterStorage<PureDPBudgetReleaseFilter, _> =
             HashMapFilterStorage::new(capacities)?;
-        let pds: PrivateDataService<_, _, _, anyhow::Error> =
-            PrivateDataService::new(filter_storage, event_storage);
+        let action_storage: HashMapActionStorage<u64, u64, String> =
+            HashMapActionStorage::new(None);
+        let pds: PrivateDataService<_, _, _, _, anyhow::Error> =
+            PrivateDataService::new(
+                filter_storage,
+                action_storage,
+                event_storage,
+            );
         let mut batch_pds = BatchPrivateDataService::new(pds, 2)?;
 
         let mut request_config = PpaHistogramConfig {
@@ -1123,7 +1169,7 @@ mod tests {
 
             request_config.requested_epsilon = if i == 3 {
                 0.99 // We want this request to be smaller than the others in
-                     // the tests.
+            // the tests.
             } else {
                 0.99 + 0.0001 * i as f64
             };
@@ -1133,15 +1179,11 @@ mod tests {
                 2, // Space for one more time. Easier to check the batch.
                 PpaHistogramRequest::new(
                     &request_config,
-                    PpaRelevantEventSelector {
-                        report_request_uris: ReportRequestUris {
-                            trigger_uri: shoes_conv.clone(),
-                            source_uris: ["news.ex".to_string()].into(),
-                            querier_uris: [shoes_conv.clone()].into(),
-                        },
-                        is_matching_event: Box::new(|_: u64| true),
-                        requested_buckets: RequestedBuckets::AllBuckets,
-                    },
+                    PpaRelevantEventSelector::new(ReportRequestUris {
+                        trigger_uri: shoes_conv.clone(),
+                        source_uris: ["news.ex".to_string()].into(),
+                        querier_uris: [shoes_conv.clone()].into(),
+                    }),
                 )?,
             ))?;
         }
@@ -1156,15 +1198,11 @@ mod tests {
                 2,
                 PpaHistogramRequest::new(
                     &request_config,
-                    PpaRelevantEventSelector {
-                        report_request_uris: ReportRequestUris {
-                            trigger_uri: hats_conv.clone(),
-                            source_uris: ["blog.ex".to_string()].into(),
-                            querier_uris: [hats_conv.clone()].into(),
-                        },
-                        is_matching_event: Box::new(|_: u64| true),
-                        requested_buckets: RequestedBuckets::AllBuckets,
-                    },
+                    PpaRelevantEventSelector::new(ReportRequestUris {
+                        trigger_uri: hats_conv.clone(),
+                        source_uris: ["blog.ex".to_string()].into(),
+                        querier_uris: [hats_conv.clone()].into(),
+                    }),
                 )?,
             ))?;
         }
@@ -1211,7 +1249,7 @@ mod tests {
         // Only 5 reports should be non-null.
         let mut n_non_null_reports = 0;
         for report in &reports {
-            if report.report.oob_filters.is_empty() {
+            if report.report.drop_epoch_reasons.is_empty() {
                 n_non_null_reports += 1;
             }
         }
